@@ -47,6 +47,10 @@ class Shape():
         self.pos = pos
         self.ori = ori
 
+        # concrete atributes
+        self.cond = NotImplemented
+        self.shape_index = NotImplemented
+
     def collides(self, object):
         raise NotImplementedError
 
@@ -65,21 +69,19 @@ class Shape():
         Arguments : 
             - gridsize (int) : the number of pixels in a unit.
         """
-        raise NotImplementedError
+        size = int(self.size * gridsize)
+        x, y = np.meshgrid(np.arange(2*size), np.arange(2*size))
+        x = (x - size) / size
+        y = (y - size) / size
+        void = np.zeros(4)
+        color = np.concatenate((self.color, 1.))
+        bbox = np.where(self.cond(x, y), void, color)
+        return bbox
 
     def to_vector(self):
         """
         Returns an encoding of the object.
         """
-        raise NotImplementedError
-
-class Square(Object):
-
-    def __init__(self, size, color, pos):
-        super(self, Square).__init__()
-        self.shape_index = 0
-    
-    def to_vector(self):
         vec = np.zeros(SHAPE_NUMBER, dtype=float)
         vec[self.shape_index] = 1.
         return np.concatenate(
@@ -88,21 +90,23 @@ class Square(Object):
             np.array(pos),
             np.array(ori), 0)
 
-    def to_pixels(self, gridsize):
-        size = int(self.size * gridsize)
-        x, y = np.meshgrid(np.arange(2*size), np.arange(2*size))
-        x = (x - size) / size
-        y = (y - size) / size
-        void = np.zeros(4)
-        color = np.concatenate((self.color, 1.))
-        cond = lambda x, y : np.less_equal(np.maximum(
-            abs(x),
-            abs(y),
-            1/np.sqrt(2)), 1)
-        bbox = np.where(cond(x, y), void, color)
-        return bbox
+class Square(Object):
+
+    def __init__(self, size, color, pos):
+        super(self, Square).__init__()
+        self.shape_index = 0
+        self.cond = lambda x, y : np.less_equal(
+            np.maximum(abs(x), abs(y)),
+            1/np.sqrt(2))
 
 class Circle(Object):
+
+    def __init__(self, size, color, pos):
+        super(self, Square).__init__()
+        self.shape_index = 1
+        self.cond = lambda x, y : np.less_equal(x**2 + y**2, 1)
+
+class Triangle(Object):
 
     def __init__(self, size, color, pos):
         super(self, Square).__init__()
