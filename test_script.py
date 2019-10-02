@@ -2,10 +2,11 @@ import numpy as np
 
 from env import *
 
-theta = np.pi / 6
+theta = np.pi / 4
+# theta = 0
 
 env = Env(16, 20)
-s = Square(1., np.array([255., 255., 255.]), np.array([2., 5.]), theta)
+s = Square(2., np.array([255., 255., 255.]), np.array([2., 5.]), theta)
 t = Triangle(2., np.array([155., 255., 155.]), np.array([10., 5.]), - theta)
 c = Circle(0.5, np.array([055., 055., 155.]), np.array([3., 10.]), theta)
 env.add_object(s)
@@ -14,3 +15,7 @@ env.add_object(t)
 print('added triangle')
 env.add_object(c)
 print('added circle')
+
+state = env.to_state_list()
+play = Playground(16, 20, state)
+play.interactive_run()

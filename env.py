@@ -1,9 +1,20 @@
 import os.path as op
+import copy
 
 import numpy as np
 import cv2
 
+# for interactive testing :
+import pygame
+
 SHAPE_NUMBER = 3
+
+class CollisionError(Exception):
+    """
+    Raised when an action is performed that collides two shapes in the space.
+    """
+    def __init__(self, message):
+        self.message = message
 
 class AbstractEnv():
 
@@ -31,7 +42,7 @@ class Shape():
 
     def __init__(self, size, color, pos, ori):
         """
-        An abstract shape representation. A shape has the following attributes :
+        An abstract shape representation. A shape has the following attributes:
 
             - size (float) : the radius of the shape. The radius is defined as
                 the distance between the center of the shape and the point
@@ -89,10 +100,11 @@ class Shape():
         vec = np.zeros(SHAPE_NUMBER, dtype=float)
         vec[self.shape_index] = 1.
         return np.concatenate(
-            vec,
-            np.array(color),
-            np.array(pos),
-            np.array(ori), 0)
+            (vec,
+            np.array([self.size]),
+            np.array(self.color),
+            np.array(self.pos),
+            np.array([self.ori])), 0)
 
 class Square(Shape):
 
@@ -107,8 +119,8 @@ class Square(Shape):
 
     def cond_fn(self, x, y):
         theta = self.ori
-        x_ = x * np.cos(theta) + y * np.sin(theta)
-        y_ = - x * np.sin(theta) + y * np.cos(theta)
+        x_ = x * np.cos(theta) - y * np.sin(theta)
+        y_ = x * np.sin(theta) + y * np.cos(theta)
         c =  np.less_equal(
             np.maximum(abs(x_), abs(y_)),
             1/np.sqrt(2))
@@ -138,8 +150,8 @@ class Triangle(Shape):
 
     def cond_fn(self, x, y):
         theta = self.ori
-        x_ = x * np.cos(theta) + y * np.sin(theta)
-        y_ = - x * np.sin(theta) + y * np.cos(theta)
+        x_ = x * np.cos(theta) - y * np.sin(theta)
+        y_ = x * np.sin(theta) + y * np.cos(theta)
         a = np.sqrt(3)
         b = 1.
         c = np.greater_equal(y_, -1/2) * \
@@ -186,12 +198,14 @@ class Env(AbstractEnv):
         x2, y2 = pos2
         return np.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
-    def add_object(self, obj):
+    def add_object(self, obj, idx=None):
         """
         Adds a Shape to the scene.
 
         Arguments :
             - obj (Shape) : the object to add
+            - idx (int) : the index where to insert the object. This is used to
+                keep the order of objects in actions.
 
         Raises ValueError if the given object collides with any other object
         or if it exceeds the environment range.
@@ -203,20 +217,39 @@ class Env(AbstractEnv):
         ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
         # first perform check on env boundaries
         if (ox < 0 or oy < 0 or ox + s > self.L or oy + s > self.L):
-            raise ValueError('New shape out of environment range')
+            raise CollisionError('New shape out of environment range')
         mat[ox:ox + s, oy:oy + s] += obj_mat
         # then collision checks with environment and shape masks
         for obj2 in self.objects:
             if self.l2_norm(obj.pos, obj2.pos) <= obj.size + obj2.size:
                 obj2_mat = obj2.to_pixels(self.gridsize)
                 s2 = len(obj2_mat)
-                ox2, oy2 = ((self.gridsize * obj.pos2) - int(s2/2)).astype(int)
+                ox2, oy2 = ((self.gridsize * obj2.pos) - int(s2/2)).astype(int)
                 env_mask = mat[ox2:ox2+s2, oy2:oy2+s2, -1]
                 obj2_mask = obj2_mat[:, :, -1]
                 collides = np.logical_and(obj2_mask, env_mask)
                 if collides.any():
-                    raise ValueError('New shape collides with existing shapes')
-        self.objects.append(obj)
+                    raise CollisionError(
+                        'New shape collides with existing shape')
+        if idx is not None:
+            self.objects.insert(idx, obj)
+        else:
+            self.objects.append(obj)
+
+    def act(self, i_obj, a_vec):
+        """
+        Performs the action encoded by the vector a_vec on object indexed by
+        i_obj.
+        """
+        obj = self.objects.pop(i_obj)
+        o_vec = obj.to_vector()
+        o_vec[SHAPE_NUMBER:] += a_vec
+        obj2 = shape_from_vector(o_vec)
+        try:
+            self.add_object(obj2, i_obj)
+        except CollisionError:
+            print('Collision : invalid action')
+            self.add_object(obj, i_obj)
         
     def render(self, show=True):
         """
@@ -229,6 +262,7 @@ class Env(AbstractEnv):
             ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
             obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
             mat[ox:ox + s, oy:oy + s] += obj_mat
+        mat = np.flip(mat, axis=0)
         if show:
             pass
             # opencv stuff : windowing and stuff
@@ -254,9 +288,78 @@ class Env(AbstractEnv):
 
     def save(self, path, save_image=True, save_state=False):
         """
-        Saves the current env image and the state description into the specified path.
+        Saves the current env image and the state description into the
+        specified path.
         """
         if save_image:
             cv2.imwrite(path, self.render())
         if save_state:
             pass
+
+class Playground():
+
+    def __init__(self, gridsize, envsize, state):
+        """
+        Environment wrapper for use in a RL setting.
+        """
+        self._env = Env(gridsize, envsize)
+        self._state = state
+        self.reset()
+
+    def reset(self):
+        """
+        Resets the environment to the state it was initialized with.
+        """
+        self._env.objects = []
+        self._env.from_state_list(self._state)
+
+    def move_shape(self, i_obj, direction):
+        """
+        Shape-moving api. Object is moved according to a fixed distance in one
+        of the four cardinal directions.
+
+        Arguments:
+            - i_obj (int): index of the object to move.
+            - dir (int between 0 and 4): direction to move.
+        """
+        a_vec = np.zeros(7)
+        step_size = 0.5
+        if direction == 0:
+            a_vec[4] += step_size
+        if direction == 1:
+            a_vec[4] -= step_size
+        if direction == 2:
+            a_vec[5] += step_size
+        if direction == 3:
+            a_vec[5] -= step_size
+        self._env.act(i_obj, a_vec)
+
+    def render(self):
+        return self._env.render()
+
+    def interactive_run(self, reset=True):
+        """
+        Launches a little terminal-based run of the game.
+        """
+        pygame.init()
+        done = False
+        X = self._env.L
+        Y = self._env.L
+        framename = 'images/frame.jpg'
+        self._env.save(framename)
+        display = pygame.display.set_mode((X, Y))
+        pygame.display.set_caption('Playground')
+        frame = 0
+        while not done:
+            try:
+                display.fill((0, 0, 0))
+                display.blit(pygame.image.load(framename), (0, 0))
+                pygame.display.update()
+                i_obj = int(input('what shape to move ?'))
+                direction = int(input('what direction ?'))
+                self.move_shape(i_obj, direction)
+                self._env.save(framename)
+                frame += 1
+            except ValueError:
+                done = True
+                pygame.quit()
