@@ -23,7 +23,6 @@ class AbstractEnv():
 
     def act(self, action, *args):
         raise NotImplementedError
-        # read Structured agents for physical construction !
 
 class Shape():
     """
@@ -77,8 +76,10 @@ class Shape():
         x = (x - size) / size
         y = (y - size) / size
         void = np.zeros(4)
-        color = np.concatenate((self.color, 1.))
-        bbox = np.where(self.cond(x, y), void, color)
+        color = np.concatenate((self.color, [1.]))
+        x = np.expand_dims(x, -1)
+        y = np.expand_dims(y, -1)
+        bbox = np.where(self.cond(x, y), color, void)
         return bbox
 
     def to_vector(self):
@@ -93,35 +94,57 @@ class Shape():
             np.array(pos),
             np.array(ori), 0)
 
-class Square(Object):
+class Square(Shape):
 
-    def __init__(self, size, color, pos):
-        super(self, Square).__init__()
+    def __init__(self, size, color, pos, ori):
+        super(Square, self).__init__(
+            size,
+            color,
+            pos,
+            ori)
         self.shape_index = 0
-        self.cond = lambda x, y : np.less_equal(
-            np.maximum(abs(x), abs(y)),
+        self.cond = self.cond_fn
+
+    def cond_fn(self, x, y):
+        theta = self.ori
+        x_ = x * np.cos(theta) + y * np.sin(theta)
+        y_ = - x * np.sin(theta) + y * np.cos(theta)
+        c =  np.less_equal(
+            np.maximum(abs(x_), abs(y_)),
             1/np.sqrt(2))
+        return c
 
-class Circle(Object):
+class Circle(Shape):
 
-    def __init__(self, size, color, pos):
-        super(self, Square).__init__()
+    def __init__(self, size, color, pos, ori):
+        super(Circle, self).__init__(
+            size,
+            color,
+            pos,
+            ori)
         self.shape_index = 1
         self.cond = lambda x, y : np.less_equal(x**2 + y**2, 1)
 
-class Triangle(Object):
+class Triangle(Shape):
 
-    def __init__(self, size, color, pos):
-        super(self, Square).__init__()
+    def __init__(self, size, color, pos, ori):
+        super(Triangle, self).__init__(
+            size,
+            color,
+            pos,
+            ori)
         self.shape_index = 2
+        self.cond = self.cond_fn
 
-    def cond(x, y): # check if this works
-        a = 3 / np.sqrt(2)
+    def cond_fn(self, x, y):
+        theta = self.ori
+        x_ = x * np.cos(theta) + y * np.sin(theta)
+        y_ = - x * np.sin(theta) + y * np.cos(theta)
+        a = np.sqrt(3)
         b = 1.
-        c =  np.logical_and(
-            np.more_equal(x, 1/2),
-            np.less_equal(y, a*x + b),
-            np.less_equal(y, - a*x + b))
+        c = np.greater_equal(y_, -1/2) * \
+            np.less_equal(y_, a*x_ + b) * \
+            np.less_equal(y_, (- a)*x_ + b)
         return c
 
 
@@ -130,20 +153,20 @@ class Env(AbstractEnv):
     Class for the implementation of the environment.
     """
     def __init__(self, gridsize, envsize):
-        super(self, AbstractEnv).__init__()
+        super(Env, self).__init__()
         self.gridsize = gridsize
         self.envsize = envsize
         self.L = int(envsize * gridsize)
 
         # matrix where all the rendering thakes place
-        self.mat = np.array((self.L, self.L, 4))
+        self.mat = np.zeros((self.L, self.L, 4))
 
     def add_object(self, obj):
         """
-        Adds an Object to the scene.
+        Adds an Shape to the scene.
 
         Arguments :
-            - obj (Object) : the object to add
+            - obj (Shape) : the object to add
 
         Raises ValueError if the given object collides with any other object
         or if it exceeds the environment range.
@@ -151,16 +174,16 @@ class Env(AbstractEnv):
         # first perform check on env boundaries
         obj_mat = obj.to_pixels(self.gridsize)
         s = len(obj_mat)
-        ox, oy = (self.gridsize * obj.pos) - int(s/2)
+        ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
         if (ox < 0 or oy < 0 or ox + s > self.L or oy + s > self.L):
             raise ValueError('New shape out of environment range')
         # then collision checks with environment and shape masks
         env_mask = self.mat[ox:ox+s, oy:oy+s, -1]
         obj_mask = obj_mat[:, :, -1]
         collides = np.logical_and(obj_mask, env_mask)
-        if collides:
+        if collides.any():
             raise ValueError('New shape collides with existing shapes')
-        obj_mat = obj_mat[..., :] * obj_mat[..., 3] # transparency
+        obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1) # transparency
         self.mat[ox:ox + s, oy:oy + s] += obj_mat
         
     def render(self):
