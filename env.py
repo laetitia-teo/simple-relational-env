@@ -147,6 +147,23 @@ class Triangle(Shape):
             np.less_equal(y_, (- a)*x_ + b)
         return c
 
+def shape_from_vector(vec):
+    """
+    Takes in a vector encoding the shape and returns the corresponding Shape
+    object.
+    """
+    shape = vec[0:SHAPE_NUMBER]
+    size = vec[SHAPE_NUMBER]
+    color = vec[SHAPE_NUMBER+1:SHAPE_NUMBER+4]
+    pos = vec[SHAPE_NUMBER+4:SHAPE_NUMBER+6]
+    ori = vec[SHAPE_NUMBER+6]
+    if shape[0]:
+        return Square(size, color, pos, ori)
+    if shape[1]:
+            return Circle(size, color, pos, ori)
+    if shape[2]:
+        return Triangle(size, color, pos, ori)
+
 
 class Env(AbstractEnv):
     """
@@ -161,9 +178,17 @@ class Env(AbstractEnv):
         # matrix where all the rendering thakes place
         self.mat = np.zeros((self.L, self.L, 4))
 
+    def l2_norm(self, pos1, pos2):
+        """
+        Euclidiean norm between pos1 and pos2.
+        """
+        x1, y1 = pos1
+        x2, y2 = pos2
+        return np.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+
     def add_object(self, obj):
         """
-        Adds an Shape to the scene.
+        Adds a Shape to the scene.
 
         Arguments :
             - obj (Shape) : the object to add
@@ -171,32 +196,67 @@ class Env(AbstractEnv):
         Raises ValueError if the given object collides with any other object
         or if it exceeds the environment range.
         """
-        # first perform check on env boundaries
+        mat = np.zeros((self.L, self.L, 4))
         obj_mat = obj.to_pixels(self.gridsize)
+        obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
         s = len(obj_mat)
         ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
+        # first perform check on env boundaries
         if (ox < 0 or oy < 0 or ox + s > self.L or oy + s > self.L):
             raise ValueError('New shape out of environment range')
+        mat[ox:ox + s, oy:oy + s] += obj_mat
         # then collision checks with environment and shape masks
-        env_mask = self.mat[ox:ox+s, oy:oy+s, -1]
-        obj_mask = obj_mat[:, :, -1]
-        collides = np.logical_and(obj_mask, env_mask)
-        if collides.any():
-            raise ValueError('New shape collides with existing shapes')
-        obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1) # transparency
-        self.mat[ox:ox + s, oy:oy + s] += obj_mat
+        for obj2 in self.objects:
+            if self.l2_norm(obj.pos, obj2.pos) <= obj.size + obj2.size:
+                obj2_mat = obj2.to_pixels(self.gridsize)
+                s2 = len(obj2_mat)
+                ox2, oy2 = ((self.gridsize * obj.pos2) - int(s2/2)).astype(int)
+                env_mask = mat[ox2:ox2+s2, oy2:oy2+s2, -1]
+                obj2_mask = obj2_mat[:, :, -1]
+                collides = np.logical_and(obj2_mask, env_mask)
+                if collides.any():
+                    raise ValueError('New shape collides with existing shapes')
+        self.objects.append(obj)
         
-    def render(self):
+    def render(self, show=True):
         """
         Renders the environment, returns a rasterized image as a numpy array.
         """
-        pass
+        mat = np.zeros((self.L, self.L, 4))
+        for obj in self.objects:
+            obj_mat = obj.to_pixels(self.gridsize)
+            s = len(obj_mat)
+            ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
+            obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
+            mat[ox:ox + s, oy:oy + s] += obj_mat
+        if show:
+            pass
+            # opencv stuff : windowing and stuff
+            # or maybe use pyglet
+        return mat
+
+    def to_state_list(self):
+        """
+        Returns a list of all the objects in vector form.
+        """
+        return [obj.to_vector() for obj in self.objects]
+
+    def from_state_list(self, state_list):
+        """
+        Adds the objects listed as vectors in state_list.
+
+        Raises ValueError if objects are out of environment range or overlap 
+        with other objects.
+        """
+        for vec in state_list:
+            shape = shape_from_vector(vec)
+            self.add_object(shape)
 
     def save(self, path, save_image=True, save_state=False):
         """
         Saves the current env image and the state description into the specified path.
         """
         if save_image:
-            cv2.imwrite(path, self.mat)
+            cv2.imwrite(path, self.render())
         if save_state:
             pass
