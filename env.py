@@ -296,6 +296,35 @@ class Env(AbstractEnv):
         if save_state:
             pass
 
+class NActionSpace():
+    """
+    This class defines an action space for an environment with a variable
+    number of objects, with objects that can enter or leave the environment
+    during a single run. 
+
+    The class provides a certain number of utilities, such as random sampling
+    of an action, adding or removing objects, and the like.
+
+    TODO : implements this a bit more seriously
+    """
+    def __init__(self, n_objects, n_args):
+        """
+        Init.
+
+        Arguments :
+            - n_objects : number of objects
+            - args : action space for each of the objects
+        """
+        self.n_objects = n_objects
+        self.n_args = n_args
+
+    def sample(self):
+        """
+        Samples random action.
+        """
+        return (np.random.randint(self.n_objects), \
+            np.random.randint(self.n_args))
+
 class Playground():
 
     def __init__(self, gridsize, envsize, state):
@@ -305,6 +334,7 @@ class Playground():
         self._env = Env(gridsize, envsize)
         self._state = state
         self.reset()
+        self.action_space = NActionSpace(len(self._env), 4)
 
     def reset(self):
         """
@@ -337,10 +367,18 @@ class Playground():
     def render(self):
         return self._env.render()
 
+    def step(self, action):
+        i_obj, direction = action
+        # no reward and no objective in this environment for now, we only
+        # give the state as feedback.
+        return self._env.to_state_list()
+
     def interactive_run(self, reset=True):
         """
         Launches a little terminal-based run of the game.
         """
+        if reset:
+            self.reset()
         pygame.init()
         done = False
         X = self._env.L
@@ -356,7 +394,11 @@ class Playground():
                 display.blit(pygame.image.load(framename), (0, 0))
                 pygame.display.update()
                 i_obj = int(input('what shape to move ?'))
+                if i_obj >= len(self._env.objects) or i_obj < 0:
+                    raise ValueError('Invalid object index')
                 direction = int(input('what direction ?'))
+                if direction > 3 or direction < 0:
+                    raise ValueError('Invalid direction')
                 self.move_shape(i_obj, direction)
                 self._env.save(framename)
                 frame += 1
