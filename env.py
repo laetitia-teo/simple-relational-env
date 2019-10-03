@@ -7,7 +7,7 @@ import cv2
 # for interactive testing :
 import pygame
 
-SHAPE_NUMBER = 3
+N_SH = 3 # number of shapes
 
 class CollisionError(Exception):
     """
@@ -105,7 +105,7 @@ class Shape():
         """
         Returns an encoding of the object.
         """
-        vec = np.zeros(SHAPE_NUMBER, dtype=float)
+        vec = np.zeros(N_SH, dtype=float)
         vec[self.shape_index] = 1.
         return np.concatenate(
             (vec,
@@ -172,11 +172,11 @@ def shape_from_vector(vec):
     Takes in a vector encoding the shape and returns the corresponding Shape
     object.
     """
-    shape = vec[0:SHAPE_NUMBER]
-    size = vec[SHAPE_NUMBER]
-    color = vec[SHAPE_NUMBER+1:SHAPE_NUMBER+4]
-    pos = vec[SHAPE_NUMBER+4:SHAPE_NUMBER+6]
-    ori = vec[SHAPE_NUMBER+6]
+    shape = vec[0:N_SH]
+    size = vec[N_SH]
+    color = vec[N_SH+1:N_SH+4]
+    pos = vec[N_SH+4:N_SH+6]
+    ori = vec[N_SH+6]
     if shape[0]:
         return Square(size, color, pos, ori)
     if shape[1]:
@@ -253,6 +253,49 @@ class Env(AbstractEnv):
         else:
             self.objects.append(obj)
 
+    def translate(self, amount):
+        """
+        Translates all the objects in the scene by amount, if there is no
+        collision with the edge of the environment.
+
+        Arguments :
+            - amount : 2d array of floats.
+        """
+        state_list = self.to_state_list()
+        self.reset()
+        tr_state_list = []
+        for vec in state_list:
+            tr_state_list.append(vec[N_SH+4:N_SH+6] + amount)
+        try:
+            self.from_state_list(tr_state_list)
+        except CollisionError:
+            print('Collision : invalid translation')
+            self.from_state_list(state_list)
+
+    def scale(self, amount, center=None):
+        """
+        Scales all the scene by amount. If no center is given, the scene center
+        is used.
+
+        Arguments :
+            - amount : float
+        """
+        if center is None:
+            center = np.array(self.envsize/2, self.envsize/2)
+        state_list = self.to_state_list()
+        self.reset()
+        sc_state_list = []
+        for vec in state_list:
+            sc_vec[N_SH+4:N_SH+6] = amount * (vec[N_SH+4:N_SH+6] - center) \
+                + center 
+            sc_vec[N_SH] *= amount
+            sc_state_list.append(sc_vec)
+        try:
+            self.from_state_list(tr_state_list)
+        except CollisionError:
+            print('Collision : invalid scaling')
+            self.from_state_list(state_list)
+
     def act(self, i_obj, a_vec):
         """
         Performs the action encoded by the vector a_vec on object indexed by
@@ -262,7 +305,7 @@ class Env(AbstractEnv):
         """
         obj = self.objects.pop(i_obj)
         o_vec = obj.to_vector()
-        o_vec[SHAPE_NUMBER:] += a_vec
+        o_vec[N_SH:] += a_vec
         obj2 = shape_from_vector(o_vec)
         try:
             self.add_object(obj2, i_obj)
@@ -332,7 +375,7 @@ class Env(AbstractEnv):
         """
         count = 0
         while count < timeout:
-            shape = np.random.randint(SHAPE_NUMBER)
+            shape = np.random.randint(N_SH)
             color = np.random.random(3) # U(0, 1) in 3d
             color = (255 * color).astype(int)
             size = np.random.random()
@@ -368,6 +411,7 @@ class Env(AbstractEnv):
         for _ in range(n_objects):
             self.add_random_object(timeout)
 
+    def random_perturbation()
 
 
 class NActionSpace():

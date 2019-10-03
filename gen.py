@@ -38,9 +38,9 @@ class SimpleTaskGen(AbstractGen):
         self._configs = []
         self.n_objects = n_objects
 
-    def _generate_configs(self, n_configs):
+    def _generate_configs(self):
         """
-        Generates the reference spatial configuration
+        Generates the reference spatial configuration and its perturbations.
         """
         for idx in range(n_configs):
             try:
