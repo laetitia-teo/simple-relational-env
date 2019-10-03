@@ -6,12 +6,14 @@ The first simple classification task should be the following : with a fixed
 number of objects, train a model to recognise object configuration,
 irrespective of object position.
 """
-
+import pickle
 import numpy as np
 
 import torch
 
 from dataset import Dataset
+
+from env import SamplingTimeout
 
 class AbstractGen():
     """
@@ -23,20 +25,28 @@ class AbstractGen():
     def __init__(self):
         self.commands = []
 
-class ConfigTaskGen(AbstractGen):
-    """docstring for ConfigTaskGen"""
+class SimpleTaskGen(AbstractGen):
+    """
+    docstring for SimpleTaskGen
+
+    Change name for something more sexy.
+    """
     def __init__(self, env, n_objects):
-        super(ConfigTaskGen, self).__init__()
+        super(SimpleTaskGen, self).__init__()
         self._env = env
         self._configs = []
         self.n_objects = n_objects
 
-    def _generate_configs(self):
+    def _generate_configs(self, n_configs):
         """
-        Generates all the spatial configurations, with the associated ids.
-        The configurations should be legal in the environment.
+        Generates the reference spatial configuration
         """
-        pass
+        for idx in range(n_configs):
+            try:
+                self._env.reset()
+                self._env.random_config()
+                state_list = self._env.to_state_list()
+
 
     def _perturb_configs(self):
         """

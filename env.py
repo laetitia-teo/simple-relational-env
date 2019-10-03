@@ -294,7 +294,7 @@ class Env(AbstractEnv):
         """
         return [obj.to_vector() for obj in self.objects]
 
-    def from_state_list(self, state):
+    def from_state_list(self, state_list):
         """
         Adds the objects listed as vectors in state.
 
@@ -367,6 +367,8 @@ class Env(AbstractEnv):
         """
         for _ in range(n_objects):
             self.add_random_object(timeout)
+
+
 
 class NActionSpace():
     """
