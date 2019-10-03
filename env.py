@@ -334,7 +334,7 @@ class Playground():
         self._env = Env(gridsize, envsize)
         self._state = state
         self.reset()
-        self.action_space = NActionSpace(len(self._env), 4)
+        self.action_space = NActionSpace(len(self._env.objects), 4)
 
     def reset(self):
         """
