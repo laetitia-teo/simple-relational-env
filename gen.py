@@ -11,6 +11,8 @@ import numpy as np
 
 import torch
 
+from dataset import Dataset
+
 class AbstractGen():
     """
     Generator abstract class.
@@ -23,28 +25,38 @@ class AbstractGen():
 
 class ConfigTaskGen(AbstractGen):
     """docstring for ConfigTaskGen"""
-    def __init__(self, env):
+    def __init__(self, env, n_objects):
         super(ConfigTaskGen, self).__init__()
-        self.env = env
-        self.configs = []
+        self._env = env
+        self._configs = []
+        self.n_objects = n_objects
 
-    def generate_configs(self):
+    def _generate_configs(self):
         """
         Generates all the spatial configurations, with the associated ids.
         The configurations should be legal in the environment.
         """
         pass
 
-    def perturb_configs(self):
+    def _perturb_configs(self):
         """
         Applies random spatial perturbations (translations, small angle
         rotations) to the configurations.
         """
         pass
 
-    def generate_dataset(self):
+    def _generate_dataset(self, path):
         """
         Generates the dataset of configurations.
         Uses the dataset class.
         """
-        pass
+        dataset = Dataset()
+        return dataset
+
+    def generate(self, path):
+        """
+        Generates a dataset of shape configurations.
+        """
+        self._generate_configs()
+        self._perturb_configs()
+        return self._generate_dataset(path)

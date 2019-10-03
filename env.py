@@ -16,6 +16,14 @@ class CollisionError(Exception):
     def __init__(self, message):
         self.message = message
 
+class SamplingTimeout(Exception):
+    """
+    Raised when a sampling process times out, possibly because of a too high
+    rejection rate.
+    """
+    def __init__(self, message):
+        self.message = message
+
 class AbstractEnv():
 
     def __init__(self):
@@ -182,13 +190,22 @@ class Env(AbstractEnv):
     Class for the implementation of the environment.
     """
     def __init__(self, gridsize, envsize):
+        """
+        Arguments :
+
+            - gridsize : size of a unit in pixels.
+            - envsize : size of the environment in units.
+        """
         super(Env, self).__init__()
         self.gridsize = gridsize
         self.envsize = envsize
         self.L = int(envsize * gridsize)
 
-        # matrix where all the rendering thakes place
+        # matrix where all the rendering takes place
         self.mat = np.zeros((self.L, self.L, 4))
+
+    def reset(self):
+        self.objects = []
 
     def l2_norm(self, pos1, pos2):
         """
@@ -240,6 +257,8 @@ class Env(AbstractEnv):
         """
         Performs the action encoded by the vector a_vec on object indexed by
         i_obj.
+
+        If the action is invalid (CollisionError), the state is left unchanged.
         """
         obj = self.objects.pop(i_obj)
         o_vec = obj.to_vector()
@@ -275,12 +294,12 @@ class Env(AbstractEnv):
         """
         return [obj.to_vector() for obj in self.objects]
 
-    def from_state_list(self, state_list):
+    def from_state_list(self, state):
         """
-        Adds the objects listed as vectors in state_list.
+        Adds the objects listed as vectors in state.
 
-        Raises ValueError if objects are out of environment range or overlap 
-        with other objects.
+        Raises CollisionError if objects are out of environment range or
+        overlap with other objects.
         """
         for vec in state_list:
             shape = shape_from_vector(vec)
@@ -294,7 +313,60 @@ class Env(AbstractEnv):
         if save_image:
             cv2.imwrite(path, self.render())
         if save_state:
-            pass
+            pass # TODO
+
+    def add_random_object(self, timeout=20):
+        """
+        Adds a random object, with collision handling.
+
+        The sampling algorithm is quite basic : uniformly sample the shape
+        type, the shape color, the orientation and the shape size. Then (using
+        size information), sample the position uniformly. If there is a
+        collision with an aready-existing shape, resample. We allow up to
+        timeout resamplings, after which, if all sampled positions were
+        rejected, we throw an exception (the environment is probably too full
+        by this point).
+
+        Raises SamplingTimeout if more than timeout position samplings have
+        given rise to an error.
+        """
+        count = 0
+        while count < timeout:
+            shape = np.random.randint(SHAPE_NUMBER)
+            color = np.random.random(3) # U(0, 1) in 3d
+            color = (255 * color).astype(int)
+            size = np.random.random()
+            size = (1 - size) * minsize + size * maxsize
+            ori = np.random.random()
+            ori = ori * 2 * np.pi # we allow up to 2pi rotations
+            pos = np.random.random(2)
+            pos = (1 - pos) * size + pos * (self.envsize - size)
+            if shape == 0:
+                obj = Square(size, color, pos, ori)
+            elif shape == 1:
+                obj = Circle(size, color, pos, ori)
+            elif shape == 2:
+                obj = Triangle(size, color, pos, ori)
+            try:
+                self.add_object(shape)
+                return
+            except CollisionError:
+                pass # re-sample
+            count += 1
+        raise SamplingTimeout('Too many rejected samplings, check if the \
+            environment is not too full')
+
+    def random_config(self, n_objects, timeout=20):
+        """
+        Returns a random configuration of the environment.
+        Doesn't reset the environment to zero, this should be done manually
+        if desired.
+
+        Raises SamplingTimeout if we reject more than timeout position
+        samplings on one of the random object generations.
+        """
+        for _ in range(n_objects):
+            self.add_random_object(timeout)
 
 class NActionSpace():
     """
@@ -330,6 +402,24 @@ class Playground():
     def __init__(self, gridsize, envsize, state):
         """
         Environment wrapper for use in a RL setting.
+
+        This wrapper provides additionnal functionnalities allowing an agent
+        or human to interact with the environment.
+
+        1) Action discretization : in the original Env class, actions on an
+        object are generic and modify an arbitrary number of an object's
+        properties by an arbitrary float amount. Here the actions are 
+        provided in a more structured way, such as movin a shape up, changing
+        its size etc.
+
+        2) Action-space description : the action_space attribute should give
+        every information about the current implementation's action space. 
+
+        3) RL-friendly api : the step() function is intended for use with an 
+        RL algorithm.
+
+        4) Interactive runs : one can run the environment in an interactive way
+        as a game.
         """
         self._env = Env(gridsize, envsize)
         self._state = state
@@ -340,7 +430,7 @@ class Playground():
         """
         Resets the environment to the state it was initialized with.
         """
-        self._env.objects = []
+        self._env.reset()
         self._env.from_state_list(self._state)
 
     def move_shape(self, i_obj, direction):

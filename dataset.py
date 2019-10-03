@@ -13,4 +13,4 @@ import torch
 class Dataset():
     """docstring for Dataset"""
     def __init__(self, arg):
-        self.arg = arg
+        pass
