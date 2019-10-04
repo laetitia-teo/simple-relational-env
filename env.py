@@ -1,5 +1,6 @@
 import os.path as op
 import copy
+import time
 
 import numpy as np
 import cv2
@@ -578,21 +579,34 @@ class Playground():
         self._env.save(framename)
         display = pygame.display.set_mode((X, Y))
         pygame.display.set_caption('Playground')
-        frame = 0
+        idx = 0
         while not done:
-            try:
-                display.fill((0, 0, 0))
-                display.blit(pygame.image.load(framename), (0, 0))
-                pygame.display.update()
-                i_obj = int(input('what shape to move ?'))
-                if i_obj >= len(self._env.objects) or i_obj < 0:
-                    raise ValueError('Invalid object index')
-                direction = int(input('what direction ?'))
-                if direction > 3 or direction < 0:
-                    raise ValueError('Invalid direction')
-                self.move_shape(i_obj, direction)
-                self._env.save(framename)
-                frame += 1
-            except ValueError:
-                done = True
-                pygame.quit()
+            display.fill((0, 0, 0))
+            display.blit(pygame.image.load(framename), (0, 0))
+            pygame.display.update()
+            # i_obj = int(input('what shape to move ?'))
+            # if i_obj >= len(self._env.objects) or i_obj < 0:
+            #     raise ValueError('Invalid object index')
+            # direction = int(input('what direction ?'))
+            # if direction > 3 or direction < 0:
+            #     raise ValueError('Invalid direction')
+            # self.move_shape(i_obj, direction)
+            events = pygame.event.get()
+            for event in events:
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_LEFT:
+                        self.move_shape(idx, 3)
+                    if event.key == pygame.K_RIGHT:
+                        self.move_shape(idx, 2)
+                    if event.key == pygame.K_UP:
+                        self.move_shape(idx, 0)
+                    if event.key == pygame.K_DOWN:
+                        self.move_shape(idx, 1)
+                    if event.key == pygame.K_SPACE:
+                        idx = (idx + 1) % len(self._env.objects)
+                        print(idx)
+                    if event.key == pygame.K_ESCAPE:
+                        done = True
+            self._env.save(framename)
+        pygame.quit()
+            
