@@ -7,6 +7,8 @@ import cv2
 # for interactive testing :
 import pygame
 
+from random import shuffle
+
 N_SH = 3 # number of shapes
 
 class Collision(Exception):
@@ -253,27 +255,33 @@ class Env(AbstractEnv):
         else:
             self.objects.append(obj)
 
-    def translate(self, amount):
+    def translate(self, amount, raise_collision=False):
         """
         Translates all the objects in the scene by amount, if there is no
         collision with the edge of the environment.
 
         Arguments :
-            - amount : 2d array of floats.
+            - amount : 2d array of floats
+            - raise_collision (bool) : whether or not to raise a Collision
+                exception when the translation fails
         """
         state_list = self.to_state_list()
         self.reset()
         tr_state_list = []
         for vec in state_list:
-            vec[N_SH+4:N_SH+6] += amount
-            tr_state_list.append(vec)
+            tr_vec = np.array(vec)
+            tr_vec[N_SH+4:N_SH+6] += amount
+            tr_state_list.append(tr_vec)
         try:
             self.from_state_list(tr_state_list)
         except Collision:
             print('Collision : invalid translation')
+            self.reset()
             self.from_state_list(state_list)
+            if raise_collision:
+                raise Collision('Failed translation')
 
-    def scale(self, amount, center=None):
+    def scale(self, amount, center=None, raise_collision=False):
         """
         Scales all the scene by amount. If no center is given, the scene center
         is used.
@@ -287,14 +295,25 @@ class Env(AbstractEnv):
         self.reset()
         sc_state_list = []
         for vec in state_list:
-            vec[N_SH+4:N_SH+6] = amount * (vec[N_SH+4:N_SH+6] - center) + center 
-            vec[N_SH] *= amount
-            sc_state_list.append(vec)
+            sc_vec = np.array(vec)
+            sc_vec[N_SH+4:N_SH+6] = amount * (sc_vec[N_SH+4:N_SH+6] - center) + center 
+            sc_vec[N_SH] *= amount
+            sc_state_list.append(sc_vec)
         try:
             self.from_state_list(sc_state_list)
         except Collision:
             print('Collision : invalid scaling')
+            self.reset()
             self.from_state_list(state_list)
+            if raise_collision:
+                raise Collision('Failed scaling')
+
+    def shuffle_objects(self):
+        """
+        Shuffles objects in the state list.
+        This is for testing the models' robustness to permutation.
+        """
+        shuffle(self.objects)
 
     def act(self, i_obj, a_vec):
         """
@@ -337,13 +356,15 @@ class Env(AbstractEnv):
         """
         return [obj.to_vector() for obj in self.objects]
 
-    def from_state_list(self, state_list):
+    def from_state_list(self, state_list, reset=True):
         """
         Adds the objects listed as vectors in state.
 
         Raises Collision if objects are out of environment range or
         overlap with other objects.
         """
+        if reset:
+            self.reset()
         for vec in state_list:
             shape = shape_from_vector(vec)
             self.add_object(shape)
@@ -374,6 +395,8 @@ class Env(AbstractEnv):
         given rise to an error.
         """
         count = 0
+        minsize = 0.5
+        maxsize = 2
         while count < timeout:
             shape = np.random.randint(N_SH)
             color = np.random.random(3) # U(0, 1) in 3d
@@ -391,7 +414,7 @@ class Env(AbstractEnv):
             elif shape == 2:
                 obj = Triangle(size, color, pos, ori)
             try:
-                self.add_object(shape)
+                self.add_object(obj)
                 return
             except Collision:
                 pass # re-sample
@@ -427,16 +450,17 @@ class Env(AbstractEnv):
                 trans = np.random.randint(2)
                 if trans == 0:
                     maximum = self.envsize / 10
+                    minimum = - self.envsize / 10
                     amount = np.random.random(2)
-                    amount *= maximum
-                    self.translate(amount)
+                    amount = amount * (maximum - minimum) + minimum
+                    self.translate(amount, raise_collision=True)
                     return
                 elif trans == 1:
                     maximum = 2
                     minimum = 0.5
                     amount = np.random.random()
-                    amount = amount * (maximun - minimum) + minimum
-                    self.scale(amount)
+                    amount = amount * (maximum - minimum) + minimum
+                    self.scale(amount, raise_collision=True)
                     return
             except Collision:
                 pass # re-sample

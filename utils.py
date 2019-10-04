@@ -18,7 +18,8 @@ def to_file(data, path):
     """
     with open(path, 'a') as f:
         f.write('\n')
-        for vec_list in data:
+        for vec_list, idx in data:
+            f.write(str(idx) + '\n')
             for vec in vec_list:
                 for num in vec:
                     f.write(str(num) + ' ')
@@ -36,16 +37,19 @@ def from_file(path, dtype=float):
     with open(path, 'r') as f:
         data = []
         vec_list = []
+        idx = 0
         for l in f.readlines():
             str_list = l.split(' ')
+            print(str_list)
             if str_list == ['\n']:
                 if vec_list:
-                    data.append(vec_list)
+                    data.append((vec_list, idx))
                 vec_list = []
+            elif len(str_list) == 1:
+                idx = int(str_list[0])
             else:
                 num_list = []
-                idx = int(str_list[0]) # config id
-                for num in str_list[1:-1]:
+                for num in str_list[0:-1]:
                     num_list.append(dtype(num))
-                vec_list.append((np.array(num_list), idx))
+                vec_list.append(np.array(num_list))
     return data

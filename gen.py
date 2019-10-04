@@ -6,13 +6,15 @@ The first simple classification task should be the following : with a fixed
 number of objects, train a model to recognise object configuration,
 irrespective of object position.
 """
+import os.path as op
 import pickle
 import numpy as np
 
 import torch
 
-from dataset import Dataset
+from glob import glob
 
+from dataset import Dataset
 from env import SamplingTimeout
 from utils import to_file, from_file
 
@@ -51,8 +53,10 @@ class SimpleTaskGen(AbstractGen):
         self._env.reset()
         # generate reference config
         self._env.random_config(self.n_objects)
-        self._configs.append((self._env.to_state_list(), self._config_id))
+        ref_state = self._env.to_state_list()
+        self._configs.append((ref_state, self._config_id))
         for _ in range(n - 1):
+            self._env.from_state_list(ref_state)
             self._env.random_transformation()
             self._configs.append((self._env.to_state_list(), self._config_id))
         self._config_id += 1
@@ -68,15 +72,24 @@ class SimpleTaskGen(AbstractGen):
                 indices. Default is True.
         """
         if restart:
+            self._env.reset()
             self._config_id = 0
         for _ in range(n_configs):
             self._generate_configs(n)
 
-    def save(self, path):
+    def save(self, path, save_images=True, img_path='images'):
         """
         Saves the current configurations to a text file at path.
         """
         to_file(self._configs, path)
+        if save_images:
+            img_count = 0
+            for state, idx in self._configs:
+                img_name = 'img' + str(img_count) + '.jpg'
+                self._env.from_state_list(state)
+                self._env.save(op.join(img_path, img_name), save_image=True)
+                self._env.reset()
+                img_count += 1
 
     def load(self, path):
         """
