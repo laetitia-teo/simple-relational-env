@@ -180,7 +180,7 @@ def shape_from_vector(vec):
     if shape[0]:
         return Square(size, color, pos, ori)
     if shape[1]:
-            return Circle(size, color, pos, ori)
+        return Circle(size, color, pos, ori)
     if shape[2]:
         return Triangle(size, color, pos, ori)
 
@@ -265,7 +265,8 @@ class Env(AbstractEnv):
         self.reset()
         tr_state_list = []
         for vec in state_list:
-            tr_state_list.append(vec[N_SH+4:N_SH+6] + amount)
+            vec[N_SH+4:N_SH+6] += amount
+            tr_state_list.append(vec)
         try:
             self.from_state_list(tr_state_list)
         except CollisionError:
@@ -281,17 +282,16 @@ class Env(AbstractEnv):
             - amount : float
         """
         if center is None:
-            center = np.array(self.envsize/2, self.envsize/2)
+            center = np.array([self.envsize/2, self.envsize/2])
         state_list = self.to_state_list()
         self.reset()
         sc_state_list = []
         for vec in state_list:
-            sc_vec[N_SH+4:N_SH+6] = amount * (vec[N_SH+4:N_SH+6] - center) \
-                + center 
-            sc_vec[N_SH] *= amount
-            sc_state_list.append(sc_vec)
+            vec[N_SH+4:N_SH+6] = amount * (vec[N_SH+4:N_SH+6] - center) + center 
+            vec[N_SH] *= amount
+            sc_state_list.append(vec)
         try:
-            self.from_state_list(tr_state_list)
+            self.from_state_list(sc_state_list)
         except CollisionError:
             print('Collision : invalid scaling')
             self.from_state_list(state_list)
@@ -411,7 +411,38 @@ class Env(AbstractEnv):
         for _ in range(n_objects):
             self.add_random_object(timeout)
 
-    def random_perturbation()
+    def random_transformation(self, timeout=20):
+        """
+        Applies a random transformation on the state.
+
+        This transformation can be a translation or a scaling of the current
+        scene.
+
+        Raises SamplingTimeout if more than ::timeout:: position samplings have
+        been rejected.
+        """
+        count = 0
+        while count < timeout:
+            try:
+                trans = np.random.randint(2)
+                if trans == 0:
+                    maximum = self.envsize / 10
+                    amount = np.random.random(2)
+                    amount *= maximum
+                    self.translate(amount)
+                    return
+                elif trans == 1:
+                    maximum = 2
+                    minimum = 0.5
+                    amount = np.random.random()
+                    amount = amount * (maximun - minimum) + minimum
+                    self.scale(amount)
+                    return
+            except CollisionError:
+                pass # re-sample
+            count += 1
+        raise SamplingTimeout('Too many rejected samplings, check if the \
+            environment is not too full')
 
 
 class NActionSpace():
