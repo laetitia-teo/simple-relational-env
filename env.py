@@ -9,7 +9,7 @@ import pygame
 
 N_SH = 3 # number of shapes
 
-class CollisionError(Exception):
+class Collision(Exception):
     """
     Raised when an action is performed that collides two shapes in the space.
     """
@@ -234,7 +234,7 @@ class Env(AbstractEnv):
         ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
         # first perform check on env boundaries
         if (ox < 0 or oy < 0 or ox + s > self.L or oy + s > self.L):
-            raise CollisionError('New shape out of environment range')
+            raise Collision('New shape out of environment range')
         mat[ox:ox + s, oy:oy + s] += obj_mat
         # then collision checks with environment and shape masks
         for obj2 in self.objects:
@@ -246,7 +246,7 @@ class Env(AbstractEnv):
                 obj2_mask = obj2_mat[:, :, -1]
                 collides = np.logical_and(obj2_mask, env_mask)
                 if collides.any():
-                    raise CollisionError(
+                    raise Collision(
                         'New shape collides with existing shape')
         if idx is not None:
             self.objects.insert(idx, obj)
@@ -269,7 +269,7 @@ class Env(AbstractEnv):
             tr_state_list.append(vec)
         try:
             self.from_state_list(tr_state_list)
-        except CollisionError:
+        except Collision:
             print('Collision : invalid translation')
             self.from_state_list(state_list)
 
@@ -292,7 +292,7 @@ class Env(AbstractEnv):
             sc_state_list.append(vec)
         try:
             self.from_state_list(sc_state_list)
-        except CollisionError:
+        except Collision:
             print('Collision : invalid scaling')
             self.from_state_list(state_list)
 
@@ -301,7 +301,7 @@ class Env(AbstractEnv):
         Performs the action encoded by the vector a_vec on object indexed by
         i_obj.
 
-        If the action is invalid (CollisionError), the state is left unchanged.
+        If the action is invalid (Collision), the state is left unchanged.
         """
         obj = self.objects.pop(i_obj)
         o_vec = obj.to_vector()
@@ -309,7 +309,7 @@ class Env(AbstractEnv):
         obj2 = shape_from_vector(o_vec)
         try:
             self.add_object(obj2, i_obj)
-        except CollisionError:
+        except Collision:
             print('Collision : invalid action')
             self.add_object(obj, i_obj)
         
@@ -341,7 +341,7 @@ class Env(AbstractEnv):
         """
         Adds the objects listed as vectors in state.
 
-        Raises CollisionError if objects are out of environment range or
+        Raises Collision if objects are out of environment range or
         overlap with other objects.
         """
         for vec in state_list:
@@ -393,7 +393,7 @@ class Env(AbstractEnv):
             try:
                 self.add_object(shape)
                 return
-            except CollisionError:
+            except Collision:
                 pass # re-sample
             count += 1
         raise SamplingTimeout('Too many rejected samplings, check if the \
@@ -438,7 +438,7 @@ class Env(AbstractEnv):
                     amount = amount * (maximun - minimum) + minimum
                     self.scale(amount)
                     return
-            except CollisionError:
+            except Collision:
                 pass # re-sample
             count += 1
         raise SamplingTimeout('Too many rejected samplings, check if the \

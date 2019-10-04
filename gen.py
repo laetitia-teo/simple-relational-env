@@ -24,7 +24,7 @@ class AbstractGen():
     """
 
     def __init__(self):
-        self.commands = []
+        pass
 
 class SimpleTaskGen(AbstractGen):
     """
@@ -37,37 +37,51 @@ class SimpleTaskGen(AbstractGen):
         self._env = env
         self._configs = []
         self.n_objects = n_objects
+        self._config_id = 0
 
-    def _generate_configs(self):
+    def _generate_configs(self, n):
         """
         Generates the reference spatial configuration and its perturbations.
-        """
-        for idx in range(n_configs):
-            try:
-                self._env.reset()
-                self._env.random_config()
-                state_list = self._env.to_state_list()
+        
+        TODO : how to manage SamplingTimeouts ?
 
+        Arguments :
+            - n : number of output states
+        """
+        self._env.reset()
+        # generate reference config
+        self._env.random_config(self.n_objects)
+        self._configs.append((self._env.to_state_list(), self._config_id))
+        for _ in range(n - 1):
+            self._env.random_transformation()
+            self._configs.append((self._env.to_state_list(), self._config_id))
+        self._config_id += 1
 
-    def _perturb_configs(self):
+    def generate(self, n_configs, n, restart=True):
         """
-        Applies random spatial perturbations (translations, small angle
-        rotations) to the configurations.
-        """
-        pass
+        Genarates n_configs * n states.
 
-    def _generate_dataset(self, path):
+        Arguments :
+            - n_configs (int) : number of total different configurations.
+            - n (int) : number of versions of the same configuration.
+            - restart (bool) : Whether to start from 0 for the configuration
+                indices. Default is True.
         """
-        Generates the dataset of configurations.
-        Uses the dataset class.
-        """
-        dataset = Dataset()
-        return dataset
+        if restart:
+            self._config_id = 0
+        for _ in range(n_configs):
+            self._generate_configs(n)
 
-    def generate(self, path):
+    def save(self, path):
         """
-        Generates a dataset of shape configurations.
+        Saves the current configurations to a text file at path.
         """
-        self._generate_configs()
-        self._perturb_configs()
-        return self._generate_dataset(path)
+        to_file(self._configs, path)
+
+    def load(self, path):
+        """
+        Loads the configurations at path.
+        """
+        self._configs = from_file(path)
+        self._config_id = len(self._configs) # this assumes the loaded data
+                                             # begin at 0 and increment
