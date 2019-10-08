@@ -11,14 +11,42 @@ comparisons with attention, or train a distance function on time-series of
 graphs being jittred.
 """
 
-import numpy as np
-
 import torch
-
 import torch_geometric
 
-class GraphModel(object):
-    """docstring for GraphModel"""
-    def __init__(self, arg):
-        super(GraphModel, self).__init__()
-        self.arg = arg
+import graph_nets as gn
+
+from torch_geometric.data import Data
+
+def scene_to_complete_graph(state_list, f_e, f_u):
+    """
+    Takes in a scene state and returns a complete graph.
+
+    Arguments :
+        - state_list (list of vectors) : the state list generated from the
+            environment.
+        - f_e (int) : number of edge features
+        - f_u (int) : number of global features.
+
+    Returns :
+        - x, edge_index, edge_attr, y; respectively the node features, the 
+            connectivity, the edge features, the grobal features.
+    """
+    x = torch.tensor([state for state in state_list])
+    edge_index = [[i, j] for i in range(len(x)) for j in range(len(x))]
+    edge_index = torch.tensor(edge_index)
+    edge_attr = [torch.zeros(f_e) for _ in range(len(edge_index))]
+    # TODO finish
+    return
+
+class GraphModel(torch.nn.Module):
+    """
+    GraphModel.
+    """
+    def __init__(self,
+                 mlp_layers):
+        """
+        Initialization of a GraphModel.
+        """
+        super(GraphModel, self).__init__(self)
+        mlp_maker = gn.mlp_fn(mlp_layers)

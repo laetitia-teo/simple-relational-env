@@ -50,7 +50,7 @@ import torch.nn.functional as F
 
 from torch.nn import Linear, Sequential, ReLU
 
-class NaiveMLP():
+class NaiveMLP(torch.nn.Module):
     """
     The simplest, most unstructured model.
     """
@@ -72,6 +72,7 @@ class NaiveMLP():
             - layers (iterable of ints) : number of hidden units of the
                 different layers, excluding the output.
         """
+        super(NaiveMLP, self).__init__()
         self.layer_list = []
         f_in = n_objects * f_obj
         for f_out in layers:
@@ -84,7 +85,7 @@ class NaiveMLP():
     def forward(self, data):
         return self.mlp(data)
 
-class SceneMLP():
+class SceneMLP(torch.nn.Module):
     """
     A model that is a bit more structured than NaiveMLP.
     """
@@ -111,6 +112,7 @@ class SceneMLP():
             - layers_merge (iterable of ints) : number of hidden units of the
                 final merging layers.
         """
+        super(SceneMLP, self).__init__()
         # scene mlp
         self.layer_list = []
         f_in = f_obj * n_objects
@@ -154,7 +156,7 @@ class CNNBaseline(object):
         super(CNNBaseline, self).__init__()
         self.arg = arg
 
-class BetaVAE():
+class BetaVAE(torch.nn.Module):
     """
     Beta-VAE used to learn embeddings of the scenes, to be used subsequently 
     for defining a distance between two scenes in embedding space.
@@ -166,12 +168,13 @@ class BetaVAE():
         """
         Initializes the BetaVAE.
         """
+        super(BetaVAE, self).__init__()
         pass
 
     def forward(self, image):
         pass
 
-class EmbeddingComparison():
+class EmbeddingComparison(torch.nn.Module):
     """
     This class uses the difference in embedding space to compare the two
     scenes.
@@ -188,12 +191,13 @@ class EmbeddingComparison():
         this difference is then processes by an MLP.
 
         Arguments :
-            - embedding (model) : the embedding model.
+            - embedding (nn model) : the embedding model.
             - f_embed (int) : the number of features in the output of the
                 embedding
             - layers (iterable of ints) : number of hidden units of the
                 mlp layers, excluding the output.
         """
+        super(EmbeddingComparison, self).__init__()
         self.embedding = embedding
         self.layer_list = []
         f_in = f_embed
