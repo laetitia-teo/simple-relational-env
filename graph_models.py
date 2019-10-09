@@ -35,9 +35,10 @@ def scene_to_complete_graph(state_list, f_e, f_u):
     x = torch.tensor([state for state in state_list])
     edge_index = [[i, j] for i in range(len(x)) for j in range(len(x))]
     edge_index = torch.tensor(edge_index)
+    # we initialize the edge and global features with zeros
     edge_attr = [torch.zeros(f_e) for _ in range(len(edge_index))]
-    # TODO finish
-    return
+    y = torch.zeros(f_u)
+    return x, edge_index, edge_attr, y
 
 class GraphModel(torch.nn.Module):
     """

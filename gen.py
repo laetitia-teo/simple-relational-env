@@ -13,6 +13,7 @@ import numpy as np
 import torch
 
 from glob import glob
+from tqdm import tqdm
 
 from dataset import Dataset
 from env import SamplingTimeout
@@ -41,7 +42,7 @@ class SimpleTaskGen(AbstractGen):
         self.n_objects = n_objects
         self._config_id = 0
 
-    def _generate_configs(self, n):
+    def _generate_configs(self, n, ref_state=None):
         """
         Generates the reference spatial configuration and its perturbations.
         
@@ -49,11 +50,14 @@ class SimpleTaskGen(AbstractGen):
 
         Arguments :
             - n : number of output states
+            - ref_state (list of object vectors) : reference state. If not
+                provided, a new one is generated at random.
         """
         self._env.reset()
         # generate reference config
-        self._env.random_config(self.n_objects)
-        ref_state = self._env.to_state_list()
+        if ref_state is None:
+            self._env.random_config(self.n_objects)
+            ref_state = self._env.to_state_list()
         self._configs.append((ref_state, self._config_id))
         for _ in range(n - 1):
             self._env.from_state_list(ref_state)
@@ -77,17 +81,48 @@ class SimpleTaskGen(AbstractGen):
         for _ in range(n_configs):
             self._generate_configs(n)
 
-    def save(self, path, save_images=True, img_path='images'):
+    def generate_mix(self,
+                     n_obj_configs,
+                     n_spatial_configs,
+                     n,
+                     restart=True):
+        """
+        Generates configs with object re-mixing.
+
+        Arguments :
+            - n_obj_configs (int) : number of different configurations for the
+                size, color, and orientation of the objects.
+            - n_spatial_configs (int) : number of different shufflings of the
+                same objects (same color, size and orientation)
+            - n (int) : number of transformations of the same spatial
+                configuration.
+        """
+        if restart:
+            self._env.reset()
+            self._config_id = 0
+        for i in range(n_obj_configs):
+            # generate ref state
+            self._env.reset()
+            self._env.random_config(self.n_objects)
+            ref_state = self._env.to_state_list()
+            for j in range(n_spatial_configs):
+                self._env.reset()
+                self._env.from_state_list(ref_state)
+                self._env.random_mix()
+                state = self._env.to_state_list()
+                self._generate_configs(n, state)
+
+    def save(self, path, img_path=None):
         """
         Saves the current configurations to a text file at path.
         """
         to_file(self._configs, path)
-        if save_images:
+        if img_path is not None:
             img_count = 0
             for state, idx in self._configs:
                 img_name = 'img' + str(img_count) + '.jpg'
                 self._env.from_state_list(state)
-                self._env.save(op.join(img_path, img_name), save_image=True)
+                self._env.save_image(op.join(img_path, img_name))
                 self._env.reset()
                 img_count += 1
 

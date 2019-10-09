@@ -16,7 +16,7 @@ def to_file(data, path):
 
     TODO : make this more optimized and more general, for several data types.
     """
-    with open(path, 'a') as f:
+    with open(path, 'w') as f:
         f.write('\n')
         for vec_list, idx in data:
             f.write(str(idx) + '\n')
@@ -40,7 +40,6 @@ def from_file(path, dtype=float):
         idx = 0
         for l in f.readlines():
             str_list = l.split(' ')
-            print(str_list)
             if str_list == ['\n']:
                 if vec_list:
                     data.append((vec_list, idx))

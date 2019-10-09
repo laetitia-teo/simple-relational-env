@@ -137,6 +137,16 @@ class Square(Shape):
             1/np.sqrt(2))
         return c
 
+    def copy(self):
+        """
+        Returns a Square with the same attributes as the current one.
+        """
+        size = self.size
+        color = np.array(self.color)
+        pos = np.array(self.pos)
+        ori = self.ori
+        return Square(size, color, pos, ori)
+
 class Circle(Shape):
 
     def __init__(self, size, color, pos, ori):
@@ -147,6 +157,16 @@ class Circle(Shape):
             ori)
         self.shape_index = 1
         self.cond = lambda x, y : np.less_equal(x**2 + y**2, 1)
+
+    def copy(self):
+        """
+        Returns a Circle with the same attributes as the current one.
+        """
+        size = self.size
+        color = np.array(self.color)
+        pos = np.array(self.pos)
+        ori = self.ori
+        return Circle(size, color, pos, ori)
 
 class Triangle(Shape):
 
@@ -169,6 +189,16 @@ class Triangle(Shape):
             np.less_equal(y_, a*x_ + b) * \
             np.less_equal(y_, (- a)*x_ + b)
         return c
+
+    def copy(self):
+        """
+        Returns a Triangle with the same attributes as the current one.
+        """
+        size = self.size
+        color = np.array(self.color)
+        pos = np.array(self.pos)
+        ori = self.ori
+        return Triangle(size, color, pos, ori)
 
 def shape_from_vector(vec):
     """
@@ -311,7 +341,7 @@ class Env(AbstractEnv):
 
     def shuffle_objects(self):
         """
-        Shuffles objects in the state list.
+        Shuffles objects in the state list (the states are unchanged)
         This is for testing the models' robustness to permutation.
         """
         shuffle(self.objects)
@@ -370,15 +400,38 @@ class Env(AbstractEnv):
             shape = shape_from_vector(vec)
             self.add_object(shape)
 
-    def save(self, path, save_image=True, save_state=False):
+    def save_image(self, path):
         """
         Saves the current env image and the state description into the
         specified path.
         """
-        if save_image:
-            cv2.imwrite(path, self.render())
-        if save_state:
-            pass # TODO
+        cv2.imwrite(path, self.render())
+
+    def random_mix(self, timeout=20):
+        """
+        Creates a scene configuration where the objects are the same, but the
+        spatial configuration is randomly re-sampled.
+        """
+        count = 0
+        while count < timeout:
+            new_objects = []
+            for obj in self.objects:
+                new_pos = np.random.random(2)
+                new_pos = (1 - new_pos) * obj.size + new_pos \
+                    * (self.envsize - obj.size)
+                new_obj = obj.copy()
+                new_obj.pos = new_pos
+                new_objects.append(new_obj)
+            try:
+                objects = self.objects
+                self.reset()
+                for obj in new_objects:
+                    self.add_object(obj)
+                return
+            except Collision:
+                self.objects = objects
+            count += 1
+        raise SamplingTimeout('Too many rejected samplings, try fewer objects')
 
     def add_random_object(self, timeout=20):
         """
@@ -420,8 +473,8 @@ class Env(AbstractEnv):
             except Collision:
                 pass # re-sample
             count += 1
-        raise SamplingTimeout('Too many rejected samplings, check if the \
-            environment is not too full')
+        raise SamplingTimeout('Too many rejected samplings, check if the ' \
+            + 'environment is not too full')
 
     def random_config(self, n_objects, timeout=20):
         """
@@ -466,8 +519,8 @@ class Env(AbstractEnv):
             except Collision:
                 pass # re-sample
             count += 1
-        raise SamplingTimeout('Too many rejected samplings, check if the \
-            environment is not too full')
+        raise SamplingTimeout('Too many rejected samplings, check if the ' \
+            + 'environment is not too full')
 
 
 class NActionSpace():
@@ -576,7 +629,7 @@ class Playground():
         X = self._env.L
         Y = self._env.L
         framename = 'images/frame.jpg'
-        self._env.save(framename)
+        self._env.save_image(framename)
         display = pygame.display.set_mode((X, Y))
         pygame.display.set_caption('Playground')
         idx = 0
@@ -607,6 +660,6 @@ class Playground():
                         print(idx)
                     if event.key == pygame.K_ESCAPE:
                         done = True
-            self._env.save(framename)
+            self._env.save_image(framename)
         pygame.quit()
             
