@@ -10,7 +10,11 @@ import numpy as np
 
 import torch
 
-class Dataset():
-    """docstring for Dataset"""
-    def __init__(self, arg):
-        pass
+from torch.utils.data import Dataset
+
+class ObjectDataset(Dataset):
+    """
+    A Dataset class to hold our object data. Does not handle images of the
+    state of the environment.
+    """
+    def __init__(self, )

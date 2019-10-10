@@ -43,7 +43,7 @@ def mlp_fn(hidden_layer_sizes):
 #                                                                             #
 ###############################################################################
 
-class EdgeModel(torch.nn.Module):
+class EdgeModelConcat(torch.nn.Module):
     def __init__(self,
                  f_e,
                  f_x,
@@ -63,7 +63,7 @@ class EdgeModel(torch.nn.Module):
             - model_fn : function that takes input and output features and
                 returns a model.
         """
-        super(EdgeModel, self).__init__()
+        super(EdgeModelConcat, self).__init__()
         if f_e_out is None:
             f_e_out = f_e
         self.phi_e = model_fn(f_e + 2*f_x + f_u, f_e_out)
@@ -79,6 +79,44 @@ class EdgeModel(torch.nn.Module):
         batch [E] : edge-batch mapping
         """
         out = torch.cat([src, dest, edge_attr, u[batch]], 1)
+        return self.phi_e(out)
+
+class EdgeModelDiff(torch.nn.Module):
+    def __init__(self,
+                 f_e,
+                 f_x,
+                 f_u,
+                 model_fn,
+                 f_e_out=None):
+        """
+        Edge model : for each edge, computes the result as a function of the
+        edge attribute, the sender and receiver node attribute, and the global
+        attribute.
+
+        Arguments :
+
+            - f_e (int): number of edge features
+            - f_x (int): number of vertex features
+            - f_u (int): number of global features
+            - model_fn : function that takes input and output features and
+                returns a model.
+        """
+        super(EdgeModelDiff, self).__init__()
+        if f_e_out is None:
+            f_e_out = f_e
+        self.phi_e = model_fn(f_e + f_x + f_u, f_e_out)
+
+    def forward(self, src, dest, edge_attr, u, batch):
+        """
+        src [E, f_x] where E is number of edges and f_x is number of vertex
+            features : source node tensor
+        dest [E, f_x] : destination node tensor
+        edge_attr [E, f_e] where f_e is number of edge features : edge tensor
+        u [B, f_u] where B is number of batches (graphs) and f_u is number of
+            global features : global tensor
+        batch [E] : edge-batch mapping
+        """
+        out = torch.cat([dest - src, edge_attr, u[batch]], 1)
         return self.phi_e(out)
 
 class NodeModel(torch.nn.Module):
