@@ -17,4 +17,5 @@ class ObjectDataset(Dataset):
     A Dataset class to hold our object data. Does not handle images of the
     state of the environment.
     """
-    def __init__(self, )
+    def __init__(self):
+        pass

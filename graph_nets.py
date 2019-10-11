@@ -39,7 +39,7 @@ def mlp_fn(hidden_layer_sizes):
 
 ###############################################################################
 #                                                                             #
-#                                 GN Layer                                    #
+#                                GN Models                                    #
 #                                                                             #
 ###############################################################################
 
@@ -193,7 +193,7 @@ class GlobalModel(torch.nn.Module):
 
 ###############################################################################
 #                                                                             #
-#                              Direct GN Layers                               #
+#                              Direct GN Models                               #
 #                                                                             #
 ###############################################################################
 
@@ -265,3 +265,90 @@ class DirectGlobalModel(torch.nn.Module):
 
     def forward(self, x, edge_index, edge_attr, u, batch):
         return self.phi_u(u)
+
+
+###############################################################################
+#                                                                             #
+#                                   GN Blocks                                 #
+#                                                                             #
+###############################################################################
+
+class AttentionLayer(torch.nn.Module):
+    """
+    GN block with attentive messages, inpired from GRANs.
+    This code is based upon the code for the MetaLayer from rusty1s' PyTorch
+    Geometric library, check it out here : 
+
+    https://github.com/rusty1s/pytorch_geometric 
+    """
+    def __init__(self,
+                 edge_model,
+                 attention_model,
+                 node_model,
+                 global_model):
+        """
+        Initialize the AttentionLayer.
+
+        This layer performs a message-passing round, but with attention weights
+        on the edge features in the node computation step.
+
+        Maybe complexify the node model when using this, in terms of what
+        information it uses to update the nodes, if we only aggregate the node
+        features in the global attributes.
+
+        Arguments:
+            - edge_model : model that takes as input the source and destination
+                node features of each edge, and the previous edge features, and
+                returns the next edge features.
+            - attention_model : model that takes the same input as the edge
+                model, and outputs attention vectors for each edge
+            - node_model : model that takes as input the updated edges, the
+                attention features, and the previous node features, computes
+                the sum of all edge features flowing into the considered node
+                weighted by their attention vectors, and uses this sum to
+                update the node features
+            - global_model : model that computes the global attribute by
+                aggregating all edges and nodes. (no attention here ? or maybe
+                only aggregate the nodes ?)
+        """
+        super(AttentionLayer, self).__init__()
+        self.edge_model = edge_model
+        self.attention_model = attention_model
+        self.node_model = node_model
+        self.global_model = global_model
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for item in [
+            self.edge_model, 
+            self.attention_model, 
+            self.node_model, 
+            self.global_model]:
+            if hasattr(item, 'reset_parameters'):
+                item.reset_parameters
+
+    def forward(self, x, edge_index, e, u, batch):
+        """
+        Forward pass
+        """
+        src, dest = edge_index
+
+        e = self.edge_model(x[src], x[dest], e, u, batch[src])
+        a = self.attention_model(x[src], x[dest], e, u, batch[src])
+        x = self.node_model(x, edge_index, e * a, u, batch)
+        u = self.global_model(x, edge_index, e, u, batch)
+
+        return x, e, u
+
+    def __repr__(self):
+        return ('{}(\n'
+                '    edge_model={},\n'
+                '    attention_model={},\n'
+                '    node_model={},\n'
+                '    global_model={}\n'
+                ')').format(self.__class__.__name__,
+                            self.edge_model,
+                            self.attention_model, 
+                            self.node_model,
+                            self.global_model)
