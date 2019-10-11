@@ -6,4 +6,4 @@ given a model that is already defined.
 import torch
 
 def one_step(model):
-    pass
+    

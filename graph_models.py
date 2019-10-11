@@ -234,7 +234,7 @@ class GraphDifference(torch.nn.Module):
 
         self.final_mlp = model_fn(h, f_out)
 
-    def processing(self, x, edge_index, edge_attr, u, batch):
+    def processing(self, x, edge_index, e, u, batch):
         """
         Processing a single graph, before merging.
         """
@@ -253,9 +253,9 @@ class GraphDifference(torch.nn.Module):
                 u_cat,
                 batch)
 
-        return x_h, edge_index, e_h, u_h, batch
+        return x_h, e_h, u_h
 
-    def processing_final(self, x, edge_index, edge_attr, u, batch):
+    def processing_final(self, x, edge_index, e, u, batch):
         """
         Processing a single graph, before merging.
         """
@@ -274,7 +274,7 @@ class GraphDifference(torch.nn.Module):
                 u_cat,
                 batch)
 
-        return x_h, edge_index, e_h, u_h, batch
+        return x_h, e_h, u_h
 
     def forward(self, graph1, graph2):
         """
@@ -289,16 +289,16 @@ class GraphDifference(torch.nn.Module):
         x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
 
-        x1, edge_index1, e1, u1, batch1 = self.processing(
+        x1, e1, u1 = self.processing(
             x1, edge_index1, e1, u1, batch1)
-        x2, edge_index2, e2, u2, batch2 = self.processing(
+        x2, e2, u2 = self.processing(
             x2, edge_index2, e2, u2, batch2)
 
         assert(edge_index1 == edge_index2) # this should pass easily
 
         x, e, u = x1 - x2, e1 - e2, u1 - u2
 
-        x, edge_index, e, u, batch = self.processing_final(
+        x, e, u = self.processing_final(
             x, edge_index, e, u, batch)
 
         return self.final_mlp(u)
@@ -323,6 +323,9 @@ class Alternating(torch.nn.Module):
         After N rounds of processing, alternating on each graph, the shared
         vector is decoded by a final model.
 
+        See if training on all outputs is not better than training only on the
+        final one.
+
         Arguments:
             - mlp_layers (list of ints): the number of units in each hidden
                 layer in the mlps used in the graph networks.
@@ -333,6 +336,7 @@ class Alternating(torch.nn.Module):
             - n (int) : number of passes to do in each processing step.
         """
         self.N = N
+        self.n = n
         model_fn = gn.mlp_fn(mlp_layers)
         f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
@@ -344,9 +348,73 @@ class Alternating(torch.nn.Module):
             DirectGlobalModel(f_u, model_fn, h))
 
         # attention GN Block
-        self.reccurent = MetaLayer(
-            gn.EdgeModelDiff(2*h, 2*h, 2*h, model_fn, h),
-            gn.NodeModel(h, 2*h, 2*h, model_fn, h),
-            gn.GlobalModel(h, h, 2*h, model_fn, h))
+        self.reccurent = gn.AttentionLayer(
+            gn.EdgeModelDiff(3*h, 3*h, 3*h, model_fn, h),
+            gn.NodeModel(2*h, 3*h, 3*h, model_fn, h),
+            gn.NodeOnlyGlobalModel(2*h, 2*h, 3*h, model_fn, h))
 
         self.decoder = model_fn(h, f_out)
+
+    def encode(self, x, edge_index, e, u, batch, shared):
+        """
+        Encodes a graph, for subsequent processing.
+        """
+        x_h, e_h, u_h = self.encoder(
+            x, edge_index, e, u, batch)
+
+
+    def processing(self,
+                   x,
+                   x_h,
+                   edge_index,
+                   e,
+                   e_h,
+                   u,
+                   u_h,
+                   batch,
+                   shared):
+        """
+        Processing step.
+
+        shared is the shared vector.
+        """
+        for _ in range(self.n):
+            x_cat = torch.cat([x, x_h], 1)
+            e_cat = torch.cat([e, e_h], 1)
+            u_cat = torch.cat([u, u_h], 1)
+
+            x_h, e_h, u_h = self.reccurent(
+                x_cat,
+                edge_index,
+                e_cat,
+                u_cat,
+                batch)
+
+        return x_h, e_h, u_h
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass
+
+        Returns la list of self.N outputs, corresponding to each alternating
+        step.
+        """
+        outputs = []
+
+        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+
+        x1h, e1h, u1h = self.encoder(
+            x1, edge_index1, e1, u1, batch1)
+        x2h, e2h, u2h = self.encoder(
+            x2, edge_index2, e2, u2, batch2)
+
+        for _ in range(self.N):
+            # alternative processing
+            x1h, e1h, u1h = self.processing(
+                x1, x1h, edge_index1, e1, e1h, u1, u1h, batch1, u2h)
+            x2h, e2h, u2h = self.processing(
+                x2, x2h, edge_index2, e2, e2h, u2, u2h, batch2, u1h)
+            outputs.append(self.decoder(u2h))
+
+        return outputs

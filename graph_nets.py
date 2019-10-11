@@ -147,9 +147,9 @@ class NodeModel(torch.nn.Module):
     def forward(self, x, edge_index, edge_attr, u, batch):
         """
         """
-        row, col = edge_index
+        src, dest = edge_index
         # aggregate all edges which have the same destination
-        e_agg_node = scatter_mean(edge_attr, col, dim=0)
+        e_agg_node = scatter_mean(edge_attr, dest, dim=0)
         out = torch.cat([x, e_agg_node, u[batch]], 1)
         return self.phi_x(out)
 
@@ -181,14 +181,47 @@ class GlobalModel(torch.nn.Module):
     def forward(self, x, edge_index, edge_attr, u, batch):
         """
         """
-        row, col = edge_index
+        src, dest = edge_index
         # compute the batch index for all edges
-        e_batch = batch[row]
+        e_batch = batch[src]
         # aggregate all edges in the graph
         e_agg = scatter_mean(edge_attr, e_batch, dim=0)
         # aggregate all nodes in the graph
         x_agg = scatter_mean(x, batch, dim=0)
         out = torch.cat([x_agg, e_agg, u], 1)
+        return self.phi_u(out)
+
+class NodeOnlyGlobalModel(torch.nn.Module):
+    def  __init__(self,
+                 f_e,
+                 f_x,
+                 f_u,
+                 model_fn,
+                 f_u_out=None):
+        """
+        Global model : aggregates the edge attributes over the whole graph,
+        the node attributes over the whole graph, and uses those to compute
+        the next global value.
+
+        Arguments :
+
+            - f_e (int): number of edge features
+            - f_x (int): number of vertex features
+            - f_u (int): number of global features
+            - model_fn : function that takes input and output features and
+                returns a model.
+        """
+        super(GlobalModel, self).__init__()
+        if f_u_out is None:
+            f_u_out = f_u
+        self.phi_u = model_fn(f_x + f_u, f_u_out)
+
+    def forward(self, x, edge_index, edge_attr, u, batch):
+        """
+        """
+        # aggregate all nodes in the graph
+        x_agg = scatter_mean(x, batch, dim=0)
+        out = torch.cat([x_agg, u], 1)
         return self.phi_u(out)
 
 ###############################################################################
