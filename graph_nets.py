@@ -211,7 +211,7 @@ class NodeOnlyGlobalModel(torch.nn.Module):
             - model_fn : function that takes input and output features and
                 returns a model.
         """
-        super(GlobalModel, self).__init__()
+        super(NodeOnlyGlobalModel, self).__init__()
         if f_u_out is None:
             f_u_out = f_u
         self.phi_u = model_fn(f_x + f_u, f_u_out)

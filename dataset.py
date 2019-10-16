@@ -48,10 +48,9 @@ class ObjectDataset(Dataset):
         self.data = []
         for vecs1, idx1 in self._configs:
             for vecs2, idx2 in self._configs:
-                objects1 = torch.tensor(vecs1)
-                objects2 = torch.tensor(vecs2)
+                objects1 = torch.tensor(vecs1, dtype=torch.float32)
+                objects2 = torch.tensor(vecs2, dtype=torch.float32)
                 objects = torch.cat([objects1, objects2])
-                print(objects.shape)
                 clss = torch.zeros(2)
                 if idx1 == idx2:
                     clss[1] = 1.

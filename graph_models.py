@@ -16,8 +16,14 @@ import torch_geometric
 
 import graph_nets as gn
 
-from torch_geometric import MetaLayer
+from torch_geometric.nn import MetaLayer
 from torch_geometric.data import Data
+
+###############################################################################
+#                                                                             #
+#                            Utility functions                                #
+#                                                                             #
+###############################################################################
 
 def scene_to_complete_graph(state_list, f_e, f_u):
     """
@@ -40,6 +46,48 @@ def scene_to_complete_graph(state_list, f_e, f_u):
     edge_attr = [torch.zeros(f_e) for _ in range(len(edge_index))]
     y = torch.zeros(f_u)
     return x, edge_index, edge_attr, y
+
+def tensor_to_graphs(t, n_obj, f_e, f_u):
+    """
+    Turns a tensor containing the objects into a complete graph.
+    The tensor is of shape [batch_size, nb_objects * 2, f_x].
+
+    Returns two graphs of torch_geometric.data.Data type.
+    """
+    f_x = t.size()[-1]
+    t = torch.reshape(t, (-1, 2, n_obj, f_x))
+    b_size = t.size()[0]
+    x1 = torch.reshape(t[:, 0 ,...], (-1, f_x))
+    x2 = torch.reshape(t[:, 1, ...], (-1, f_x))
+    n_x = len(x1)
+    # defining edge_index
+    e = torch.zeros(n_obj, dtype=torch.long).unsqueeze(0)
+    for i in range(n_obj - 1):
+        e = torch.cat(
+            (e, (1 + i) * torch.ones(3, dtype=torch.long).unsqueeze(0)), 0)
+    ei = torch.stack(
+        (torch.reshape(e, (-1,)), torch.reshape(e.T, (-1,))))
+    ei = ei[:, ei[0] != ei[1]]
+    ei1 = ei
+    for i in range(b_size - 1):
+        ei1 = torch.cat((ei1, n_obj * (i + 1) + ei), 1)
+    ei2 = ei1
+    # edge features
+    e1 = torch.zeros((ei1.shape[1], f_e))
+    e2 = torch.zeros((ei1.shape[1], f_e))
+    # global features
+    u1 = torch.zeros(b_size, f_u)
+    u2 = torch.zeros(b_size, f_u)
+    # batches
+    batch1 = torch.zeros(n_obj, dtype=torch.long)
+    for i in range(b_size - 1):
+        batch1 = torch.cat((batch1,
+                            (i + 1) * torch.ones(n_obj, dtype=torch.long)))
+    batch2 = batch1
+    graph1 = Data(x=x1, edge_index=ei1, edge_attr=e1, y=u1, batch=batch1)
+    print(graph1)
+    graph2 = Data(x=x2, edge_index=ei2, edge_attr=e2, y=u2, batch=batch2)
+    return graph1, graph2
 
 def data_from_graph(graph):
     x = graph.x
@@ -69,6 +117,12 @@ def permute_graph(graph, mapping):
     # no need to permute edge attributes, global attributes or batch
     return graph
 
+###############################################################################
+#                                                                             #
+#                                  Models                                     #
+#                                                                             #
+###############################################################################
+
 
 class GraphModel(torch.nn.Module):
     """
@@ -87,7 +141,7 @@ class GraphModel(torch.nn.Module):
         f_out = f_dict['f_out']
         return f_e, f_x, f_u, f_out
 
-class GraphEmbedding(torch.nn.Module):
+class GraphEmbedding(GraphModel):
     """
     GraphEmbedding model.
     """
@@ -106,21 +160,21 @@ class GraphEmbedding(torch.nn.Module):
         This attention graph is used as weights for the edge and node features
         to be aggregated in the embedding.
         """
-        super(GraphEmbedding, self).__init__(self)
+        super(GraphEmbedding, self).__init__()
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
         f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.encoder = MetaLayer(
-            DirectEdgeModel(f_e, model_fn, h),
-            DirectNodeModel(f_x, model_fn, h),
-            DirectGlobalModel(f_u, model_fn, h))
+            gn.DirectEdgeModel(f_e, model_fn, h),
+            gn.DirectNodeModel(f_x, model_fn, h),
+            gn.DirectGlobalModel(f_u, model_fn, h))
 
         # set the different parameters
         self.reccurent = MetaLayer(
-            gn.EdgeModelDiff(2*h, 2*h, 2*h, model_fn, h),
-            gn.NodeModel(h, 2*h, 2*h, model_fn, h),
-            gn.GlobalModel(h, h, 2*h, model_fn, h))
+            gn.EdgeModelDiff(f_e + h, f_x + h, f_u + h, model_fn, h),
+            gn.NodeModel(h, f_x + h, f_u + h, model_fn, h),
+            gn.GlobalModel(h, h, f_u + h, model_fn, h))
 
         self.attention_maker = MetaLayer(
             gn.EdgeModelDiff(h, h, h, model_fn, h),
@@ -136,6 +190,7 @@ class GraphEmbedding(torch.nn.Module):
         """
         Graph Embedding.
         """
+        print(x.size())
         x_h, e_h, u_h = self.encoder(
             x, edge_index, e, u, batch)
 
@@ -171,10 +226,10 @@ class GraphEmbedding(torch.nn.Module):
 
         diff = u1 - u2
 
-        return final_mlp(diff)
+        return self.final_mlp(diff)
 
 
-class GraphDifference(torch.nn.Module):
+class GraphDifference(GraphModel):
     """
     GraphModel.
     """
@@ -205,27 +260,27 @@ class GraphDifference(torch.nn.Module):
                 returns a tensor representing a permutation of the indices
                 to map the second graph on the first one.
         """
-        super(GraphModel, self).__init__(self)
+        super(GraphModel, self).__init__()
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
         self.mapping_fn = mapping_fn
         f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.encoder = MetaLayer(
-            DirectEdgeModel(f_e, model_fn, h),
-            DirectNodeModel(f_x, model_fn, h),
-            DirectGlobalModel(f_u, model_fn, h))
+            gn.DirectEdgeModel(f_e, model_fn, h),
+            gn.DirectNodeModel(f_x, model_fn, h),
+            gn.DirectGlobalModel(f_u, model_fn, h))
 
         # set the different parameters
         self.reccurent = MetaLayer(
-            gn.EdgeModelDiff(2*h, 2*h, 2*h, model_fn, h),
-            gn.NodeModel(h, 2*h, 2*h, model_fn, h),
-            gn.GlobalModel(h, h, 2*h, model_fn, h))
+            gn.EdgeModelDiff(f_e + h, f_x + h, f_u + h, model_fn, h),
+            gn.NodeModel(h, f_x + h, f_u + h, model_fn, h),
+            gn.GlobalModel(h, h, f_u + h, model_fn, h))
 
         self.encoder_final = MetaLayer(
-            DirectEdgeModel(h, model_fn, h),
-            DirectNodeModel(h, model_fn, h),
-            DirectGlobalModel(h, model_fn, h))
+            gn.DirectEdgeModel(h, model_fn, h),
+            gn.DirectNodeModel(h, model_fn, h),
+            gn.DirectGlobalModel(h, model_fn, h))
 
         self.reccurent_final = MetaLayer(
             gn.EdgeModelDiff(2*h, 2*h, 2*h, model_fn, h),
@@ -294,16 +349,16 @@ class GraphDifference(torch.nn.Module):
         x2, e2, u2 = self.processing(
             x2, edge_index2, e2, u2, batch2)
 
-        assert(edge_index1 == edge_index2) # this should pass easily
+        assert((edge_index1 == edge_index2).all()) # this should pass easily
 
         x, e, u = x1 - x2, e1 - e2, u1 - u2
 
         x, e, u = self.processing_final(
-            x, edge_index, e, u, batch)
+            x, edge_index1, e, u, batch1)
 
         return self.final_mlp(u)
 
-class Alternating(torch.nn.Module):
+class Alternating(GraphModel):
     """
     Class for the alternating graph model.
     """
@@ -312,7 +367,7 @@ class Alternating(torch.nn.Module):
                  h,
                  N,
                  f_dict,
-                 n=1):
+                 n=2):
         """
         Intitialize the alternating model.
 
@@ -335,6 +390,7 @@ class Alternating(torch.nn.Module):
             - f_dict : dictionnary of feature sizes
             - n (int) : number of passes to do in each processing step.
         """
+        super(Alternating, self).__init__()
         self.N = N
         self.n = n
         model_fn = gn.mlp_fn(mlp_layers)
@@ -343,15 +399,16 @@ class Alternating(torch.nn.Module):
         # encoding the graphs to give the first latent vectors in the
         # processing step
         self.encoder = MetaLayer(
-            DirectEdgeModel(f_e, model_fn, h),
-            DirectNodeModel(f_x, model_fn, h),
-            DirectGlobalModel(f_u, model_fn, h))
+            gn.DirectEdgeModel(f_e, model_fn, h),
+            gn.DirectNodeModel(f_x, model_fn, h),
+            gn.DirectGlobalModel(f_u, model_fn, h))
 
         # attention GN Block
         self.reccurent = gn.AttentionLayer(
-            gn.EdgeModelDiff(3*h, 3*h, 3*h, model_fn, h),
-            gn.NodeModel(2*h, 3*h, 3*h, model_fn, h),
-            gn.NodeOnlyGlobalModel(2*h, 2*h, 3*h, model_fn, h))
+            gn.EdgeModelDiff(f_e + 2*h, f_x + 2*h, f_u + 2*h, model_fn, h),
+            gn.EdgeModelDiff(f_e + 2*h, f_x + 2*h, f_u + 2*h, model_fn, h),
+            gn.NodeModel(2*h, f_x + 2*h, f_u + 2*h, model_fn, h),
+            gn.NodeOnlyGlobalModel(2*h, 2*h, f_u + 2*h, model_fn, h))
 
         self.decoder = model_fn(h, f_out)
 
@@ -378,10 +435,12 @@ class Alternating(torch.nn.Module):
 
         shared is the shared vector.
         """
+        src, dest = edge_index
+
         for _ in range(self.n):
-            x_cat = torch.cat([x, x_h], 1)
-            e_cat = torch.cat([e, e_h], 1)
-            u_cat = torch.cat([u, u_h], 1)
+            x_cat = torch.cat([x, x_h, shared[batch]], 1)
+            e_cat = torch.cat([e, e_h, shared[batch[src]]], 1)
+            u_cat = torch.cat([u, u_h, shared], 1)
 
             x_h, e_h, u_h = self.reccurent(
                 x_cat,

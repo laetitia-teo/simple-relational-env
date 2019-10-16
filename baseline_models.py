@@ -74,13 +74,13 @@ class NaiveMLP(torch.nn.Module):
         """
         super(NaiveMLP, self).__init__()
         self.layer_list = []
-        f_in = n_objects * f_obj
+        f_in = 2 * n_objects * f_obj
         for f_out in layers:
             self.layer_list.append(Linear(f_in, f_out))
-            self.layer_list.append(ReLu())
+            self.layer_list.append(ReLU())
             f_in = f_out
         self.layer_list.append(Linear(f_in, 2))
-        self.mlp = Sequential(self.layer_list)
+        self.mlp = Sequential(*self.layer_list)
 
     def forward(self, data):
         return self.mlp(data)
@@ -118,19 +118,19 @@ class SceneMLP(torch.nn.Module):
         f_in = f_obj * n_objects
         for f_out in layers_scene:
             self.layer_list.append(Linear(f_in, f_out))
-            self.layer_list.append(ReLu())
+            self.layer_list.append(ReLU())
             f_in = f_out
         self.layer_list.append(Linear(f_in, f_scene))
-        self.scene_mlp = Sequential(self.layer_list)
+        self.scene_mlp = Sequential(*self.layer_list)
         # merge mlp
-        f_in = 2 * f_scene # tho scenes as input to merge
+        f_in = 2 * f_scene # two scenes as input to merge
         self.layer_list = []
         for f_out in layers_merge:
             self.layer_list.append(Linear(f_in, f_out))
-            self.layer_list.append(ReLu())
+            self.layer_list.append(ReLU())
             f_in = f_out
         self.layer_list.append(Linear(f_in, 2))
-        self.merge_mlp = Sequential(self.layer_list)
+        self.merge_mlp = Sequential(*self.layer_list)
 
     def forward(self, data1, data2):
         """
@@ -140,7 +140,7 @@ class SceneMLP(torch.nn.Module):
         """
         scene1 = self.scene_mlp(data1)
         scene2 = self.scene_mlp(data2)
-        return self.merge_mlp(torch.cat([scene1, scene2]))
+        return self.merge_mlp(torch.cat([scene1, scene2], 1))
 
 
 ###############################################################################
@@ -181,7 +181,7 @@ class EmbeddingComparison(torch.nn.Module):
     """
     def __init__(self,
                  embedding,
-                 f_embed
+                 f_embed,
                  layers):
         """
         Initializes the EmbeddingComparison.
@@ -203,10 +203,10 @@ class EmbeddingComparison(torch.nn.Module):
         f_in = f_embed
         for f_out in layers:
             self.layer_list.append(Linear(f_in, f_out))
-            self.layer_list.append(ReLu())
+            self.layer_list.append(ReLU())
             f_in = f_out
         self.layer_list.append(Linear(f_in, 2))
-        self.mlp = Sequential(self.layer_list)
+        self.mlp = Sequential(*self.layer_list)
 
     def forward(self, image1, image2):
         """
