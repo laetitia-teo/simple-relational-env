@@ -286,6 +286,25 @@ class Env(AbstractEnv):
         else:
             self.objects.append(obj)
 
+    def bounding_box(self):
+        """
+        Computes a bounding box for the set of objects currently in the 
+        environnment, in real coordinates.
+
+        The Bounding box is not strict, since it does not use pixel rendering
+        of the shapes, but only individual shape rendering boxes.
+        
+        If no objects are present, returns (None, None), else returns the bottom
+        left corner of the bbox and the upper right corner.
+        """
+        if not self.objects:
+            return None, None
+        aplus = np.array([obj.pos + obj.size for obj in self.objects])
+        amin = np.array([obj.pos - obj.size for obj in self.objects])
+        maxpos = np.max(aplus, 0)
+        minpos = np.min(amin, 0)
+        return minpos, maxpos
+
     def translate(self, amount, raise_collision=False):
         """
         Translates all the objects in the scene by amount, if there is no
@@ -488,6 +507,29 @@ class Env(AbstractEnv):
         for _ in range(n_objects):
             self.add_random_object(timeout)
 
+    def random_translation_vector(self):
+        """
+        Performs a random translation, with the translation vector sampled
+        uniformly in the space available as computed with the difference 
+        between the environment size and the current object bounding box.
+        """
+        bboxmin, bboxmax = self.bounding_box()
+        if bboxmin is None:
+            return
+        spacemin = np.array([0., 0.])
+        spacemax = np.array([self.envsize, self.envsize])
+        plusspace = spacemax - bboxmax
+        minspace = spacemin - bboxmin
+        # whether to sample in plusspace or minspace
+        b = np.random.binomial(1, plusspace/(plusspace - minspace))
+        # how much to move in x and y
+        u = np.random.random(2)
+        umax = plusspace * u
+        umin = minspace * u
+        U = np.array([umin, umax])
+        tvec = U[b, np.arange(2)]
+        return tvec
+
     def random_transformation(self, timeout=20):
         """
         Applies a random transformation on the state.
@@ -503,10 +545,11 @@ class Env(AbstractEnv):
             try:
                 trans = np.random.randint(2)
                 if trans == 0:
-                    maximum = self.envsize / 10
-                    minimum = - self.envsize / 10
-                    amount = np.random.random(2)
-                    amount = amount * (maximum - minimum) + minimum
+                    # maximum = self.envsize / 10
+                    # minimum = - self.envsize / 10
+                    # amount = np.random.random(2)
+                    # amount = amount * (maximum - minimum) + minimum
+                    amount = self.random_translation_vector()
                     self.translate(amount, raise_collision=True)
                     return
                 elif trans == 1:

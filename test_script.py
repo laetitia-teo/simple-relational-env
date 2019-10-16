@@ -28,58 +28,58 @@ env.reset()
 
 ### Testing dataset generation
 
-# gen = SimpleTaskGen(env, 3)
-# gen.generate_mix(5, 10, 5)
-# gen.save('data/simple_task/data.txt', 'images/simple_task/')
+gen = SimpleTaskGen(env, 3)
+gen.generate_mix(5, 10, 30)
+gen.save('data/simple_task/data.txt', 'images/simple_task/')
 
-# env2 = Env(16, 20)
-# gen2 = SimpleTaskGen(env2, 3)
+env2 = Env(16, 20)
+gen2 = SimpleTaskGen(env2, 3)
 # gen2.load('data/simple_task/data.txt')
 # gen2.save('data/simple_task/data2.txt')
 
 ### Testing dataset
 
-ds = ObjectDataset('data/simple_task/data.txt')
-ds.process()
-dl = DataLoader(ds, batch_size=B_SIZE, shuffle=True)
+# ds = ObjectDataset('data/simple_task/data.txt')
+# ds.process()
+# dl = DataLoader(ds, batch_size=B_SIZE, shuffle=True)
 
-a = iter(dl)
-t, i = next(a)
+# a = iter(dl)
+# t, i = next(a)
 
-### Testing baselines
+# ### Testing baselines
 
-naive_model = bm.NaiveMLP(3, 10, [32, 32])
-scene_model = bm.SceneMLP(3, 10, [16, 16], 16, [16, 16])
+# naive_model = bm.NaiveMLP(3, 10, [32, 32])
+# scene_model = bm.SceneMLP(3, 10, [16, 16], 16, [16, 16])
 
-objs = torch.reshape(t, (B_SIZE, 60))
-print(objs)
-res1 = naive_model(objs)
-print('res1 %s' % res1)
+# objs = torch.reshape(t, (B_SIZE, 60))
+# print(objs)
+# res1 = naive_model(objs)
+# print('res1 %s' % res1)
 
-objs = torch.reshape(t, (B_SIZE, 2, 30))
-obj1s, obj2s = objs[:, 0, :], objs[:, 1, :]
-res2 = scene_model(obj1s, obj2s)
-print('res2 %s ' % res2)
+# objs = torch.reshape(t, (B_SIZE, 2, 30))
+# obj1s, obj2s = objs[:, 0, :], objs[:, 1, :]
+# res2 = scene_model(obj1s, obj2s)
+# print('res2 %s ' % res2)
 
-### Testing graph models
+# ### Testing graph models
 
-f_e = 5
-f_u = 5
-f_x = 10
-graph1, graph2 = gm.tensor_to_graphs(t, 3, 5, 5)
-f_dict = {'f_e': f_e, 'f_u': f_u, 'f_x': f_x, 'f_out': 2}
+# f_e = 5
+# f_u = 5
+# f_x = 10
+# graph1, graph2 = gm.tensor_to_graphs(t, 3, 5, 5)
+# f_dict = {'f_e': f_e, 'f_u': f_u, 'f_x': f_x, 'f_out': 2}
 
-gembed = gm.GraphEmbedding([8, 8], 8, 10, f_dict)
-res3 = gembed(graph1, graph2)
-print('res3 %s' % (res3))
+# gembed = gm.GraphEmbedding([8, 8], 8, 10, f_dict)
+# res3 = gembed(graph1, graph2)
+# print('res3 %s' % (res3))
 
-gdiff = gm.GraphDifference([8, 8], 8, 10, f_dict, gm.identity_mapping)
-res4 = gdiff(graph1, graph2)
-print('res4 %s' % res4)
+# gdiff = gm.GraphDifference([8, 8], 8, 10, f_dict, gm.identity_mapping)
+# res4 = gdiff(graph1, graph2)
+# print('res4 %s' % res4)
 
-galt = gm.Alternating([8, 8], 8, 10, f_dict)
-res5 = galt(graph1, graph2)
-preint('res5 %s' % res5)
+# galt = gm.Alternating([8, 8], 8, 10, f_dict)
+# res5 = galt(graph1, graph2)
+# preint('res5 %s' % res5)
 
 
 ### Testing batching for graph computations
