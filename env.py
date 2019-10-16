@@ -337,7 +337,7 @@ class Env(AbstractEnv):
         is used.
 
         Arguments :
-            - amount : float
+            - amount : float, the scale of the scaling.
         """
         if center is None:
             center = np.array([self.envsize/2, self.envsize/2])
@@ -530,6 +530,30 @@ class Env(AbstractEnv):
         tvec = U[b, np.arange(2)]
         return tvec
 
+    def random_scaling(self, minscale=0.5):
+        """
+        Performs a random scaling, with the scaling vector sampled uniformly in
+        the available space, with an inferior limit on scaling (0.5 by default).
+        The scaling is centered on the bbox center.
+
+        Returns:
+            - the center (2d array)
+            - the scale (float)
+        """
+        bboxmin, bboxmax = self.bounding_box()
+        if bboxmin is None:
+            return
+        center = (bboxmin + bboxmax) / 2
+        size = (bboxmax - bboxmin) / 2
+        envsize = np.array([self.envsize, self.envsize])
+        maxscale = np.min(np.array([
+            np.abs(envsize - center) / size,
+            center / size]))
+        u = np.random.random()
+        assert(maxscale > minscale)
+        scale = u * maxscale + (1 - u) * minscale
+        return center, scale
+
     def random_transformation(self, timeout=20):
         """
         Applies a random transformation on the state.
@@ -543,22 +567,11 @@ class Env(AbstractEnv):
         count = 0
         while count < timeout:
             try:
-                trans = np.random.randint(2)
-                if trans == 0:
-                    # maximum = self.envsize / 10
-                    # minimum = - self.envsize / 10
-                    # amount = np.random.random(2)
-                    # amount = amount * (maximum - minimum) + minimum
-                    amount = self.random_translation_vector()
-                    self.translate(amount, raise_collision=True)
-                    return
-                elif trans == 1:
-                    maximum = 2
-                    minimum = 0.5
-                    amount = np.random.random()
-                    amount = amount * (maximum - minimum) + minimum
-                    self.scale(amount, raise_collision=True)
-                    return
+                amount = self.random_translation_vector()
+                self.translate(amount, raise_collision=True)
+                center, scale = self.random_scaling()
+                self.scale(scale, raise_collision=True, center=center)
+                return      
             except Collision:
                 pass # re-sample
             count += 1
