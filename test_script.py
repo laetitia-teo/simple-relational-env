@@ -28,38 +28,38 @@ env.reset()
 
 ### Testing dataset generation
 
-gen = SimpleTaskGen(env, 3)
-gen.generate_mix(5, 10, 30)
-gen.save('data/simple_task/data.txt', 'images/simple_task/')
+# gen = SimpleTaskGen(env, 3)
+# gen.generate_mix(2, 5, 100)
+# gen.save('data/simple_task/data.txt', 'images/simple_task/')
 
-env2 = Env(16, 20)
-gen2 = SimpleTaskGen(env2, 3)
+# env2 = Env(16, 20)
+# gen2 = SimpleTaskGen(env2, 3)
 # gen2.load('data/simple_task/data.txt')
 # gen2.save('data/simple_task/data2.txt')
 
 ### Testing dataset
 
-# ds = ObjectDataset('data/simple_task/data.txt')
-# ds.process()
-# dl = DataLoader(ds, batch_size=B_SIZE, shuffle=True)
+ds = ObjectDataset('data/simple_task/data.txt', epsilon=1/10)
+ds.process()
+dl = DataLoader(ds, batch_size=B_SIZE, shuffle=True)
 
-# a = iter(dl)
-# t, i = next(a)
+a = iter(dl)
+t, i = next(a)
 
-# ### Testing baselines
+### Testing baselines
 
-# naive_model = bm.NaiveMLP(3, 10, [32, 32])
-# scene_model = bm.SceneMLP(3, 10, [16, 16], 16, [16, 16])
+naive_model = bm.NaiveMLP(3, 10, [32, 32])
+scene_model = bm.SceneMLP(3, 10, [16, 16], 16, [16, 16])
 
-# objs = torch.reshape(t, (B_SIZE, 60))
-# print(objs)
-# res1 = naive_model(objs)
-# print('res1 %s' % res1)
+objs = torch.reshape(t, (B_SIZE, 60))
+print(objs)
+res1 = naive_model(objs)
+print('res1 %s' % res1)
 
-# objs = torch.reshape(t, (B_SIZE, 2, 30))
-# obj1s, obj2s = objs[:, 0, :], objs[:, 1, :]
-# res2 = scene_model(obj1s, obj2s)
-# print('res2 %s ' % res2)
+objs = torch.reshape(t, (B_SIZE, 2, 30))
+obj1s, obj2s = objs[:, 0, :], objs[:, 1, :]
+res2 = scene_model(obj1s, obj2s)
+print('res2 %s ' % res2)
 
 # ### Testing graph models
 

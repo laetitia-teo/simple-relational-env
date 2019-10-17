@@ -426,7 +426,7 @@ class Env(AbstractEnv):
         """
         cv2.imwrite(path, self.render())
 
-    def random_mix(self, timeout=20):
+    def random_mix(self, timeout=30):
         """
         Creates a scene configuration where the objects are the same, but the
         spatial configuration is randomly re-sampled.
@@ -452,7 +452,7 @@ class Env(AbstractEnv):
             count += 1
         raise SamplingTimeout('Too many rejected samplings, try fewer objects')
 
-    def add_random_object(self, timeout=20):
+    def add_random_object(self, timeout=30):
         """
         Adds a random object, with collision handling.
 
@@ -495,7 +495,7 @@ class Env(AbstractEnv):
         raise SamplingTimeout('Too many rejected samplings, check if the ' \
             + 'environment is not too full')
 
-    def random_config(self, n_objects, timeout=20):
+    def random_config(self, n_objects, timeout=30):
         """
         Returns a random configuration of the environment.
         Doesn't reset the environment to zero, this should be done manually
@@ -554,7 +554,7 @@ class Env(AbstractEnv):
         scale = u * maxscale + (1 - u) * minscale
         return center, scale
 
-    def random_transformation(self, timeout=20):
+    def random_transformation(self, timeout=30):
         """
         Applies a random transformation on the state.
 

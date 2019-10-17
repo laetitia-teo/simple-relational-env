@@ -19,6 +19,8 @@ from dataset import Dataset
 from env import SamplingTimeout
 from utils import to_file, from_file
 
+N_SH = 3
+
 class AbstractGen():
     """
     Generator abstract class.
@@ -100,12 +102,13 @@ class SimpleTaskGen(AbstractGen):
         if restart:
             self._env.reset()
             self._config_id = 0
+        print('Generating %s object configs :' % n_obj_configs)
         for i in range(n_obj_configs):
             # generate ref state
             self._env.reset()
             self._env.random_config(self.n_objects)
             ref_state = self._env.to_state_list()
-            for j in range(n_spatial_configs):
+            for j in tqdm(range(n_spatial_configs)):
                 self._env.reset()
                 self._env.from_state_list(ref_state)
                 self._env.random_mix()
@@ -117,9 +120,10 @@ class SimpleTaskGen(AbstractGen):
         Saves the current configurations to a text file at path.
         """
         to_file(self._configs, path)
+        print('generating images')
         if img_path is not None:
             img_count = 0
-            for state, idx in self._configs:
+            for state, idx in tqdm(self._configs):
                 img_name = 'img' + str(img_count) + '.jpg'
                 self._env.from_state_list(state)
                 self._env.save_image(op.join(img_path, img_name))
