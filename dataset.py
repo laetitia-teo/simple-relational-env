@@ -62,6 +62,7 @@ class ObjectDataset(Dataset):
         equality of the config indices).
         """
         self.data = []
+        rate = 1. / ((1 / self.epsilon) - 1.)
         print('building comparison dataset, %s configs' % len(self._configs))
         for vecs1, idx1 in tqdm(self._configs):
             for vecs2, idx2 in self._configs:
@@ -70,7 +71,7 @@ class ObjectDataset(Dataset):
                     clss[1] = 1.
                 else:
                     clss[0] = 1.
-                    p = np.random.binomial(1, self.epsilon)
+                    p = np.random.binomial(1, rate)
                     if not p:
                         continue # skip this negative sample
                 objects1 = torch.tensor(vecs1, dtype=torch.float32)
