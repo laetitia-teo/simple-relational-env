@@ -24,14 +24,6 @@ H = 16
 
 # objects
 
-data_path = op.join(
-    'data', 'simple_task', 'dataset_binaries', 'trainobject1')
-print('loading dataset...')
-with open(data_path, 'rb') as f:
-    ds = pickle.load(f)
-print('done')
-dataloader = DataLoader(ds, batch_size=B_SIZE, shuffle=True)
-
 def data_fn(data):
     data = torch.reshape(data, (-1, 2, F_OBJ*N_OBJ))
     return data[:, 0, :], data[:, 1, :]
@@ -40,6 +32,15 @@ scene_model = bm.SceneMLP(N_SH, F_OBJ, [H, H], H, [H, H])
 
 optimizer = torch.optim.Adam(scene_model.parameters(), lr=L_RATE)
 criterion = torch.nn.CrossEntropyLoss()
+
+def load_dl(name):
+    dpath = op.join('data', 'simple_task', 'dataset_binaries', name)
+    print('loading dataset...')
+    with open(data_path, 'rb') as f:
+        ds = pickle.load(f)
+    print('done')
+    dataloader = DataLoader(ds, batch_size=B_SIZE, shuffle=True)
+    return dataloader
 
 def compute_accuracy(pred_clss, clss):
     """

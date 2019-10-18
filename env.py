@@ -358,6 +358,42 @@ class Env(AbstractEnv):
             if raise_collision:
                 raise Collision('Failed scaling')
 
+    def rotate(self, theta, center=None, raise_collision=False):
+        """
+        Applies a rotation of angle theta on a scene. If no center is given,
+        the scene center is used.
+
+        Note, the rotation is performed clockwise.
+
+        Arguments :
+            - theta (float): angle of rotation, in radians
+            - center (size 2 array): position of the rotation center. If None
+                is given, the center is the center of the environment.
+            - raise_collision (bool): whether to propagate the Collision
+                exception if it happens.
+        """
+        if center is None:
+            center = np.array([self.envsize/2, self.envsize/2])
+        state_list = self.to_state_list()
+        self.reset()
+        rot_state_list = []
+        for vec in state_list:
+            rot_vec = np.array(vec)
+            pos = rot_vec[N_SH+4:N_SH+6] - center
+            rot_mx = np.array([[np.cos(theta), - np.sin(theta)],
+                               [np.sin(theta), np.cos(theta)]])
+            rot_vec[N_SH+4:N_SH+6] = rot_mx.dot(pos) + center
+            rot_vec[N_SH+6] += theta
+            rot_state_list.append(rot_vec)
+        try:
+            self.from_state_list(rot_state_list)
+        except Collision:
+            print('Collision : invalid rotation')
+            self.reset()
+            self.from_state_list(state_list)
+            if raise_collision:
+                raise Collision('Failed rotation')
+
     def shuffle_objects(self):
         """
         Shuffles objects in the state list (the states are unchanged)
@@ -553,6 +589,39 @@ class Env(AbstractEnv):
         assert(maxscale > minscale)
         scale = u * maxscale + (1 - u) * minscale
         return center, scale
+
+    def random_rotation(self, phi0=np.pi/2):
+        """
+        Performs a random rotation, with the random angle sampled uniformly in
+        the available range for angles, as computed with a conservative
+        estimation from the bounding box.
+        """
+        bboxmin, bboxmax = self.bounding_box()
+        center = (bboxmin + bboxmax) / 2
+        size = (bboxmax - bboxmin) / 2
+        R = (size[0]**2 + size[1]**2)**0.5 # from the corners to the center
+        theta = np.arctan(-size[1]/size[0]) # minus because indirect order
+        e = self.envsize
+        xc = center[0]
+        yc = center[1]
+        thetas = np.array([theta, -theta])
+        phis = [phi0, -phi0]
+        phis.append(np.arccos((e - xc)/R) - theta)
+        phis.append(-np.arcsin((0 - yc)/R) - theta)
+        phis.append(np.arccos((e - xc)/R) + theta)
+        phis.append(-np.arcsin((e - yc)/R) + theta)
+        phis.append(np.arccos((0 - xc)/-R) - theta)
+        phis.append(-np.arcsin((e - yc)/-R) - theta)
+        phis.append(np.arccos((0 - xc)/-R) + theta)
+        phis.append(-np.arcsin((0 - yc)/-R) + theta)
+        negphis = [phi for phi in phis if phi <= 0]
+        posphis = [phi for phi in phis if phi > 0]
+        maxphi = min(posphis)
+        minphi = max(negphis)
+        u = np.random.random()
+        phi = (1 - u) * minphi + u * maxphi
+        return center, phi
+
 
     def random_transformation(self, timeout=30):
         """
