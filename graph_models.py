@@ -16,6 +16,7 @@ import torch_geometric
 
 import graph_nets as gn
 
+from torch_scatter import scatter_mean
 from torch_geometric.nn import MetaLayer
 from torch_geometric.data import Data
 
@@ -40,14 +41,16 @@ def scene_to_complete_graph(state_list, f_e, f_u):
             connectivity, the edge features, the grobal features.
     """
     x = torch.tensor([state for state in state_list])
-    edge_index = [[i, j] for i in range(len(x)) for j in range(len(x))]
+    # this should work ?
+    edge_index = [
+        [i, j] for i in range(len(x)) if i != j for j in range(len(x))]
     edge_index = torch.tensor(edge_index)
     # we initialize the edge and global features with zeros
     edge_attr = [torch.zeros(f_e) for _ in range(len(edge_index))]
     y = torch.zeros(f_u)
     return x, edge_index, edge_attr, y
 
-def tensor_to_graphs(t, n_obj, f_e, f_u):
+def tensor_to_graphs(t):
     """
     Turns a tensor containing the objects into a complete graph.
     The tensor is of shape [batch_size, nb_objects * 2, f_x].
@@ -59,12 +62,12 @@ def tensor_to_graphs(t, n_obj, f_e, f_u):
     b_size = t.size()[0]
     x1 = torch.reshape(t[:, 0 ,...], (-1, f_x))
     x2 = torch.reshape(t[:, 1, ...], (-1, f_x))
-    n_x = len(x1)
+    n_obj = len(x1)
     # defining edge_index
     e = torch.zeros(n_obj, dtype=torch.long).unsqueeze(0)
     for i in range(n_obj - 1):
         e = torch.cat(
-            (e, (1 + i) * torch.ones(3, dtype=torch.long).unsqueeze(0)), 0)
+            (e, (1 + i) * torch.ones(n_obj, dtype=torch.long).unsqueeze(0)), 0)
     ei = torch.stack(
         (torch.reshape(e, (-1,)), torch.reshape(e.T, (-1,))))
     ei = ei[:, ei[0] != ei[1]]
@@ -72,20 +75,20 @@ def tensor_to_graphs(t, n_obj, f_e, f_u):
     for i in range(b_size - 1):
         ei1 = torch.cat((ei1, n_obj * (i + 1) + ei), 1)
     ei2 = ei1
-    # edge features
-    e1 = torch.zeros((ei1.shape[1], f_e))
-    e2 = torch.zeros((ei1.shape[1], f_e))
-    # global features
-    u1 = torch.zeros(b_size, f_u)
-    u2 = torch.zeros(b_size, f_u)
+    # edge features : initialize with difference
+    e1 = x1[ei1[1]] - x1[ei1[0]]
+    e2 = x2[ei2[1]] - x2[ei2[0]]
     # batches
     batch1 = torch.zeros(n_obj, dtype=torch.long)
     for i in range(b_size - 1):
         batch1 = torch.cat((batch1,
                             (i + 1) * torch.ones(n_obj, dtype=torch.long)))
     batch2 = batch1
+    # global features : initialize with mean of node features
+    u1 = scatter_mean(x1, batch1)
+    u2 = scatter_mean(x2, batch2)
+    # build graphs
     graph1 = Data(x=x1, edge_index=ei1, edge_attr=e1, y=u1, batch=batch1)
-    print(graph1)
     graph2 = Data(x=x2, edge_index=ei2, edge_attr=e2, y=u2, batch=batch2)
     return graph1, graph2
 
@@ -140,6 +143,83 @@ class GraphModel(torch.nn.Module):
         f_u = f_dict['f_u']
         f_out = f_dict['f_out']
         return f_e, f_x, f_u, f_out
+
+class ObjectMean(GraphModel):
+    """
+    Simple object-based embedding model.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 h,
+                 f_dict):
+        """
+        This is one of the simplest graph models we can imagine, acting on
+        objects.
+
+        There is no encoder, graph features are taken as is, and the mean
+        of all objects is used as embedding. The concatenation of the two
+        embeddings of the two scenes is then fed to an MLP that produces the
+        final prediction.
+
+        This model shall be used as a baseline to quantify the effects of
+        aggregating with attention, and of message-passing, in graph-based
+        embedding models, whose second part of the architecture remains
+        constant.
+        """
+        super(ObjectMean, self).__init__()
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.final_mlp = model_fn(f_x, f_out)
+
+    def forward(self, graph1, graph2):
+
+        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+
+        return self.final_mlp(torch.cat([u1, u2], 1))
+
+class ObjectMeanDirectAttention(GraphModel):
+    """
+    Graph Embedding model, where aggregation is done by a weighted mean, and
+    the attention vectors are computed on a separate basis for each node.
+
+    We only use the node features for aggregation (?).
+    """
+    super(GraphEmbedding, self).__init__()
+    model_fn = gn.mlp_fn(mlp_layers)
+    f_e, f_x, f_u, f_out = self.get_features(f_dict)
+    f_a = 1 # attentions are scalars
+
+    self.attention_model = MetaLayer(
+        gn.DirectEdgeModel(f_e, model_fn, f_a),
+        gn.DirectNodeModel(f_x, model_fn, f_a),
+        gn.DirectGlobalModel(f_u, model_fn, f_a))
+
+    self.attention_model = gn.DirectNodeModel(f_x, model_fn, f_a)
+
+    self.agg_fn = ...
+    self.final_mlp = model_fn(f_x, f_out)
+
+    def embedding(self, graph):
+        """
+        Returns the embedding of the graph, as a weighted mean of the node
+        features with attention scalars computed by an mlp on all node features
+        successively.
+        """
+        x, edge_index, e, u, batch = data_from_graph(graph)
+        a_x = self.attention_model(x, edge_index, e, u, batch)
+
+        return scatter_mean(x * a_x, batch) # see if this works
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass.
+        """
+        u1 = self.embedding(graph1)
+        u2 = self.embedding(graph2)
+
+        return self.final_mlp(torch.cat([u1, u2], 1))
 
 class GraphEmbedding(GraphModel):
     """

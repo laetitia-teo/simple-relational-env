@@ -606,6 +606,7 @@ class Env(AbstractEnv):
         yc = center[1]
         thetas = np.array([theta, -theta])
         phis = [phi0, -phi0]
+        # TODO : simplify this 
         if abs((e - xc)/R) <= 1:
             phis.append(np.arccos((e - xc)/R) - theta)
             phis.append(np.arccos((e - xc)/R) + theta)

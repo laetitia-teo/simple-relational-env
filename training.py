@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 import baseline_models as bm
+import graph_models as gm
 
 from torch.utils.data import DataLoader
 from torch_geometric.data import Data
@@ -24,9 +25,16 @@ H = 16
 
 # objects
 
-def data_fn(data):
+def data_fn_scene(data):
     data = torch.reshape(data, (-1, 2, F_OBJ*N_OBJ))
     return data[:, 0, :], data[:, 1, :]
+
+def data_fn_graphs(data):
+    """
+    Transforms object data in 2 graphs for graph models. 
+    """
+    data = torch.reshape(data, (-1, 2, F_OBJ*N_OBJ))
+    return gm.tensor_to_graphs(data)
 
 scene_model = bm.SceneMLP(N_SH, F_OBJ, [H, H], H, [H, H])
 

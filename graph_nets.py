@@ -155,11 +155,11 @@ class NodeModel(torch.nn.Module):
 
 class GlobalModel(torch.nn.Module):
     def  __init__(self,
-                 f_e,
-                 f_x,
-                 f_u,
-                 model_fn,
-                 f_u_out=None):
+                  f_e,
+                  f_x,
+                  f_u,
+                  model_fn,
+                  f_u_out=None):
         """
         Global model : aggregates the edge attributes over the whole graph,
         the node attributes over the whole graph, and uses those to compute
@@ -193,11 +193,11 @@ class GlobalModel(torch.nn.Module):
 
 class NodeOnlyGlobalModel(torch.nn.Module):
     def  __init__(self,
-                 f_e,
-                 f_x,
-                 f_u,
-                 model_fn,
-                 f_u_out=None):
+                  f_e,
+                  f_x,
+                  f_u,
+                  model_fn,
+                  f_u_out=None):
         """
         Global model : aggregates the edge attributes over the whole graph,
         the node attributes over the whole graph, and uses those to compute
@@ -282,9 +282,9 @@ class DirectNodeModel(torch.nn.Module):
 
 class DirectGlobalModel(torch.nn.Module):
     def  __init__(self,
-                 f_u,
-                 model_fn,
-                 f_u_out=None):
+                  f_u,
+                  model_fn,
+                  f_u_out=None):
         """
         Arguments :
             - f_u (int): number of global features
@@ -305,6 +305,55 @@ class DirectGlobalModel(torch.nn.Module):
 #                                   GN Blocks                                 #
 #                                                                             #
 ###############################################################################
+
+class MetaLayer(torch.nn.Module):
+    """
+    GN block.
+
+    Taken from rusty1s' PyTorch Geometric library, check it out here : 
+
+    https://github.com/rusty1s/pytorch_geometric
+    """
+    def __init__(self, edge_model=None, node_model=None, global_model=None):
+        super(MetaLayer, self).__init__()
+        self.edge_model = edge_model
+        self.node_model = node_model
+        self.global_model = global_model
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for item in [self.node_model, self.edge_model, self.global_model]:
+            if hasattr(item, 'reset_parameters'):
+                item.reset_parameters()
+
+
+    def forward(self, x, edge_index, edge_attr=None, u=None, batch=None):
+        """"""
+        row, col = edge_index
+
+        if self.edge_model is not None:
+            edge_attr = self.edge_model(x[row], x[col], edge_attr, u,
+                                        batch if batch is None else batch[row])
+
+        if self.node_model is not None:
+            x = self.node_model(x, edge_index, edge_attr, u, batch)
+
+        if self.global_model is not None:
+            u = self.global_model(x, edge_index, edge_attr, u, batch)
+
+        return x, edge_attr, u
+
+
+    def __repr__(self):
+        return ('{}(\n'
+                '    edge_model={},\n'
+                '    node_model={},\n'
+                '    global_model={}\n'
+                ')').format(self.__class__.__name__, self.edge_model,
+                            self.node_model, self.global_model)
+
+
 
 class AttentionLayer(torch.nn.Module):
     """
