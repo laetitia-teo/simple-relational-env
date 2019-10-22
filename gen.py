@@ -44,7 +44,11 @@ class SimpleTaskGen(AbstractGen):
         self.n_objects = n_objects
         self._config_id = 0
 
-    def _generate_configs(self, n, ref_state=None):
+    def _generate_configs(self,
+                          n,
+                          ref_state=None,
+                          rotations=False,
+                          record=False):
         """
         Generates the reference spatial configuration and its perturbations.
         
@@ -56,6 +60,10 @@ class SimpleTaskGen(AbstractGen):
                 provided, a new one is generated at random.
         """
         self._env.reset()
+        if record:
+            rec = {'translations': [],
+                   'scalings': [],
+                   'rotations': []}
         # generate reference config
         if ref_state is None:
             self._env.random_config(self.n_objects)
@@ -63,9 +71,16 @@ class SimpleTaskGen(AbstractGen):
         self._configs.append((ref_state, self._config_id))
         for _ in range(n - 1):
             self._env.from_state_list(ref_state)
-            self._env.random_transformation()
+            amount, scale, phi = self._env.random_transformation(
+                rotations=rotations)
             self._configs.append((self._env.to_state_list(), self._config_id))
+            if record:
+                rec['translations'].append(amount)
+                rec['scalings'].append(scale)
+                rec['rotations'].append(phi)
         self._config_id += 1
+        if record:
+            return rec
 
     def generate(self, n_configs, n, restart=True):
         """
@@ -87,7 +102,9 @@ class SimpleTaskGen(AbstractGen):
                      n_obj_configs,
                      n_spatial_configs,
                      n,
-                     restart=True):
+                     restart=True,
+                     rotations=False,
+                     record=False):
         """
         Generates configs with object re-mixing.
 
@@ -102,6 +119,10 @@ class SimpleTaskGen(AbstractGen):
         if restart:
             self._env.reset()
             self._config_id = 0
+        if record:
+            recs = {'translations': [],
+                   'scalings': [],
+                   'rotations': []}
         print('Generating %s object configs :' % n_obj_configs)
         for i in range(n_obj_configs):
             # generate ref state
@@ -113,7 +134,13 @@ class SimpleTaskGen(AbstractGen):
                 self._env.from_state_list(ref_state)
                 self._env.random_mix()
                 state = self._env.to_state_list()
-                self._generate_configs(n, state)
+                rec = self._generate_configs(n, state, rotations, record)
+                if record and rec is not None:
+                    recs['translations'] += rec['translations']
+                    recs['scalings'] += rec['scalings']
+                    recs['rotations'] += rec['rotations']
+        if record:
+            return recs
 
     def save(self, path, img_path=None):
         """

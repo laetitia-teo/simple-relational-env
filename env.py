@@ -606,24 +606,54 @@ class Env(AbstractEnv):
         yc = center[1]
         thetas = np.array([theta, -theta])
         phis = [phi0, -phi0]
-        phis.append(np.arccos((e - xc)/R) - theta)
-        phis.append(-np.arcsin((0 - yc)/R) - theta)
-        phis.append(np.arccos((e - xc)/R) + theta)
-        phis.append(-np.arcsin((e - yc)/R) + theta)
-        phis.append(np.arccos((0 - xc)/-R) - theta)
-        phis.append(-np.arcsin((e - yc)/-R) - theta)
-        phis.append(np.arccos((0 - xc)/-R) + theta)
-        phis.append(-np.arcsin((0 - yc)/-R) + theta)
+        if abs((e - xc)/R) <= 1:
+            phis.append(np.arccos((e - xc)/R) - theta)
+            phis.append(np.arccos((e - xc)/R) + theta)
+            phis.append(np.arccos((e - xc)/-R) - theta)
+            phis.append(np.arccos((e - xc)/-R) + theta)
+            phis.append(-np.arccos((e - xc)/R) - theta)
+            phis.append(-np.arccos((e - xc)/R) + theta)
+            phis.append(-np.arccos((e - xc)/-R) - theta)
+            phis.append(-np.arccos((e - xc)/-R) + theta)
+        if abs((e - yc)/R) <= 1:
+            phis.append(np.arcsin((e - yc)/R) + theta)
+            phis.append(np.arcsin((e - yc)/-R) - theta)
+            phis.append(np.arcsin((e - yc)/-R) + theta)
+            phis.append(np.arcsin((e - yc)/R) - theta)
+            phis.append(-np.arcsin((e - yc)/R) + theta)
+            phis.append(-np.arcsin((e - yc)/-R) - theta)
+            phis.append(-np.arcsin((e - yc)/-R) + theta)
+            phis.append(-np.arcsin((e - yc)/R) - theta)
+        if abs((0 - xc)/R) <= 1:
+            phis.append(np.arccos((0 - xc)/-R) - theta)
+            phis.append(np.arccos((0 - xc)/-R) + theta)
+            phis.append(np.arccos((0 - xc)/R) - theta)
+            phis.append(np.arccos((0 - xc)/R) + theta)
+            phis.append(-np.arccos((0 - xc)/-R) - theta)
+            phis.append(-np.arccos((0 - xc)/-R) + theta)
+            phis.append(-np.arccos((0 - xc)/R) - theta)
+            phis.append(-np.arccos((0 - xc)/R) + theta)
+        if abs((0 - yc)/R) <= 1:
+            phis.append(np.arcsin((0 - yc)/R) - theta)
+            phis.append(np.arcsin((0 - yc)/-R) + theta)
+            phis.append(np.arcsin((0 - yc)/-R) - theta)
+            phis.append(np.arcsin((0 - yc)/R) + theta)
+            phis.append(-np.arcsin((0 - yc)/R) - theta)
+            phis.append(-np.arcsin((0 - yc)/-R) + theta)
+            phis.append(-np.arcsin((0 - yc)/-R) - theta)
+            phis.append(-np.arcsin((0 - yc)/R) + theta)
         negphis = [phi for phi in phis if phi <= 0]
         posphis = [phi for phi in phis if phi > 0]
         maxphi = min(posphis)
         minphi = max(negphis)
+        maxphi -= 0.01 * maxphi
+        minphi += 0.01 * maxphi
         u = np.random.random()
         phi = (1 - u) * minphi + u * maxphi
         return center, phi
 
 
-    def random_transformation(self, timeout=30):
+    def random_transformation(self, timeout=30, rotations=False):
         """
         Applies a random transformation on the state.
 
@@ -640,7 +670,12 @@ class Env(AbstractEnv):
                 self.translate(amount, raise_collision=True)
                 center, scale = self.random_scaling()
                 self.scale(scale, raise_collision=True, center=center)
-                return      
+                if rotations:
+                    center, phi = self.random_rotation()
+                    self.rotate(phi, center)
+                else:
+                    phi = 0
+                return amount, scale, phi
             except Collision:
                 pass # re-sample
             count += 1

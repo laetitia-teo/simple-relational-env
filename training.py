@@ -30,13 +30,13 @@ def data_fn(data):
 
 scene_model = bm.SceneMLP(N_SH, F_OBJ, [H, H], H, [H, H])
 
-optimizer = torch.optim.Adam(scene_model.parameters(), lr=L_RATE)
+opt = torch.optim.Adam(scene_model.parameters(), lr=L_RATE)
 criterion = torch.nn.CrossEntropyLoss()
 
 def load_dl(name):
     dpath = op.join('data', 'simple_task', 'dataset_binaries', name)
     print('loading dataset...')
-    with open(data_path, 'rb') as f:
+    with open(dpath, 'rb') as f:
         ds = pickle.load(f)
     print('done')
     dataloader = DataLoader(ds, batch_size=B_SIZE, shuffle=True)
@@ -52,16 +52,16 @@ def compute_accuracy(pred_clss, clss):
     return torch.sum(accurate).item()/len(accurate)
 
 def one_step(model, dl, data_fn, optimizer, train=True):
+    accs = []
+    losses = []
     n_passes = 0
     cum_loss = 0
     cum_acc = 0
     for data, clss in dl:
         optimizer.zero_grad()
         # reshape data to fit in MLP
-        data1, data2 = data_fn(data)
-
         clss = clss.long()[:, 1] # do this processing in dataset
-        pred_clss = model(data1, data2)
+        pred_clss = model(*data_fn(data))
 
         loss = criterion(pred_clss, clss)
         loss.backward()
@@ -69,10 +69,12 @@ def one_step(model, dl, data_fn, optimizer, train=True):
         if train:
             optimizer.step()
 
-        # compute accuracy
-
-        cum_loss += loss.detach().item()
-        cum_acc += compute_accuracy(pred_clss.detach(), clss)
+        l = loss.detach().item()
+        a = compute_accuracy(pred_clss.detach(), clss)
+        cum_loss += l
+        cum_acc += a
+        losses.append(l)
+        accs.append(a)
         n_passes += 1
     return cum_loss/n_passes, cum_acc/n_passes
 
