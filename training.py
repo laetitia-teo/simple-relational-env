@@ -19,27 +19,25 @@ N_SH = 3
 N_OBJ = 3
 B_SIZE = 32
 L_RATE = 1e-3
-N_EPOCHS = 500
+N_EPOCHS = 10
 F_OBJ = 10
 H = 16
 
-# objects
+# functions
 
 def data_fn_scene(data):
     data = torch.reshape(data, (-1, 2, F_OBJ*N_OBJ))
     return data[:, 0, :], data[:, 1, :]
 
-def data_fn_graphs(data):
+def data_fn_graphs(n):
     """
-    Transforms object data in 2 graphs for graph models. 
+    Transforms object data in 2 graphs for graph models.
+
+    n is number of objects. 
     """
-    data = torch.reshape(data, (-1, 2, F_OBJ*N_OBJ))
-    return gm.tensor_to_graphs(data)
-
-scene_model = bm.SceneMLP(N_SH, F_OBJ, [H, H], H, [H, H])
-
-opt = torch.optim.Adam(scene_model.parameters(), lr=L_RATE)
-criterion = torch.nn.CrossEntropyLoss()
+    def data_fn_gr(data):
+        return gm.tensor_to_graphs(data)
+    return data_fn_gr
 
 def load_dl(name):
     dpath = op.join('data', 'simple_task', 'dataset_binaries', name)
@@ -92,4 +90,64 @@ def run(n_epochs, model, dl, data_fn, optimizer):
         print('Epoch : {}, Mean loss : {}, Mean Accuracy {}'.format(
             epoch, mean_loss, mean_acc))
 
-    
+# objects
+
+f_dict = {
+    'f_x': F_OBJ,
+    'f_e': F_OBJ,
+    'f_u': F_OBJ,
+    'f_out': 2}
+
+data_fn = data_fn_graphs(N_OBJ)
+
+nn_model = bm.SceneMLP(N_SH, F_OBJ, [H, H], H, [H, H])
+nn_model = gm.ObjectMean([H, H], f_dict)
+nn_model = gm.ObjectMeanDirectAttention([16, 16], f_dict)
+nn_model = gm.GraphEmbedding([16, 16], 16, 5, f_dict)
+
+opt = torch.optim.Adam(nn_model.parameters(), lr=L_RATE)
+criterion = torch.nn.CrossEntropyLoss()
+
+# training
+
+dl = load_dl('trainobject1')
+
+run(N_EPOCHS, nn_model, dl, data_fn, opt)
+
+# testing
+
+# test_dl = load_dl('testobject1')
+
+# one_step(nn_model, test_dl, data_fn, opt, train=False)
+
+# testing on rotations
+
+# rot_dl = load_dl('testrotations')
+
+# def data_fn(data):
+#     x1 = data[:, :3, :]
+#     x2 = data[:, 3:, :]
+#     u1 = torch.mean(x1, 1)
+#     u2 = torch.mean(x2, 1)
+#     return (torch.cat([u1, u2], 1),)
+
+# def identity(data):
+#     return data
+
+# def stupid_mean_predictor(data):
+#     shape = (data.shape[0], 2)
+#     res = torch.zeros(shape)
+#     idx = torch.mean((data[:, :3] == data[:, 10:13]).float(), 1).long()
+#     res[:, 1] = idx
+#     return res
+
+# acc = 0
+# count = 0
+# for data, clss in dl:
+#     clss = clss.long()[:, 1]
+#     res = stupid_mean_predictor(*data_fn(data))
+#     print(compute_accuracy(res, clss))
+#     acc += compute_accuracy(res, clss)
+#     count += 1
+
+# print(acc/count)

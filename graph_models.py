@@ -57,17 +57,21 @@ def tensor_to_graphs(t):
 
     Returns two graphs of torch_geometric.data.Data type.
     """
-    f_x = t.size()[-1]
-    t = torch.reshape(t, (-1, 2, n_obj, f_x))
-    b_size = t.size()[0]
-    x1 = torch.reshape(t[:, 0 ,...], (-1, f_x))
-    x2 = torch.reshape(t[:, 1, ...], (-1, f_x))
-    n_obj = len(x1)
+    f_x = t.shape[-1]
+    n_obj = t.shape[1] // 2
+    b_size = t.shape[0]
+
+    x1 = t[:, :n_obj, :]
+    x2 = t[:, n_obj:, :]
+
+    x1 = torch.reshape(x1, (-1, f_x))
+    x2 = torch.reshape(x2, (-1, f_x))
     # defining edge_index
     e = torch.zeros(n_obj, dtype=torch.long).unsqueeze(0)
     for i in range(n_obj - 1):
         e = torch.cat(
             (e, (1 + i) * torch.ones(n_obj, dtype=torch.long).unsqueeze(0)), 0)
+
     ei = torch.stack(
         (torch.reshape(e, (-1,)), torch.reshape(e.T, (-1,))))
     ei = ei[:, ei[0] != ei[1]]
@@ -83,10 +87,11 @@ def tensor_to_graphs(t):
     for i in range(b_size - 1):
         batch1 = torch.cat((batch1,
                             (i + 1) * torch.ones(n_obj, dtype=torch.long)))
+        
     batch2 = batch1
     # global features : initialize with mean of node features
-    u1 = scatter_mean(x1, batch1)
-    u2 = scatter_mean(x2, batch2)
+    u1 = scatter_mean(x1, batch1, dim=0)
+    u2 = scatter_mean(x2, batch2, dim=0)
     # build graphs
     graph1 = Data(x=x1, edge_index=ei1, edge_attr=e1, y=u1, batch=batch1)
     graph2 = Data(x=x2, edge_index=ei2, edge_attr=e2, y=u2, batch=batch2)
@@ -150,7 +155,6 @@ class ObjectMean(GraphModel):
     """
     def __init__(self,
                  mlp_layers,
-                 h,
                  f_dict):
         """
         This is one of the simplest graph models we can imagine, acting on
@@ -161,6 +165,10 @@ class ObjectMean(GraphModel):
         embeddings of the two scenes is then fed to an MLP that produces the
         final prediction.
 
+        The model is equivalent to doing the mean of all objects present in
+        the scene, which is a very rough approximation. If this performs
+        well, it means that our task is really too easy.
+
         This model shall be used as a baseline to quantify the effects of
         aggregating with attention, and of message-passing, in graph-based
         embedding models, whose second part of the architecture remains
@@ -170,7 +178,7 @@ class ObjectMean(GraphModel):
         model_fn = gn.mlp_fn(mlp_layers)
         f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
-        self.final_mlp = model_fn(f_x, f_out)
+        self.final_mlp = model_fn(2*f_x, f_out)
 
     def forward(self, graph1, graph2):
 
@@ -186,20 +194,26 @@ class ObjectMeanDirectAttention(GraphModel):
 
     We only use the node features for aggregation (?).
     """
-    super(GraphEmbedding, self).__init__()
-    model_fn = gn.mlp_fn(mlp_layers)
-    f_e, f_x, f_u, f_out = self.get_features(f_dict)
-    f_a = 1 # attentions are scalars
+    def __init__(self,
+                 mlp_layers,
+                 f_dict):
+        """
+        This model is also a very simple one : we use the given node features
+        compute scalar attentions over nodes, and use those as weights in the
+        node feature aggregation. This aggregation is then used as an
+        embedding for the graph. 
 
-    self.attention_model = MetaLayer(
-        gn.DirectEdgeModel(f_e, model_fn, f_a),
-        gn.DirectNodeModel(f_x, model_fn, f_a),
-        gn.DirectGlobalModel(f_u, model_fn, f_a))
+        We test this model agains the simpler one with no attention, and as a
+        baseline (or ablation model) for the message-passing embeddings.
+        """
+        super(ObjectMeanDirectAttention, self).__init__()
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+        f_a = 1 # attentions are scalars
 
-    self.attention_model = gn.DirectNodeModel(f_x, model_fn, f_a)
+        self.attention_model = gn.DirectNodeModel(f_x, model_fn, f_a)
 
-    self.agg_fn = ...
-    self.final_mlp = model_fn(f_x, f_out)
+        self.final_mlp = model_fn(2*f_x, f_out)
 
     def embedding(self, graph):
         """
@@ -210,7 +224,7 @@ class ObjectMeanDirectAttention(GraphModel):
         x, edge_index, e, u, batch = data_from_graph(graph)
         a_x = self.attention_model(x, edge_index, e, u, batch)
 
-        return scatter_mean(x * a_x, batch) # see if this works
+        return scatter_mean(x * a_x, batch, dim=0) # see if this works
 
     def forward(self, graph1, graph2):
         """
@@ -270,7 +284,6 @@ class GraphEmbedding(GraphModel):
         """
         Graph Embedding.
         """
-        print(x.size())
         x_h, e_h, u_h = self.encoder(
             x, edge_index, e, u, batch)
 
