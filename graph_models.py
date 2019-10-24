@@ -278,7 +278,7 @@ class GraphEmbedding(GraphModel):
         # maybe change final embedding size
         self.aggregator = gn.GlobalModel(h, h, h, model_fn, h)
 
-        self.final_mlp = model_fn(h, f_out)
+        self.final_mlp = model_fn(2 * h, f_out)
 
     def graph_embedding(self, x, edge_index, e, u, batch):
         """
@@ -317,9 +317,9 @@ class GraphEmbedding(GraphModel):
         u1 = self.graph_embedding(x1, edge_index1, e1, u1, batch1)
         u2 = self.graph_embedding(x2, edge_index2, e2, u2, batch2)
 
-        diff = u1 - u2
+        # diff = u1 - u2
 
-        return self.final_mlp(diff)
+        return self.final_mlp(torch.cat([u1, u2], 1))
 
 
 class GraphDifference(GraphModel):
