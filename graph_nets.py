@@ -12,6 +12,9 @@ from torch_geometric.data import Data
 from torch_scatter import scatter_mean
 from torch_geometric.nn import MetaLayer
 
+from utils import cosine_similarity
+from utils import sim
+
 ###############################################################################
 #                                                                             #
 #                               MLP function                                  #
@@ -118,6 +121,61 @@ class EdgeModelDiff(torch.nn.Module):
         """
         out = torch.cat([dest - src, edge_attr, u[batch]], 1)
         return self.phi_e(out)
+
+class CosineAttention():
+    """
+    Class for computing the cosine similarity between nodes of two different
+    graphs. Not a torch module, this has no learnable components.
+
+    Used to Implement Graph Matching Networks.
+    """
+    def __init__(self,
+                 f_e,
+                 f_x,
+                 f_u,
+                 f_e_out=None):
+        """
+        This object serves for computing the cosine similarities between nodes
+        of two graphs. Between node i of graph 1 and node j of graph 2, the
+        attention is computed as the softmax of the cosine similarity between
+        nodes i and j against the cosine similarities of nodes i' of graph 1
+        and node j. Algorithmically; this is quite similar to computing edge
+        attributes, except there are no learnable parameters, the function is
+        fixed.
+        """
+        pass
+
+    def __call__(self, src, dest, x, batch):
+        """
+        src [E, f_x] where E is number of edges and f_x is number of vertex
+            features : source node tensor (on graph1)
+        dest [E, f_x] : destination node tensor (on graph2)
+        batch [E] : edge-batch mapping
+
+        No edge_attr and no u on this one.
+
+        Returns a tensor of size [E]
+        """
+        similarity = sim(src, dest)
+        # TODO : check this works
+        # little explanation : x is the set of all nodes from graph1
+        # dest is the set of nodes of graph 2 associated with each edge
+        # the function used works with a 2d tensor as first argument and
+        # a 1d tensor as second argument. Here we try to generalize when
+        # dest is the list of all destination nodes. See if this works.
+        # tensor([X, f_x]), tensor([E, f_x]) -> tensor([E, X])
+        denom = cosine_similarity(x, dest)
+        # tensor([E])
+        a = torch.exp(similarity) / torch.sum(torch.exp(denom), -1)
+        # attention-weighted source nodes
+        return a * src
+
+class CosineSimNodeModel(torch.nn.Module):
+    """
+    Node model with cosine similarity attentions between nodes of 2 different
+    graphs. Used to implement Graph Matching Networks.
+    """
+    pass
 
 class NodeModel(torch.nn.Module):
     def __init__(self,

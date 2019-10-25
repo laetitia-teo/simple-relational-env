@@ -61,7 +61,7 @@ def from_file(path, dtype=float):
 def norm2(t, dim):
     return (torch.sum(t**2, dim)**0.5)
 
-def sim(t1, t2):
+def cos_sim(t1, t2):
     """
     Assumes the feature dimension is the last one.
     """
@@ -71,10 +71,14 @@ def sim(t1, t2):
     nprod = (norm2(t1, -1) * norm2(t2, -1))
     return sprod / nprod
 
-def nprod(t1, t2):
+def sim(v1, v2):
     """
-    Assumes the feature dimension is the last one.
+    Acts on two individual vectors.
     """
-    t1 = t1.unsqueeze(0)
-    t2 = t2.unsqueeze(1)
-    return torch
+    s = torch.sum(v1 * v2)
+    return s / (norm2(v1, -1) * norm2(v2, -1))
+
+def cosine_similarity(t, v):
+    s = torch.sum(t * v, -1)
+    n = norm2(t, -1) * norm2(v, -1)
+    return s / n
