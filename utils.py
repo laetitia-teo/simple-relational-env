@@ -3,8 +3,11 @@ Small utilities.
 """
 import os.path as op
 import numpy as np
+import torch
 
 from glob import glob
+
+### File utilities
 
 def to_file(data, path):
     """
@@ -52,3 +55,26 @@ def from_file(path, dtype=float):
                     num_list.append(dtype(num))
                 vec_list.append(np.array(num_list))
     return data
+
+### Cosine similarity
+
+def norm2(t, dim):
+    return (torch.sum(t**2, dim)**0.5)
+
+def sim(t1, t2):
+    """
+    Assumes the feature dimension is the last one.
+    """
+    t1 = t1.unsqueeze(0)
+    t2 = t2.unsqueeze(1)
+    sprod = torch.sum(t1 * t2, -1)
+    nprod = (norm2(t1, -1) * norm2(t2, -1))
+    return sprod / nprod
+
+def nprod(t1, t2):
+    """
+    Assumes the feature dimension is the last one.
+    """
+    t1 = t1.unsqueeze(0)
+    t2 = t2.unsqueeze(1)
+    return torch
