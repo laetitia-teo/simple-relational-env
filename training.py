@@ -69,14 +69,24 @@ def one_step(model, dl, data_fn, optimizer, train=True):
         clss = clss.long()[:, 1] # do this processing in dataset
         pred_clss = model(*data_fn(data))
 
-        loss = criterion(pred_clss, clss)
+        if type(pred_clss) is list:
+            # we sum the loss of all the outputs of the model
+            loss = sum([criterion(pred, clss) for pred in pred_clss])
+
+        else:
+            loss = criterion(pred_clss, clss)
+
         loss.backward()
 
         if train:
             optimizer.step()
 
         l = loss.detach().item()
-        a = compute_accuracy(pred_clss.detach(), clss)
+        if type(pred_clss) is list:
+            # we evaluate accuracy on the last prediction
+            a = compute_accuracy(pred_clss[-1].detach(), clss)
+        else:
+            a = compute_accuracy(pred_clss.detach(), clss)
         cum_loss += l
         cum_acc += a
         losses.append(l)
@@ -107,6 +117,7 @@ nn_model = gm.ObjectMean([H, H], f_dict)
 nn_model = gm.ObjectMeanDirectAttention([16, 16], f_dict)
 nn_model = gm.GraphEmbedding([16, 16], 16, 5, f_dict)
 # nn_model = gm.GraphDifference([16, 16], 16, 5, f_dict, I)
+nn_model = gm.Alternating([16, 16], 16, 5, f_dict)
 
 opt = torch.optim.Adam(nn_model.parameters(), lr=L_RATE)
 criterion = torch.nn.CrossEntropyLoss()

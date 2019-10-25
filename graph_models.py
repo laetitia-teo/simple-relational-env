@@ -453,7 +453,139 @@ class GraphDifference(GraphModel):
 
 class Alternating(GraphModel):
     """
-    Class for the alternating graph model.
+    Class for the alternating graph model (v1)
+    """
+    def __init__(self,
+                 mlp_layers,
+                 h,
+                 N,
+                 f_dict,
+                 n=2):
+        """
+        Intitialize the alternating model.
+
+        This model alternates between processing one graph and processing the
+        other, with communication between the two processing operations done 
+        by conditionning the models involved with a shared global vector.
+
+        After N rounds of processing, alternating on each graph, the shared
+        vector is decoded by a final model.
+
+        See if training on all outputs is not better than training only on the
+        final one.
+
+        Arguments:
+            - mlp_layers (list of ints): the number of units in each hidden
+                layer in the mlps used in the graph networks.
+            - h (int): the size of the latent graph features (for edges, nodes
+                and global)
+            - N (int): number of passes for the GN blocks
+            - f_dict : dictionnary of feature sizes
+            - n (int) : number of passes to do in each processing step.
+        """
+        super(Alternating, self).__init__()
+        self.N = N
+        self.n = n
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        # encoding the graphs to give the first latent vectors in the
+        # processing step
+        self.encoder = MetaLayer(
+            gn.DirectEdgeModel(f_e, model_fn, h),
+            gn.DirectNodeModel(f_x, model_fn, h),
+            gn.DirectGlobalModel(f_u, model_fn, h))
+
+        # attention GN Block
+        self.reccurent = gn.MetaLayer(
+            gn.EdgeModelDiff(f_e + h, f_x + h, f_u + h, model_fn, h),
+            gn.NodeModel(h, f_x + h, f_u + h, model_fn, h),
+            gn.GlobalModel(h, h, f_u + h, model_fn, h))
+
+        self.attention_maker = MetaLayer(
+            gn.EdgeModelDiff(h, h, h, model_fn, h),
+            gn.NodeModel(h, h, h, model_fn, h),
+            gn.GlobalModel(h, h, h, model_fn, h))
+
+        self.aggregator = gn.GlobalModel(h, h, h, model_fn, h)
+
+        self.decoder = model_fn(h, f_out)
+
+    def encode(self, x, edge_index, e, u, batch, shared):
+        """
+        Encodes a graph, for subsequent processing.
+        """
+        x_h, e_h, u_h = self.encoder(
+            x, edge_index, e, u, batch)
+
+
+    def processing(self,
+                   x,
+                   x_h,
+                   edge_index,
+                   e,
+                   e_h,
+                   u,
+                   u_h,
+                   batch,
+                   shared):
+        """
+        Processing step.
+
+        shared is the shared vector.
+        """
+        src, dest = edge_index
+
+        for _ in range(self.n):
+            x_cat = torch.cat([x, x_h], 1)
+            e_cat = torch.cat([e, e_h], 1)
+            u_cat = torch.cat([u, shared], 1)
+
+            x_h, e_h, u_h = self.reccurent(
+                x_cat,
+                edge_index,
+                e_cat,
+                u_cat,
+                batch)
+
+        x_a, e_a, u_a = self.attention_maker(
+            x_h, edge_index, e_h, u_h, batch)
+
+        x, e, u = x_a * x_h, e_a * e_h, u_a * u_h
+        u = self.aggregator(x, edge_index, e, u, batch)
+
+        return x, e, u
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass
+
+        Returns la list of self.N outputs, corresponding to each alternating
+        step.
+        """
+        outputs = []
+
+        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+
+        x1h, e1h, u1h = self.encoder(
+            x1, edge_index1, e1, u1, batch1)
+        x2h, e2h, u2h = self.encoder(
+            x2, edge_index2, e2, u2, batch2)
+
+        for _ in range(self.N):
+            # alternative processing
+            x1h, e1h, u1h = self.processing(
+                x1, x1h, edge_index1, e1, e1h, u1, u1h, batch1, u2h)
+            x2h, e2h, u2h = self.processing(
+                x2, x2h, edge_index2, e2, e2h, u2, u2h, batch2, u1h)
+            outputs.append(self.decoder(u2h))
+
+        return outputs
+
+class Alternatingv2(GraphModel):
+    """
+    Class for the alternating graph model (v2)
     """
     def __init__(self,
                  mlp_layers,
@@ -498,10 +630,10 @@ class Alternating(GraphModel):
 
         # attention GN Block
         self.reccurent = gn.AttentionLayer(
-            gn.EdgeModelDiff(f_e + 2*h, f_x + 2*h, f_u + 2*h, model_fn, h),
-            gn.EdgeModelDiff(f_e + 2*h, f_x + 2*h, f_u + 2*h, model_fn, h),
-            gn.NodeModel(2*h, f_x + 2*h, f_u + 2*h, model_fn, h),
-            gn.NodeOnlyGlobalModel(2*h, 2*h, f_u + 2*h, model_fn, h))
+            gn.EdgeModelDiff(f_e + h, f_x + h, f_u + h, model_fn, h),
+            gn.EdgeModelDiff(f_e + h, f_x + h, f_u + h, model_fn, h),
+            gn.NodeModel(h, f_x + h, f_u + h, model_fn, h),
+            gn.NodeOnlyGlobalModel(h, h, f_u + h, model_fn, h))
 
         self.decoder = model_fn(h, f_out)
 
@@ -570,3 +702,95 @@ class Alternating(GraphModel):
             outputs.append(self.decoder(u2h))
 
         return outputs
+
+class GraphMatching(GraphModel):
+    """
+    Graph matching network.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 h,
+                 N,
+                 f_dict):
+        """
+        Initializes the Graph Matching Network. This model is inspired by the
+        eponymous paper, in which they use it to learn a distance function over
+        graphs.
+
+        It is similar in spirit to The GraphEmbedding model, but in the message
+        passing module, we also incorporate information from the other graph.
+
+        There are several ways to design this cross-graph information, either
+        by re-implementing the approach in the original paper, which we will
+        attempt here, either by merging the two graphs in a bigger graph and
+        doing message passing between all the nodes.
+        """
+        super(GraphMatching, self).__init__()
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.encoder = MetaLayer(
+            gn.DirectEdgeModel(f_e, model_fn, h),
+            gn.DirectNodeModel(f_x, model_fn, h),
+            gn.DirectGlobalModel(f_u, model_fn, h))
+
+        self.reccurent = gn.MetaLayer(
+            gn.EdgeModelDiff(f_e + h, f_x + h, f_u + h, model_fn, h),
+            gn.NodeModel(h, f_x + h, f_u + h, model_fn, h),
+            gn.GlobalModel(h, h, f_u + h, model_fn, h))
+
+        self.attention_maker = MetaLayer(
+            gn.EdgeModelDiff(h, h, h, model_fn, h),
+            gn.NodeModel(h, h, h, model_fn, h),
+            gn.GlobalModel(h, h, h, model_fn, h))
+
+        # maybe change final embedding size
+        self.aggregator = gn.GlobalModel(h, h, h, model_fn, h)
+
+        self.final_mlp = model_fn(2 * h, f_out)
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass
+        """
+        pass
+
+class GraphMerge(GraphModel):
+    """
+    Graph Merging network.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 h,
+                 N,
+                 f_dict):
+        """
+        This model takes two graphs as input and merges them by forming a
+        single graph where all the nodes of the first graph are connected to
+        all the nodes of the second.
+        """
+        super(GraphMatching, self).__init__()
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.encoder = MetaLayer(
+            gn.DirectEdgeModel(f_e, model_fn, h),
+            gn.DirectNodeModel(f_x, model_fn, h),
+            gn.DirectGlobalModel(f_u, model_fn, h))
+
+        self.reccurent = gn.MetaLayer(
+            gn.EdgeModelDiff(f_e + h, f_x + h, f_u + h, model_fn, h),
+            gn.NodeModel(h, f_x + h, f_u + h, model_fn, h),
+            gn.GlobalModel(h, h, f_u + h, model_fn, h))
+
+        self.attention_maker = MetaLayer(
+            gn.EdgeModelDiff(h, h, h, model_fn, h),
+            gn.NodeModel(h, h, h, model_fn, h),
+            gn.GlobalModel(h, h, h, model_fn, h))
+
+        # maybe change final embedding size
+        self.aggregator = gn.GlobalModel(h, h, h, model_fn, h)
+
+        self.final_mlp = model_fn(2 * h, f_out)
