@@ -125,6 +125,19 @@ def permute_graph(graph, mapping):
     # no need to permute edge attributes, global attributes or batch
     return graph
 
+def complete_edge_index(n):
+    """
+    This function creates an edge_index tensor corresponding to the
+    connectivity of a complete graph of n nodes, including self-edges.
+    """
+    e = torch.zeros(n, dtype=torch.long).unsqueeze(0)
+    for i in range(n - 1):
+        e = torch.cat(
+            (e, (1 + i) * torch.ones(n, dtype=torch.long).unsqueeze(0)), 0)
+
+    ei = torch.stack(
+        (torch.reshape(e, (-1,)), torch.reshape(e.T, (-1,))))
+
 ###############################################################################
 #                                                                             #
 #                                  Models                                     #
@@ -637,14 +650,6 @@ class Alternatingv2(GraphModel):
 
         self.decoder = model_fn(h, f_out)
 
-    def encode(self, x, edge_index, e, u, batch, shared):
-        """
-        Encodes a graph, for subsequent processing.
-        """
-        x_h, e_h, u_h = self.encoder(
-            x, edge_index, e, u, batch)
-
-
     def processing(self,
                    x,
                    x_h,
@@ -790,7 +795,28 @@ class GraphMerge(GraphModel):
             gn.NodeModel(h, h, h, model_fn, h),
             gn.GlobalModel(h, h, h, model_fn, h))
 
+        self.cosine_attention = gn.CosineAttention(h, h, h)
+
         # maybe change final embedding size
         self.aggregator = gn.GlobalModel(h, h, h, model_fn, h)
 
         self.final_mlp = model_fn(2 * h, f_out)
+
+    def processing(self,):
+        pass
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass.
+
+        
+        """
+        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+
+        # encode first 
+        x1h, e1h, u1h = self.encoder(
+            x1, edge_index1, e1, u1, batch1)
+        x2h, e2h, u2h = self.encoder(
+            x2, edge_index2, e2, u2, batch2)
+

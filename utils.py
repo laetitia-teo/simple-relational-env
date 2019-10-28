@@ -75,7 +75,7 @@ def sim(v1, v2):
     """
     Acts on two individual vectors.
     """
-    s = torch.sum(v1 * v2)
+    s = torch.sum(v1 * v2, -1)
     return s / (norm2(v1, -1) * norm2(v2, -1))
 
 def cosine_similarity(t, v):

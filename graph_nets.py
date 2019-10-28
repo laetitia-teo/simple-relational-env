@@ -10,9 +10,11 @@ from torch.nn import Sigmoid, LayerNorm, Dropout
 
 from torch_geometric.data import Data
 from torch_scatter import scatter_mean
+from torch_scatter import scatter_add
 from torch_geometric.nn import MetaLayer
 
 from utils import cosine_similarity
+from utils import cos_sim
 from utils import sim
 
 ###############################################################################
@@ -145,30 +147,30 @@ class CosineAttention():
         """
         pass
 
-    def __call__(self, src, dest, x, batch):
+    def __call__(self, x, x_src, cg_edge_index, batch):
         """
-        src [E, f_x] where E is number of edges and f_x is number of vertex
-            features : source node tensor (on graph1)
-        dest [E, f_x] : destination node tensor (on graph2)
-        batch [E] : edge-batch mapping
+        Arguments :
+
+            - x (node feature tensor, size [X, f_x]) : node features of the
+                current graph
+            - x_src (node feature tensor, size [X, f_x]) : node features of the
+                other graph
+            - cg_edge_index (edge index tensor, size [2, E]) : cross-graph edge
+                index tensor, mapping nodes of the other graph (source) to the 
+                current graph (dest)
+            - batch (batch tensor, size [X]) : batch tensor mapping the nodes
+                of the other graph to their respective graph in the batch.
 
         No edge_attr and no u on this one.
 
         Returns a tensor of size [E]
         """
-        similarity = sim(src, dest)
-        # TODO : check this works
-        # little explanation : x is the set of all nodes from graph1
-        # dest is the set of nodes of graph 2 associated with each edge
-        # the function used works with a 2d tensor as first argument and
-        # a 1d tensor as second argument. Here we try to generalize when
-        # dest is the list of all destination nodes. See if this works.
-        # tensor([X, f_x]), tensor([E, f_x]) -> tensor([E, X])
-        denom = cosine_similarity(x, dest)
-        # tensor([E])
-        a = torch.exp(similarity) / torch.sum(torch.exp(denom), -1)
-        # attention-weighted source nodes
-        return a * src
+        src, dest = cg_edge_index
+        # exp-cosine-similarity vector
+        ecs = torch.exp(sim(x_src[src], x[dest]))
+        a = ecs / (scatter_add(ecs, batch[src])[batch[src]])
+        a = a * x_src[src]
+        return scatter_add(a, batch[src]) # see if we don't need mean instead here
 
 class CosineSimNodeModel(torch.nn.Module):
     """
@@ -492,3 +494,73 @@ class AttentionLayer(torch.nn.Module):
                             self.attention_model, 
                             self.node_model,
                             self.global_model)
+
+class CosineAttentionLayer(torch.nn.Module):
+    """
+    Implementation of the Graph mAtching Network with cosine similarity used to
+    compute attentions between node features.
+    """
+    def __init__(self,
+                 edge_model,
+                 attention_function,
+                 node_model,
+                 global_model):
+        """
+        Initializes the Cosine Attention Layer. 
+
+        This layer is similar to the usual MetaLayer, with an additional 
+        twist : the node feature update expects additional input from another
+        graph, in the form of attentions between nodes of the current graph 
+        and the nodes of the other graph. This additional input vector has the
+        same size as number of nodes in the current graph.
+
+        This vector contains the sum of source node features weighted by their
+        attentions over the destination nodes. The attentions are computed
+        as the ratio of the exp of cosine similarity of node i and j over the
+        sum of exps of all cosine similarities between node i and j', node i 
+        being the destination node of the current graph and nodes j and j' the
+        source nodes.
+        """
+        super(MetaLayer, self).__init__()
+        self.edge_model = edge_model
+        self.node_model = node_model # this needs a specific node model
+        self.global_model = global_model
+
+        self.attention_function = attention_funtion
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for item in [self.node_model, self.edge_model, self.global_model]:
+            if hasattr(item, 'reset_parameters'):
+                item.reset_parameters()
+
+
+    def forward(self, x, x_src, edge_index, edge_attr, u, batch):
+        """
+        Similar to MetaLayer, but has an additional term x_src, which is the 
+        tensor of node features of the second graph.
+        """
+        row, col = edge_index
+
+        edge_attr = self.edge_model(x[row],
+                                    x[col],
+                                    edge_attr,
+                                    u,
+                                    batch if batch is None else batch[row])
+
+        a = self.attention_function(x_src, x)
+        x = self.node_model(x, a, edge_index, edge_attr, u, batch)
+
+        u = self.global_model(x, edge_index, edge_attr, u, batch)
+
+        return x, edge_attr, u
+
+
+    def __repr__(self):
+        return ('{}(\n'
+                '    edge_model={},\n'
+                '    node_model={},\n'
+                '    global_model={}\n'
+                ')').format(self.__class__.__name__, self.edge_model,
+                            self.node_model, self.global_model)
