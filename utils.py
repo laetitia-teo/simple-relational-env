@@ -56,7 +56,7 @@ def from_file(path, dtype=float):
                 vec_list.append(np.array(num_list))
     return data
 
-### Cosine similarity
+### Cosine similarity functions
 
 def norm2(t, dim):
     return (torch.sum(t**2, dim)**0.5)

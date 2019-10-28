@@ -708,60 +708,7 @@ class Alternatingv2(GraphModel):
 
         return outputs
 
-class GraphMatching(GraphModel):
-    """
-    Graph matching network.
-    """
-    def __init__(self,
-                 mlp_layers,
-                 h,
-                 N,
-                 f_dict):
-        """
-        Initializes the Graph Matching Network. This model is inspired by the
-        eponymous paper, in which they use it to learn a distance function over
-        graphs.
-
-        It is similar in spirit to The GraphEmbedding model, but in the message
-        passing module, we also incorporate information from the other graph.
-
-        There are several ways to design this cross-graph information, either
-        by re-implementing the approach in the original paper, which we will
-        attempt here, either by merging the two graphs in a bigger graph and
-        doing message passing between all the nodes.
-        """
-        super(GraphMatching, self).__init__()
-        self.N = N
-        model_fn = gn.mlp_fn(mlp_layers)
-        f_e, f_x, f_u, f_out = self.get_features(f_dict)
-
-        self.encoder = MetaLayer(
-            gn.DirectEdgeModel(f_e, model_fn, h),
-            gn.DirectNodeModel(f_x, model_fn, h),
-            gn.DirectGlobalModel(f_u, model_fn, h))
-
-        self.reccurent = gn.MetaLayer(
-            gn.EdgeModelDiff(f_e + h, f_x + h, f_u + h, model_fn, h),
-            gn.NodeModel(h, f_x + h, f_u + h, model_fn, h),
-            gn.GlobalModel(h, h, f_u + h, model_fn, h))
-
-        self.attention_maker = MetaLayer(
-            gn.EdgeModelDiff(h, h, h, model_fn, h),
-            gn.NodeModel(h, h, h, model_fn, h),
-            gn.GlobalModel(h, h, h, model_fn, h))
-
-        # maybe change final embedding size
-        self.aggregator = gn.GlobalModel(h, h, h, model_fn, h)
-
-        self.final_mlp = model_fn(2 * h, f_out)
-
-    def forward(self, graph1, graph2):
-        """
-        Forward pass
-        """
-        pass
-
-class GraphMerge(GraphModel):
+class GraphMatchingNetwork(GraphModel):
     """
     Graph Merging network.
     """
@@ -785,9 +732,9 @@ class GraphMerge(GraphModel):
             gn.DirectNodeModel(f_x, model_fn, h),
             gn.DirectGlobalModel(f_u, model_fn, h))
 
-        self.reccurent = gn.MetaLayer(
+        self.reccurent = gn.CosineAttentionLayer(
             gn.EdgeModelDiff(f_e + h, f_x + h, f_u + h, model_fn, h),
-            gn.NodeModel(h, f_x + h, f_u + h, model_fn, h),
+            gn.CosineSimNodeModel(h, f_x + h, f_u + h, model_fn, h),
             gn.GlobalModel(h, h, f_u + h, model_fn, h))
 
         self.attention_maker = MetaLayer(
@@ -802,7 +749,13 @@ class GraphMerge(GraphModel):
 
         self.final_mlp = model_fn(2 * h, f_out)
 
-    def processing(self,):
+    def processing(self,
+                   x,
+                   x_src
+                   edge_index,
+                   e,
+                   u,
+                   batch,):
         pass
 
     def forward(self, graph1, graph2):
@@ -820,3 +773,37 @@ class GraphMerge(GraphModel):
         x2h, e2h, u2h = self.encoder(
             x2, edge_index2, e2, u2, batch2)
 
+        for _ in range(self.N):
+            # prepare vectors for first graph processing
+            x1_cat = torch.cat([x1, x1_h])
+            x_src_cat = torch.cat([x2, x2h]) # source is graph2
+            e1_cat = torch.cat([e1, e1_h])
+            u1_cat = torch.cat([u1, u1_h])
+
+            x1h, e1h, u1h = self.reccurent(x1_cat,
+                                           x_src_cat,
+                                           e1_cat,
+                                           u1_cat)
+
+            # prepare vectors for second graph processing
+            x2_cat = torch.cat([x2, x2_h])
+            x_src_cat = torch.cat([x1, x1h]) # source is graph1 
+            e2_cat = torch.cat([e2, e2_h])
+            u2_cat = torch.cat([u2, u2_h])
+
+            x2h, e2h, u2h = self.reccurent(x2_cat,
+                                           x_src_cat,
+                                           e2_cat,
+                                           u2_cat)
+
+        x1_a, e1_a, u1_a = self.attention_maker(
+            x1_h, edge_index, e1_h, u1_h, batch)
+        x1, e1, u1 = x1_h * x1_a, e1_h * e1_a, u1_h * u1_a
+        u1 = self.aggregator(x1, edge_index, e1, u1, batch)
+
+        x2_a, e2_a, u2_a = self.attention_maker(
+            x2_h, edge_index, e2_h, u2_h, batch)
+        x2, e2, u2 = x2_h * x2_a, e2_h * e2_a, u2_h * u2_a
+        u2 = self.aggregator(x2, edge_index, e2, u2, batch)
+
+        return self.final_mlp(torch.cat([u1, u2]))

@@ -149,6 +149,8 @@ class CosineAttention():
 
     def __call__(self, x, x_src, cg_edge_index, batch):
         """
+        No edge_attr and no u on this one.
+
         Arguments :
 
             - x (node feature tensor, size [X, f_x]) : node features of the
@@ -161,23 +163,55 @@ class CosineAttention():
             - batch (batch tensor, size [X]) : batch tensor mapping the nodes
                 of the other graph to their respective graph in the batch.
 
-        No edge_attr and no u on this one.
-
-        Returns a tensor of size [E]
+        Returns :
+            - attentions (size [X], node size of the other graph.)
         """
         src, dest = cg_edge_index
         # exp-cosine-similarity vector
         ecs = torch.exp(sim(x_src[src], x[dest]))
         a = ecs / (scatter_add(ecs, batch[src])[batch[src]])
-        a = a * x_src[src]
-        return scatter_add(a, batch[src]) # see if we don't need mean instead here
+        a = a * x_src[src].T
+        return scatter_add(a, batch[src]).T # see if we don't need mean instead here
 
 class CosineSimNodeModel(torch.nn.Module):
     """
     Node model with cosine similarity attentions between nodes of 2 different
     graphs. Used to implement Graph Matching Networks.
     """
-    pass
+    def __init__(self,
+                 f_e,
+                 f_x,
+                 f_u,
+                 model_fn,
+                 f_x_out=None):
+        """
+        Cosine Similarity Node model : this model performs the node updates
+        in a similar fashion to the vanilla NodeModel, except that it takes
+        as additional input the cross-graph attentions, coming from the other
+        graph. These cross-graph attentions are computed by the
+        CosineAttention function above.
+
+        Arguments :
+
+            - f_e (int): number of edge features
+            - f_x (int): number of vertex features
+            - f_u (int): number of global features
+            - model_fn : function that takes input and output features and
+                returns a model.
+        """
+        if f_x_out is None:
+            f_x_out = f_x
+        super(NodeModel, self).__init__()
+        self.phi_x = model_fn(f_e + 2 * f_x + f_u, f_x_out)
+
+    def forward(self, x, a, edge_index, edge_attr, u, batch):
+        """
+        """
+        src, dest = edge_index
+        # aggregate all edges which have the same destination
+        e_agg_node = scatter_mean(edge_attr, dest, dim=0)
+        out = torch.cat([x, a, e_agg_node, u[batch]], 1)
+        return self.phi_x(out)
 
 class NodeModel(torch.nn.Module):
     def __init__(self,
@@ -536,10 +570,18 @@ class CosineAttentionLayer(torch.nn.Module):
                 item.reset_parameters()
 
 
-    def forward(self, x, x_src, edge_index, edge_attr, u, batch):
+    def forward(self,
+                x,
+                x_src,
+                edge_index,
+                cg_edge_index,
+                edge_attr,
+                u,
+                batch):
         """
-        Similar to MetaLayer, but has an additional term x_src, which is the 
-        tensor of node features of the second graph.
+        Similar to MetaLayer, but has two additional terms, x_src and cg_edge_index.
+        x_src is the tensor of node features of the second graph.
+        cg_edge_index is the cross-graph connectivity (complete by default)
         """
         row, col = edge_index
 
@@ -549,7 +591,9 @@ class CosineAttentionLayer(torch.nn.Module):
                                     u,
                                     batch if batch is None else batch[row])
 
-        a = self.attention_function(x_src, x)
+        # maybe change the inputs for this, because it does not have the same 
+        # format as the other functions
+        a = self.attention_function(x, x_src, cg_edge_index, batch)
         x = self.node_model(x, a, edge_index, edge_attr, u, batch)
 
         u = self.global_model(x, edge_index, edge_attr, u, batch)
