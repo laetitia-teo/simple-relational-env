@@ -300,6 +300,7 @@ class GraphEmbedding(GraphModel):
         """
         Graph Embedding.
         """
+        out_list = []
 
         x_h, e_h, u_h = self.encoder(
             x, edge_index, e, u, batch)
@@ -316,11 +317,17 @@ class GraphEmbedding(GraphModel):
                 u_cat,
                 batch)
 
-        x_a, e_a, u_a = self.attention_maker(
-            x_h, edge_index, e_h, u_h, batch)
+            x_a, e_a, u_a = self.attention_maker(
+                x_h, edge_index, e_h, u_h, batch)
 
-        x, e, u = x_a * x_h, e_a * e_h, u_a * u_h
-        return self.aggregator(x, edge_index, e, u, batch)
+            x_agg, e_agg, u_agg = x_a * x_h, e_a * e_h, u_a * u_h
+            out_list.append(self.aggregator(x_agg,
+                                            edge_index,
+                                            e_agg,
+                                            u_agg,
+                                            batch))
+
+        return out_list
 
     def forward(self, graph1, graph2):
         """
@@ -331,12 +338,36 @@ class GraphEmbedding(GraphModel):
         x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
 
-        u1 = self.graph_embedding(x1, edge_index1, e1, u1, batch1)
-        u2 = self.graph_embedding(x2, edge_index2, e2, u2, batch2)
+        l1 = self.graph_embedding(x1, edge_index1, e1, u1, batch1)
+        l2 = self.graph_embedding(x2, edge_index2, e2, u2, batch2)
 
         # diff = u1 - u2
 
-        return self.final_mlp(torch.cat([u1, u2], 1))
+        return [self.final_mlp(torch.cat([u1, u2], 1))
+            for u1, u2 in zip(l1, l2)]
+
+class GraphEmbedding_NodeOnly(GraphModel):
+    """
+    A variation on the original GraphEmbedding model.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 h,
+                 N,
+                 f_dict):
+        """
+        This model is a simpler, cleaner version of the GraphEmbedding model.
+        In this model, all aggregations are done only on nodes, and not
+        on edges : edges do not carry features useful for the aggregation any
+        more, but only serve for passing messages between nodes.
+        """
+        pass
+
+    def graph_embedding(self, x, edge_index, e, u, batch):
+        pass
+
+    def forward(self, graph1, graph2):
+        pass
 
 
 class GraphDifference(GraphModel):

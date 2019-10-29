@@ -10,13 +10,15 @@ import torch
 import baseline_models as bm
 import graph_models as gm
 
+from tqdm import tqdm
+
 from torch.utils.data import DataLoader
 from torch_geometric.data import Data
 
 # seed
 
-SEED = 42
-torch.manual_seed(SEED)
+# SEED = 42
+# torch.manual_seed(SEED)
 
 # hparams
 
@@ -107,6 +109,20 @@ def run(n_epochs, model, dl, data_fn, optimizer):
         mean_loss, mean_acc = one_step(model, dl, data_fn, optimizer)
         print('Epoch : {}, Mean loss : {}, Mean Accuracy {}'.format(
             epoch, mean_loss, mean_acc))
+
+def several_inits(seeds, dl, data_fn):
+    """
+    Does several runs of one step on different models, initialized with the
+    random seeds provided.
+    """
+    metrics = {}
+    for seed in tqdm(seeds):
+        torch.manual_seed(seed)
+        g_model = gm.GraphEmbedding([16], 16, 5, f_dict)
+        opt = torch.optim.Adam(g_model.parameters(), lr=L_RATE)
+        metrics[seed] = one_step(g_model, dl, data_fn, opt)
+    return metrics
+
 
 # objects
 
