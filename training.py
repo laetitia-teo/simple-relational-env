@@ -13,6 +13,11 @@ import graph_models as gm
 from torch.utils.data import DataLoader
 from torch_geometric.data import Data
 
+# seed
+
+SEED = 42
+torch.manual_seed(SEED)
+
 # hparams
 
 N_SH = 3
@@ -118,7 +123,7 @@ data_fn = data_fn_graphs(N_OBJ)
 nn_model = bm.SceneMLP(N_SH, F_OBJ, [H, H], H, [H, H])
 nn_model = gm.ObjectMean([H, H], f_dict)
 nn_model = gm.ObjectMeanDirectAttention([16, 16], f_dict)
-nn_model = gm.GraphEmbedding([16, 16], 16, 5, f_dict)
+nn_model = gm.GraphEmbedding([16], 16, 5, f_dict)
 # nn_model = gm.GraphDifference([16, 16], 16, 5, f_dict, I)
 # nn_model = gm.Alternating([16, 16], 16, 5, f_dict)
 

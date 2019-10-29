@@ -300,6 +300,7 @@ class GraphEmbedding(GraphModel):
         """
         Graph Embedding.
         """
+
         x_h, e_h, u_h = self.encoder(
             x, edge_index, e, u, batch)
 

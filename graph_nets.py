@@ -38,7 +38,7 @@ def mlp_fn(hidden_layer_sizes):
             f1 = f2
         layers.append(Linear(f1, f_out))
         # layers.append(ReLU())
-        layers.append(LayerNorm(f_out))
+        # layers.append(LayerNorm(f_out))
         return Sequential(*layers)
     return mlp
 
