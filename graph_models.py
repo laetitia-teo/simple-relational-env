@@ -10,6 +10,7 @@ considered : use global variable as a graph embedding, use graph-graph
 comparisons with attention, or train a distance function on time-series of
 graphs being jittred.
 """
+import time
 import numpy as np
 import torch
 import torch_geometric
@@ -271,6 +272,8 @@ class GraphEmbedding(GraphModel):
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
         f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        # self.time_dict = {} # dict for logging computation duration
 
         self.encoder = MetaLayer(
             gn.DirectEdgeModel(f_e, model_fn, h),
@@ -751,7 +754,7 @@ class GraphMatchingNetwork(GraphModel):
 
     def processing(self,
                    x,
-                   x_src
+                   x_src,
                    edge_index,
                    e,
                    u,

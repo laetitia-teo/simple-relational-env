@@ -25,6 +25,9 @@ H = 16
 
 # functions
 
+def data_fn_naive(data):
+    return (torch.reshape(data, [-1, 60]),)
+
 def data_fn_scene(data):
     data = torch.reshape(data, (-1, 2, F_OBJ*N_OBJ))
     return data[:, 0, :], data[:, 1, :]
@@ -117,7 +120,7 @@ nn_model = gm.ObjectMean([H, H], f_dict)
 nn_model = gm.ObjectMeanDirectAttention([16, 16], f_dict)
 nn_model = gm.GraphEmbedding([16, 16], 16, 5, f_dict)
 # nn_model = gm.GraphDifference([16, 16], 16, 5, f_dict, I)
-nn_model = gm.Alternating([16, 16], 16, 5, f_dict)
+# nn_model = gm.Alternating([16, 16], 16, 5, f_dict)
 
 opt = torch.optim.Adam(nn_model.parameters(), lr=L_RATE)
 criterion = torch.nn.CrossEntropyLoss()
@@ -126,7 +129,7 @@ criterion = torch.nn.CrossEntropyLoss()
 
 dl = load_dl('trainobject1')
 
-run(N_EPOCHS, nn_model, dl, data_fn, opt)
+# run(N_EPOCHS, nn_model, dl, data_fn, opt)
 
 # testing
 
