@@ -143,6 +143,88 @@ class SceneMLP(torch.nn.Module):
         return self.merge_mlp(torch.cat([scene1, scene2], 1))
 
 
+class NaiveLSTM(torch.nn.Module):
+    """
+    LSTM Baseline.
+    """
+    def __init__(self,
+                 f_obj,
+                 h,
+                 layers,
+                 n_layers=1):
+        """
+        This baseline is based on the Long Short-Term Memory units. It
+        considers the set of objects as a sequence, that is gradually fed into
+        the LSTM. The sequence is the set of all objects in both scenes to 
+        compare.
+
+        It the simplest LSTM-based baseline, in that it does not separate the
+        two scenes in parallel processing steps.
+
+        Arguments :
+
+            - f_obj (int) : number of features of the objects.
+            - h (int) : size of the hidden state
+            - f_out (int) : number of output features, defaults to 2.
+            _ layers (int) : number of layers in the LSTM, defaults to 1.
+        """
+        super(NaiveLSTM, self).__init__()
+        self.lstm = torch.nn.LSTM(f_obj, h, n_layers)
+        self.layer_list = []
+        f_in = h
+        for f_out in layers:
+            self.layer_list.append(Linear(f_in, f_out))
+            self.layer_list.append(ReLU())
+            f_in = f_out
+        self.layer_list.append(Linear(f_in, 2))
+        self.mlp = Sequential(*self.layer_list)
+
+    def forward(self, data):
+        """
+        Forward pass. Expects the data to be have as size :
+        [seq_len, b_size, f_obj]
+
+        We use the last hidden state as the latent vector we then decode using
+        a simple linear layer.
+        """
+        out = self.lstm(data)[0][-1]
+        return self.mlp(out)
+
+class SceneLSTM(torch.nn.Module):
+    """
+    LSTM baseline, with scene separation.
+    """
+    def __init__(self,
+                 f_obj,
+                 h,
+                 layers,
+                 f_out=2,
+                 n_layers=1):
+        """
+        Arguments :
+
+
+        """
+        super(SceneLSTM, self).__init__()
+        self.lstm = torch.nn.LSTM(f_obj, h, n_layers)
+        self.layer_list = []
+        f_in = 2 * h
+        for f_out in layers:
+            self.layer_list.append(Linear(f_in, f_out))
+            self.layer_list.append(ReLU())
+            f_in = f_out
+        self.layer_list.append(Linear(f_in, 2))
+        self.mlp = Sequential(*self.layer_list)
+
+    def forward(self, data1, data2):
+        """
+        Forward pass.
+        """
+        h1 = self.lstm(data1)[0][-1]
+        h2 = self.lstm(data2)[0][-1]
+
+        return self.mlp(torch.cat([h1, h2], 1))
+
 ###############################################################################
 #                                                                             #
 #                              Image-based Baselines                          #
