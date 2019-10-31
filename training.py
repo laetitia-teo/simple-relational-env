@@ -60,12 +60,34 @@ def load_dl(name):
 
 def compute_accuracy(pred_clss, clss):
     """
-    Computes accuracy on one prediction.
+    Computes accuracy on one batch prediction.
     Assumes pred_clss is detached from the computation graph.
     """
     pred_clss = (pred_clss[:, 1] >= pred_clss[:, 0]).long()
     accurate = np.logical_not(np.logical_xor(pred_clss, clss))
     return torch.sum(accurate).item()/len(accurate)
+
+def compute_precision(pred_clss, clss):
+    """
+    Computes precision on one batch prediction.
+    Assumes pred_clss is detached from the computation graph.
+    """
+    pred_clss = (pred_clss[:, 1] >= pred_clss[:, 0]).long()
+    tp = torch.sum((pred_clss == 1) and (clss == 1))
+    fp = torch.sum((pred_clss == 1) and (clss == 0))
+    return tp / (tp + fp)
+
+def compute_recall(pred_clss, clss):
+    pred_clss = (pred_clss[:, 1] >= pred_clss[:, 0]).long()
+    tp = torch.sum((pred_clss == 1) and (clss == 1))
+    fn = torch.sum((pred_clss == 0) and (clss == 1))
+    return tp / (tp + fn)
+
+def compute_f1(precision, recall):
+    """
+    Computes the F1 score when given the precision and recall.
+    """
+    return 2 / ((1 / precision) + (1 / recall))
 
 def one_step(model, dl, data_fn, optimizer, train=True):
     accs = []
@@ -128,7 +150,15 @@ def save_model(m, name):
     Saves the model m with name name in the model save folder.
     """
     prefix = op.join('saves', 'models')
-    
+    torch.save(m.state_dict(), op.join(prefix, name))
+
+def load_model(m, name):
+    """
+    Loads the model parameters with name name into model m.
+    """
+    prefix = op.join('saves', 'models')
+    m.load_state_dict(torch.load(op.join(prefix, name)))
+    return m
 
 # objects
 
@@ -160,11 +190,11 @@ dl = load_dl('trainobject1')
 
 # testing
 
-# test_dl_1 = load_dl('testobject1')
-# test_dl_2 = load_dl('testobject2')
-# rot_dl = load_dl('testrotations')
-# four_dl = load_dl('4objtest')
-# shuffle_dl = load_dl('shuffletest')
+test_dl_1 = load_dl('testobject1')
+test_dl_2 = load_dl('testobject2')
+rot_dl = load_dl('testrotations')
+four_dl = load_dl('4objtest')
+shuffle_dl = load_dl('shuffletest')
 
 # test_dl = load_dl('testobject1')
 

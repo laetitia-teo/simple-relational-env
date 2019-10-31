@@ -369,7 +369,7 @@ class Simplified_GraphEmbedding(GraphModel):
 
         # aggregation with attention
         self.gnn = MetaLayer(
-            gn.EdgeModelDiff(f_e, f_x, f_u, model_fn, h),
+            gn.EdgeModelConcat(f_e, f_x, f_u, model_fn, h),
             gn.NodeModel(h, f_x, f_u, model_fn, h),
             gn.NodeGlobalModelAttention(h, h, f_u, model_fn, h))
 
