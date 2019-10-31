@@ -148,16 +148,17 @@ criterion = torch.nn.CrossEntropyLoss()
 
 # training
 
-dl = load_dl('trainobject1')
+# dl = load_dl('trainobject1')
 
 # run(N_EPOCHS, nn_model, dl, data_fn, opt)
 
 # testing
 
-test_dl_1 = load_dl('testobject1')
-test_dl_2 = load_dl('testobject2')
-rot_dl = load_dl('testrotations')
-four_dl = load_dl('4objtest')
+# test_dl_1 = load_dl('testobject1')
+# test_dl_2 = load_dl('testobject2')
+# rot_dl = load_dl('testrotations')
+# four_dl = load_dl('4objtest')
+shuffle_dl = load_dl('shuffletest')
 
 # test_dl = load_dl('testobject1')
 

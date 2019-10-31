@@ -4,6 +4,7 @@ import time
 
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
 
 # for interactive testing :
 import pygame
@@ -430,10 +431,10 @@ class Env(AbstractEnv):
             obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
             mat[ox:ox + s, oy:oy + s] += obj_mat
         mat = np.flip(mat, axis=0)
+        mat = (mat * 255).astype(int)
         if show:
-            pass
-            # opencv stuff : windowing and stuff
-            # or maybe use pyglet
+            plt.imshow(mat)
+            plt.show()
         return mat
 
     def to_state_list(self):
@@ -460,7 +461,8 @@ class Env(AbstractEnv):
         Saves the current env image and the state description into the
         specified path.
         """
-        cv2.imwrite(path, self.render())
+        print(np.max(self.render(False)))
+        cv2.imwrite(path, self.render(False))
 
     def random_mix(self, timeout=30):
         """

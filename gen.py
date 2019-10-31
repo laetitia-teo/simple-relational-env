@@ -48,7 +48,8 @@ class SimpleTaskGen(AbstractGen):
                           n,
                           ref_state=None,
                           rotations=False,
-                          record=False):
+                          record=False,
+                          shuffle=False):
         """
         Generates the reference spatial configuration and its perturbations.
         
@@ -71,6 +72,8 @@ class SimpleTaskGen(AbstractGen):
         self._configs.append((ref_state, self._config_id))
         for _ in range(n - 1):
             self._env.from_state_list(ref_state)
+            if shuffle:
+                self._env.shuffle_objects()
             amount, scale, phi = self._env.random_transformation(
                 rotations=rotations)
             self._configs.append((self._env.to_state_list(), self._config_id))
@@ -104,7 +107,8 @@ class SimpleTaskGen(AbstractGen):
                      n,
                      restart=True,
                      rotations=False,
-                     record=False):
+                     record=False,
+                     shuffle=False):
         """
         Generates configs with object re-mixing.
 
@@ -115,6 +119,16 @@ class SimpleTaskGen(AbstractGen):
                 same objects (same color, size and orientation)
             - n (int) : number of transformations of the same spatial
                 configuration.
+            - restart (bool) : whether or not to restart from scratch,
+                resetting the internal state of the generator. Defaults to True
+            - rotations (bool) : whether or not to have rotations in our
+                generating process. Defaults to False.
+            - record (bool) : whether or not to record the translation vectors,
+                scaling factors, and rotation angles used in the generating 
+                process.
+            - shuffle (bool) : whether or not to shuffle the order of objects
+                in the generating process. If False, the objects are always in
+                the same order, across configurations with the same objects.
         """
         if restart:
             self._env.reset()
@@ -134,7 +148,11 @@ class SimpleTaskGen(AbstractGen):
                 self._env.from_state_list(ref_state)
                 self._env.random_mix()
                 state = self._env.to_state_list()
-                rec = self._generate_configs(n, state, rotations, record)
+                rec = self._generate_configs(n,
+                                             state,
+                                             rotations,
+                                             record,
+                                             shuffle)
                 if record and rec is not None:
                     recs['translations'] += rec['translations']
                     recs['scalings'] += rec['scalings']

@@ -248,12 +248,12 @@ class NodeModel(torch.nn.Module):
         return self.phi_x(out)
 
 class GlobalModel(torch.nn.Module):
-    def  __init__(self,
-                  f_e,
-                  f_x,
-                  f_u,
-                  model_fn,
-                  f_u_out=None):
+    def __init__(self,
+                 f_e,
+                 f_x,
+                 f_u,
+                 model_fn,
+                 f_u_out=None):
         """
         Global model : aggregates the edge attributes over the whole graph,
         the node attributes over the whole graph, and uses those to compute
@@ -286,12 +286,12 @@ class GlobalModel(torch.nn.Module):
         return self.phi_u(out)
 
 class NodeOnlyGlobalModel(torch.nn.Module):
-    def  __init__(self,
-                  f_e,
-                  f_x,
-                  f_u,
-                  model_fn,
-                  f_u_out=None):
+    def __init__(self,
+                 f_e,
+                 f_x,
+                 f_u,
+                 model_fn,
+                 f_u_out=None):
         """
         Global model : aggregates the edge attributes over the whole graph,
         the node attributes over the whole graph, and uses those to compute
@@ -317,6 +317,41 @@ class NodeOnlyGlobalModel(torch.nn.Module):
         x_agg = scatter_mean(x, batch, dim=0)
         out = torch.cat([x_agg, u], 1)
         return self.phi_u(out)
+
+class NodeGlobalModelAttention(torch.nn.Module):
+    def __init__(self,
+                 f_e,
+                 f_x,
+                 f_u,
+                 model_fn,
+                 f_u_out=None):
+        """
+        This global model aggregates all node features by doing their 
+        weighted mean, were the weights are computed by a gating (or attention)
+        model.
+
+        Arguments :
+
+            - f_e (int): number of edge features
+            - f_x (int): number of vertex features
+            - f_u (int): number of global features
+            - model_fn : function that takes input and output features and
+                returns a model.
+        """
+        super(NodeGlobalModelAttention, self).__init__()
+        if f_u_out is None:
+            f_u_out = f_u
+        self.phi_u = model_fn(f_x + f_u, f_u_out)
+        self.gating = model_fn(f_x + f_u, f_x) # use sth simpler maybe
+
+    def forward(self,  x, edge_index, edge_attr, u, batch):
+        # attentions
+        a = self.gating(torch.cat([x, u], 1))
+        # aggregate attention-weighted nodes
+        x_agg = scatter_mean(x * a, batch, dim=0)
+        out = torch.cat([x_agg, u], 1)
+        return self.phi_u(out)
+
 
 ###############################################################################
 #                                                                             #

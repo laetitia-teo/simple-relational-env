@@ -346,29 +346,52 @@ class GraphEmbedding(GraphModel):
         return [self.final_mlp(torch.cat([u1, u2], 1))
             for u1, u2 in zip(l1, l2)]
 
-class GraphEmbedding_NodeOnly(GraphModel):
+class Simplified_GraphEmbedding(GraphModel):
     """
     A variation on the original GraphEmbedding model.
     """
     def __init__(self,
                  mlp_layers,
                  h,
-                 N,
                  f_dict):
         """
         This model is a simpler, cleaner version of the GraphEmbedding model.
         In this model, all aggregations are done only on nodes, and not
         on edges : edges do not carry features useful for the aggregation any
         more, but only serve for passing messages between nodes.
+
+        In this simple model, we do not have an encoder, the node, edge and
+        global features are used as such. There is only one layer of GNN.
         """
-        pass
+        super(Simplified_GraphEmbedding, self).__init__()
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        # aggregation with attention
+        self.gnn = MetaLayer(
+            gn.EdgeModelDiff(f_e, f_x, f_u, model_fn, h),
+            gn.NodeModel(h, f_x, f_u, model_fn, h),
+            gn.NodeGlobalModelAttention(h, h, f_u, model_fn, h))
+
+        self.mlp = model_fn(2 * h, f_out)
+        
 
     def graph_embedding(self, x, edge_index, e, u, batch):
-        pass
+        """
+        In this case the embedding is simple : we apply the gnn once, and use
+        the global vector as embedding.
+        """
+        x_h, e_h, u_h = self.gnn(x, edge_index, e, u, batch)
+        return u_h
 
     def forward(self, graph1, graph2):
-        pass
+        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
 
+        u1 = self.graph_embedding(x1, edge_index1, e1, u1, batch1)
+        u2 = self.graph_embedding(x2, edge_index2, e2, u2, batch2)
+
+        return self.mlp(torch.cat([u1, u2]))
 
 class GraphDifference(GraphModel):
     """
