@@ -171,6 +171,7 @@ f_dict = {
 I = gm.identity_mapping
 
 data_fn = data_fn_graphs(N_OBJ)
+data_fn_4 = data_fn_graphs(4)
 
 nn_model = bm.SceneMLP(N_SH, F_OBJ, [H, H], H, [H, H])
 nn_model = gm.ObjectMean([H, H], f_dict)

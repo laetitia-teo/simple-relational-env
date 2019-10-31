@@ -772,6 +772,7 @@ class AlternatingSimple(GraphModel):
     """
     def __init__(self,
                  mlp_layers,
+                 N,
                  f_dict):
         """
         Simpler version of the alternating model. In this model there is no
@@ -787,16 +788,17 @@ class AlternatingSimple(GraphModel):
         In this model, since we may want to chain the passes, we let the number
         of input features unchanged.
         """
-        super(Alternating, self).__init__()
+        super(AlternatingSimple, self).__init__()
         model_fn = gn.mlp_fn(mlp_layers)
+        self.N = N
         f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.gnn = MetaLayer(
-            gn.EdgeModelDiff(f_e, f_x, f_u, model_fn, f_e),
+            gn.EdgeModelDiff(f_e, f_x + f_u, f_u, model_fn, f_e),
             gn.NodeModel(f_e, f_x + f_u, f_u, model_fn, f_x),
             gn.NodeGlobalModelAttention(f_e, f_x, f_u, model_fn, f_u))
 
-        self.mlp = model_fn(f_u, f_out)
+        self.mlp = model_fn(2 * f_u, f_out)
 
     def forward(self, graph1, graph2):
         """
@@ -807,13 +809,18 @@ class AlternatingSimple(GraphModel):
         x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
 
-        # we can do N passes of this
-        x1 = torch.cat([x1, u2[batch]], 1)
-        x1, e1, u1 = self.gnn(x1, edge_index, e1, u1, batch)
-        x2 = torch.cat([x2, u1[batch]], 1)
-        x2, e2, u2 = self.gnn(x2, edge_index, e2, u2, batch)
+        out_list = []
 
-        return self.mlp(u2)
+        for _ in range(self.N):
+            # we can do N passes of this
+            x1 = torch.cat([x1, u2[batch1]], 1)
+            x1, e1, u1 = self.gnn(x1, edge_index1, e1, u1, batch1)
+            x2 = torch.cat([x2, u1[batch2]], 1)
+            x2, e2, u2 = self.gnn(x2, edge_index2, e2, u2, batch2)
+
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+
+        return out_list
 
 
 class GraphMatchingNetwork(GraphModel):
@@ -915,3 +922,64 @@ class GraphMatchingNetwork(GraphModel):
         u2 = self.aggregator(x2, edge_index, e2, u2, batch)
 
         return self.final_mlp(torch.cat([u1, u2]))
+
+class GraphMatchingSimple(GraphModel):
+    """
+    Simpler version of the Graph Matching Network.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 h,
+                 N,
+                 f_dict):
+        """
+        This simpler version of the GMN has only one layer of internal
+        propagation.
+        """
+        super(GraphMatchingSimple, self).__init__()
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.gnn = gn.CosineAttentionLayer(
+            gn.EdgeModelDiff(f_e, f_x, f_u, model_fn, h),
+            gn.CosineSimNodeModel(h, f_x, f_u, model_fn, h),
+            gn.GlobalModel(h, h, f_u, model_fn, h))
+
+        self.cg_ei = None # cross-graph edge index
+
+        self.mlp = model_fn(2 * h, f_out)
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass.
+        """
+        if self.cg_ei is None:
+            # artificially constructing this reduces the model's generality
+            # we want to have models that can also reason on different
+            # graphs
+            # there should be a way to compute thsi for any two graphs
+            # at the cost of some generality
+            n_obj = len(graph1.x) // len(graph1.y)
+            self.cg_ei = complete_edge_index(n_obj)
+
+        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+
+        x1, e1, u1 = self.gnn(x1,
+                              x2,
+                              edge_index1,
+                              self.cg_ei,
+                              e1,
+                              u1,
+                              batch1)
+
+        x2, e2, u2 = self.gnn(x2,
+                              x1,
+                              edge_index2,
+                              self.cg_ei, # actually should switch the 2 rows
+                              e2,
+                              u2,
+                              batch2)
+
+        return self.mlp(torch.cat([u1, u2], 1))
