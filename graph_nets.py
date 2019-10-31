@@ -346,7 +346,7 @@ class NodeGlobalModelAttention(torch.nn.Module):
 
     def forward(self,  x, edge_index, edge_attr, u, batch):
         # attentions
-        a = self.gating(torch.cat([x, u], 1))
+        a = self.gating(torch.cat([x, u[batch]], 1))
         # aggregate attention-weighted nodes
         x_agg = scatter_mean(x * a, batch, dim=0)
         out = torch.cat([x_agg, u], 1)

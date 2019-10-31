@@ -391,7 +391,7 @@ class Simplified_GraphEmbedding(GraphModel):
         u1 = self.graph_embedding(x1, edge_index1, e1, u1, batch1)
         u2 = self.graph_embedding(x2, edge_index2, e2, u2, batch2)
 
-        return self.mlp(torch.cat([u1, u2]))
+        return self.mlp(torch.cat([u1, u2], 1))
 
 class GraphDifference(GraphModel):
     """

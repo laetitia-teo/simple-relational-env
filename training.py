@@ -123,6 +123,12 @@ def several_inits(seeds, dl, data_fn):
         metrics[seed] = one_step(g_model, dl, data_fn, opt)
     return metrics
 
+def save_model(m, name):
+    """
+    Saves the model m with name name in the model save folder.
+    """
+    prefix = op.join('saves', 'models')
+    
 
 # objects
 
@@ -148,7 +154,7 @@ criterion = torch.nn.CrossEntropyLoss()
 
 # training
 
-# dl = load_dl('trainobject1')
+dl = load_dl('trainobject1')
 
 # run(N_EPOCHS, nn_model, dl, data_fn, opt)
 
@@ -158,11 +164,11 @@ criterion = torch.nn.CrossEntropyLoss()
 # test_dl_2 = load_dl('testobject2')
 # rot_dl = load_dl('testrotations')
 # four_dl = load_dl('4objtest')
-shuffle_dl = load_dl('shuffletest')
+# shuffle_dl = load_dl('shuffletest')
 
 # test_dl = load_dl('testobject1')
 
-# one_step(nn_model, test_dl, data_fn, opt, train=False)
+# one_step(nn_model, test_dl_1, data_fn, opt, train=False)
 
 # testing on rotations
 
