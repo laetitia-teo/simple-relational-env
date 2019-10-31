@@ -766,6 +766,56 @@ class Alternatingv2(GraphModel):
 
         return outputs
 
+class AlternatingSimple(GraphModel):
+    """
+    Simple version of the Altrenating model.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 f_dict):
+        """
+        Simpler version of the alternating model. In this model there is no
+        encoder network, we only have 1 layer of GNN on each processing step.
+
+        We condition on the output global embedding from the processing on the
+        previous graph, and we only condition the node computations since there
+        are less nodes than edges (this is a choice that can be discussed).
+
+        We aggregate nodes with attention in the global model.
+
+        We use the same gnn for processing both inputs.
+        In this model, since we may want to chain the passes, we let the number
+        of input features unchanged.
+        """
+        super(Alternating, self).__init__()
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.gnn = MetaLayer(
+            gn.EdgeModelDiff(f_e, f_x, f_u, model_fn, f_e),
+            gn.NodeModel(f_e, f_x + f_u, f_u, model_fn, f_x),
+            gn.NodeGlobalModelAttention(f_e, f_x, f_u, model_fn, f_u))
+
+        self.mlp = model_fn(f_u, f_out)
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass. We alternate computing on 1 graph and then on the other.
+        We initialize the conditioning vector at 0.
+        At each step we concatenate the global vectors to the node vectors.
+        """
+        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+
+        # we can do N passes of this
+        x1 = torch.cat([x1, u2[batch]], 1)
+        x1, e1, u1 = self.gnn(x1, edge_index, e1, u1, batch)
+        x2 = torch.cat([x2, u1[batch]], 1)
+        x2, e2, u2 = self.gnn(x2, edge_index, e2, u2, batch)
+
+        return self.mlp(u2)
+
+
 class GraphMatchingNetwork(GraphModel):
     """
     Graph Merging network.
