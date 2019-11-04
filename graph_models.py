@@ -138,6 +138,7 @@ def complete_edge_index(n):
 
     ei = torch.stack(
         (torch.reshape(e, (-1,)), torch.reshape(e.T, (-1,))))
+    return ei
 
 ###############################################################################
 #                                                                             #
@@ -943,6 +944,7 @@ class GraphMatchingSimple(GraphModel):
 
         self.gnn = gn.CosineAttentionLayer(
             gn.EdgeModelDiff(f_e, f_x, f_u, model_fn, h),
+            gn.CosineAttention(h, f_x, f_u),
             gn.CosineSimNodeModel(h, f_x, f_u, model_fn, h),
             gn.GlobalModel(h, h, f_u, model_fn, h))
 
@@ -961,7 +963,11 @@ class GraphMatchingSimple(GraphModel):
             # there should be a way to compute thsi for any two graphs
             # at the cost of some generality
             n_obj = len(graph1.x) // len(graph1.y)
-            self.cg_ei = complete_edge_index(n_obj)
+            b_size = len(graph1.y)
+            ei = complete_edge_index(n_obj)
+            self.cg_ei = ei
+            for i in range(b_size - 1):
+                self.cg_ei = torch.cat([self.cg_ei, ei + (i + 1) * n_obj], 1)
 
         x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)

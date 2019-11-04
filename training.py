@@ -191,11 +191,11 @@ dl = load_dl('trainobject1')
 
 # testing
 
-test_dl_1 = load_dl('testobject1')
-test_dl_2 = load_dl('testobject2')
-rot_dl = load_dl('testrotations')
-four_dl = load_dl('4objtest')
-shuffle_dl = load_dl('shuffletest')
+# test_dl_1 = load_dl('testobject1')
+# test_dl_2 = load_dl('testobject2')
+# rot_dl = load_dl('testrotations')
+# four_dl = load_dl('4objtest')
+# shuffle_dl = load_dl('shuffletest')
 
 # test_dl = load_dl('testobject1')
 

@@ -169,9 +169,11 @@ class CosineAttention():
         src, dest = cg_edge_index
         # exp-cosine-similarity vector
         ecs = torch.exp(sim(x_src[src], x[dest]))
+        # attentions
         a = ecs / (scatter_add(ecs, batch[src])[batch[src]])
-        a = a * x_src[src].T
-        return scatter_add(a, batch[src]).T # see if we don't need mean instead here
+        vec = x[dest] - x_src[src] # to be multiplied by attentions
+        mu = (a * vec.T)
+        return scatter_add(mu, dest).T # see if we don't need mean instead here
 
 class CosineSimNodeModel(torch.nn.Module):
     """
@@ -201,7 +203,7 @@ class CosineSimNodeModel(torch.nn.Module):
         """
         if f_x_out is None:
             f_x_out = f_x
-        super(NodeModel, self).__init__()
+        super(CosineSimNodeModel, self).__init__()
         self.phi_x = model_fn(f_e + 2 * f_x + f_u, f_x_out)
 
     def forward(self, x, a, edge_index, edge_attr, u, batch):
@@ -590,12 +592,12 @@ class CosineAttentionLayer(torch.nn.Module):
         being the destination node of the current graph and nodes j and j' the
         source nodes.
         """
-        super(MetaLayer, self).__init__()
+        super(CosineAttentionLayer, self).__init__()
         self.edge_model = edge_model
         self.node_model = node_model # this needs a specific node model
         self.global_model = global_model
 
-        self.attention_function = attention_funtion
+        self.attention_function = attention_function
 
         self.reset_parameters()
 
@@ -629,6 +631,7 @@ class CosineAttentionLayer(torch.nn.Module):
         # maybe change the inputs for this, because it does not have the same 
         # format as the other functions
         a = self.attention_function(x, x_src, cg_edge_index, batch)
+
         x = self.node_model(x, a, edge_index, edge_attr, u, batch)
 
         u = self.global_model(x, edge_index, edge_attr, u, batch)
