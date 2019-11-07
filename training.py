@@ -39,6 +39,15 @@ def data_fn_scene(data):
     data = torch.reshape(data, (-1, 2, F_OBJ*N_OBJ))
     return data[:, 0, :], data[:, 1, :]
 
+def data_fn_naivelstm(data):
+    return (data.permute(1, 0, 2),)
+
+def data_fn_scenelstm(data):
+    # TODO : optimize this
+    data = torch.reshape(data, (-1, 2, N_OBJ, F_OBJ))
+    d1, d2 = data[:, 0, ...], data[:, 1, ...]
+    return d1.permute(1, 0, 2), d2.permute(1, 0, 2)
+
 def data_fn_graphs(n):
     """
     Transforms object data in 2 graphs for graph models.
@@ -191,11 +200,12 @@ dl = load_dl('trainobject1')
 
 # testing
 
-# test_dl_1 = load_dl('testobject1')
-# test_dl_2 = load_dl('testobject2')
-# rot_dl = load_dl('testrotations')
-# four_dl = load_dl('4objtest')
-# shuffle_dl = load_dl('shuffletest')
+test_dl_1 = load_dl('testobject1')
+test_dl_2 = load_dl('testobject2')
+rot_dl = load_dl('testrotations')
+four_dl = load_dl('4objtest')
+shuffle_dl = load_dl('shuffletest')
+shuffle_dl_2 = load_dl('shuffletest2')
 
 # test_dl = load_dl('testobject1')
 

@@ -949,6 +949,7 @@ class GraphMatchingSimple(GraphModel):
             gn.GlobalModel(h, h, f_u, model_fn, h))
 
         self.cg_ei = None # cross-graph edge index
+        self.b_size = 0 # init
 
         self.mlp = model_fn(2 * h, f_out)
 
@@ -956,17 +957,17 @@ class GraphMatchingSimple(GraphModel):
         """
         Forward pass.
         """
-        if self.cg_ei is None:
+        if self.cg_ei is None or self.b_size != len(graph1.y):
             # artificially constructing this reduces the model's generality
             # we want to have models that can also reason on different
             # graphs
             # there should be a way to compute thsi for any two graphs
             # at the cost of some generality
             n_obj = len(graph1.x) // len(graph1.y)
-            b_size = len(graph1.y)
+            self.b_size = len(graph1.y)
             ei = complete_edge_index(n_obj)
             self.cg_ei = ei
-            for i in range(b_size - 1):
+            for i in range(self.b_size - 1):
                 self.cg_ei = torch.cat([self.cg_ei, ei + (i + 1) * n_obj], 1)
 
         x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
