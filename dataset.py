@@ -75,11 +75,9 @@ class ObjectDataset(Dataset):
                     if not p:
                         continue # skip this negative sample
                 objects1 = torch.tensor(vecs1, dtype=torch.float32)
-                objects1[:, N_SH+1:N_SH+4] /= 127.5
-                objects1[:, N_SH+1:N_SH+4] -= 1
+                objects1[:, N_SH+1:N_SH+4] /= 255
                 objects2 = torch.tensor(vecs2, dtype=torch.float32)
-                objects2[:, N_SH+1:N_SH+4] /= 127.5
-                objects2[:, N_SH+1:N_SH+4] -= 1
+                objects2[:, N_SH+1:N_SH+4] /= 255
                 objects = torch.cat([objects1, objects2])
                 self.data.append((objects, clss))
 
