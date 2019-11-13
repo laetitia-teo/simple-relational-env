@@ -325,7 +325,7 @@ class PartsGen():
                 pass
             else:
                 linelist = line.split(' ')
-                t_batch.append(linelist[0])
+                t_batch.append(int(linelist[0]))
                 targets.append(np.array(linelist[1:-1], dtype=float))
             line = next(lineit)
         return targets, t_batch
@@ -341,7 +341,7 @@ class PartsGen():
         line = next(lineit)
         while 'labels' not in line:
             linelist = line.split(' ')
-            r_batch.append(linelist[0])
+            r_batch.append(int(linelist[0]))
             refs.append(np.array(linelist[1:-1], dtype=float))
             line = next(lineit)
         return refs, r_batch

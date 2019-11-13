@@ -17,6 +17,7 @@ from torch.utils.data import Dataset
 
 N_SH = 3
 DTYPE = torch.float32
+ITYPE = torch.long
 
 class ObjectDataset(Dataset):
     """
@@ -106,10 +107,10 @@ class PartsDataset():
         module (as lists).
         """
         self.targets = torch.tensor(targets, dtype=DTYPE)
-        self.t_batch = torch.tensor(t_batch, dtype=DTYPE)
+        self.t_batch = torch.tensor(t_batch, dtype=ITYPE)
         self.refs = torch.tensor(refs, dtype=DTYPE)
-        self.r_batch = torch.tensor(r_batch, dtype=DTYPE)
-        self.labels = torch.tensor(labels, dtype=DTYPE)
+        self.r_batch = torch.tensor(r_batch, dtype=ITYPE)
+        self.labels = torch.tensor(labels, dtype=ITYPE)
 
         self.t_idx = []
         self.r_idx = []
