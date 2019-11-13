@@ -105,16 +105,20 @@ class Shape():
         bbox = np.where(self.cond(x, y), color, void)
         return bbox
 
-    def to_vector(self):
+    def to_vector(self, norm=False):
         """
         Returns an encoding of the object.
         """
         vec = np.zeros(N_SH, dtype=float)
         vec[self.shape_index] = 1.
+        if norm:
+            color = self.color / 255
+        else:
+            color = self.color
         return np.concatenate(
             (vec,
             np.array([self.size]),
-            np.array(self.color),
+            np.array(color),
             np.array(self.pos),
             np.array([self.ori])), 0)
 
@@ -201,14 +205,18 @@ class Triangle(Shape):
         ori = self.ori
         return Triangle(size, color, pos, ori)
 
-def shape_from_vector(vec):
+def shape_from_vector(vec, norm=False):
     """
     Takes in a vector encoding the shape and returns the corresponding Shape
     object.
+
+    norm : whether or not to denormalize to the [0:255] integer range. 
     """
     shape = vec[0:N_SH]
     size = vec[N_SH]
     color = vec[N_SH+1:N_SH+4]
+    if norm:
+        color = (color * 255).astype(int)
     pos = vec[N_SH+4:N_SH+6]
     ori = vec[N_SH+6]
     if shape[0]:
@@ -449,13 +457,15 @@ class Env(AbstractEnv):
             plt.show()
         return mat
 
-    def to_state_list(self):
+    def to_state_list(self, norm=False):
         """
         Returns a list of all the objects in vector form.
-        """
-        return [obj.to_vector() for obj in self.objects]
 
-    def from_state_list(self, state_list, reset=True):
+        norm (bool): whether or not to normalize color to the [0:1] range.
+        """
+        return [obj.to_vector(norm) for obj in self.objects]
+
+    def from_state_list(self, state_list, reset=True, norm=False):
         """
         Adds the objects listed as vectors in state.
 
@@ -465,7 +475,7 @@ class Env(AbstractEnv):
         if reset:
             self.reset()
         for vec in state_list:
-            shape = shape_from_vector(vec)
+            shape = shape_from_vector(vec, norm=norm)
             self.add_object(shape)
 
     def save_image(self, path):

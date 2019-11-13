@@ -105,11 +105,11 @@ class PartsDataset():
         The inputs are the outputs of the Parts generator, defined in the gen
         module (as lists).
         """
-        self.targets = torch.tensor(targets)
-        self.t_batch = torch.tensor(t_batch)
-        self.refs = torch.tensor(refs)
-        self.r_batch = torch.tensor(r_batch)
-        self.labels = torch.tensor(labels)
+        self.targets = torch.tensor(targets, dtype=DTYPE)
+        self.t_batch = torch.tensor(t_batch, dtype=DTYPE)
+        self.refs = torch.tensor(refs, dtype=DTYPE)
+        self.r_batch = torch.tensor(r_batch, dtype=DTYPE)
+        self.labels = torch.tensor(labels, dtype=DTYPE)
 
         self.t_idx = []
         self.r_idx = []

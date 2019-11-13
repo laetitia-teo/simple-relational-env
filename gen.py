@@ -206,7 +206,7 @@ class PartsGen():
         to SimpleTask, judging the similarity of two scenes.
         """
         if env is None:
-            env = Env(16, 20)
+            self.env = Env(16, 20)
         self.range_t = [2, 5]
         self.range_d = [0, 10]
 
@@ -231,22 +231,22 @@ class PartsGen():
         self.env.reset()
         n_t = np.random.randint(*self.range_t)
         self.env.random_config(n_t)
-        target = self.env.to_state_list()
+        target = self.env.to_state_list(norm=True)
         # generate positive example
         self.env.shuffle_objects()
         self.env.random_transformation()
         n_d = np.random.randint(*self.range_d)
         self.env.random_config(n_d) # add random objects
-        trueref = self.env.to_state_list()
+        trueref = self.env.to_state_list(norm=True)
         # generate negative example
         self.env.reset()
-        self.env.from_state_list(target)
+        self.env.from_state_list(target, norm=True)
         self.env.shuffle_objects() # shuffle order of the objects
         self.env.random_mix() # mix config
-        self.random_transformation()
+        self.env.random_transformation()
         n_d = np.random.randint(*self.range_d)
         self.env.random_config(n_d) # add random objects
-        falseref = self.env.to_state_list()
+        falseref = self.env.to_state_list(norm=True)
         target = target
         return target, trueref, falseref
 
@@ -267,7 +267,7 @@ class PartsGen():
                 objects to their corresponding scene index;
             - labels (list of ints): list of scene labels.
         """
-        print('generating dataset of %s examples :' % 2 * N)
+        print('generating dataset of %s examples :' % (2 * N))
         for i in tqdm(range(N)):
             target, trueref, falseref = self.gen_one()
             n_t = len(target)
@@ -320,13 +320,13 @@ class PartsGen():
         targets = []
         t_batch = []
         line = next(lineit)
-        while line != 'refs':
-            if line == 'targets':
+        while 'refs' not in line:
+            if 'targets' in line:
                 pass
             else:
                 linelist = line.split(' ')
                 t_batch.append(linelist[0])
-                targets.append(np.array(linelist[1:]))
+                targets.append(np.array(linelist[1:-1], dtype=float))
             line = next(lineit)
         return targets, t_batch
 
@@ -339,10 +339,10 @@ class PartsGen():
         refs = []
         r_batch = []
         line = next(lineit)
-        while line != 'labels':
+        while 'labels' not in line:
             linelist = line.split(' ')
             r_batch.append(linelist[0])
-            refs.append(np.array(linelist[1:], dtype=float))
+            refs.append(np.array(linelist[1:-1], dtype=float))
             line = next(lineit)
         return refs, r_batch
 
@@ -352,10 +352,12 @@ class PartsGen():
         """
         labels = []
         try:
-            line = next(lineit)
-            labels.append(int(line))
+            while True:
+                line = next(lineit)
+                labels.append(int(line))
         except StopIteration:
-            return labels
+            pass
+        return labels
 
     def save(self, path):
         """
@@ -383,4 +385,4 @@ class PartsGen():
         self.refs = refs
         self.r_batch = r_batch
         self.labels = labels
-            
+
