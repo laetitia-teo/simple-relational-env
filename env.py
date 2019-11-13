@@ -249,6 +249,18 @@ class Env(AbstractEnv):
         x2, y2 = pos2
         return np.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
+    def get_obj_dim(self):
+        """
+        Returns the number of features of an object in this envionment.
+        """
+        if not self.objects:
+            self.add_random_object()
+            f_x = len(self.to_state_list()[0])
+            self.reset()
+            return f_x
+        f_x = len(self.to_state_list()[0])
+        return f_x
+
     def add_object(self, obj, idx=None):
         """
         Adds a Shape to the scene.

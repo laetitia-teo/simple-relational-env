@@ -16,6 +16,7 @@ from tqdm import tqdm
 from torch.utils.data import Dataset
 
 N_SH = 3
+DTYPE = torch.float32
 
 class ObjectDataset(Dataset):
     """
@@ -93,6 +94,41 @@ class ObjectDataset(Dataset):
         """
         with open(path, 'w') as f:
             pickle.dump(self, f)
+
+class PartsDataset():
+    """
+    Class for the Parts task.
+    """
+    def __init__(self, targets, t_batch, refs, r_batch, labels):
+        """
+        Initializes the Parts Dataset.
+        The inputs are the outputs of the Parts generator, defined in the gen
+        module (as lists).
+        """
+        self.targets = torch.tensor(targets)
+        self.t_batch = torch.tensor(t_batch)
+        self.refs = torch.tensor(refs)
+        self.r_batch = torch.tensor(r_batch)
+        self.labels = torch.tensor(labels)
+
+        self.t_idx = []
+        self.r_idx = []
+        # build lists of all the indices corresponding to one set of
+        # (target, reference, label) for efficient access
+        for idx in range(len(self.labels)):
+            self.t_idx.append((self.t_batch == idx).nonzero(as_tuple=True)[0])
+            self.r_idx.append((self.r_batch == idx).nonzero(as_tuple=True)[0])
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        target = self.targets[self.t_idx[idx]]
+        t_batch = self.t_batch[self.t_idx[idx]]
+        ref = self.refs[self.r_idx[idx]]
+        r_batch = self.r_batch[self.r_idx[idx]]
+        label = self.labels[idx]
+        return target, t_batch, ref, r_batch, label
 
 class ImageDataset(Dataset):
     """
