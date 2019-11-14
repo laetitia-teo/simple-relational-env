@@ -19,6 +19,47 @@ N_SH = 3
 DTYPE = torch.float32
 ITYPE = torch.long
 
+### Utils ###
+
+def collate_fn(batch):
+    """
+    Custom collate_fn, based on the default one in pytorch, for concatenating
+    data on the first dimension instead of adding a new dimension in which to
+    batch data.
+
+    Assumes the data is provided as a tuple of torch.Tensors, and concatenates
+    along the first dimension on each tensor.
+
+    When used in a pytorch DataLoader, returns batches that have the graph 
+    nodes as first and second elements for both scenes, labels as third element
+    and batches for the first and second graph as fourth and fifth element.
+    """
+    elem = batch[0]
+    elem_type = type(elem)
+    if isinstance(elem, torch.Tensor):
+        out = None
+        if torch.utils.data.get_worker_info() is not None:
+            # If we're in a background process, concatenate directly into a
+            # shared memory tensor to avoid an extra copy
+            numel = sum([x.numel() for x in batch])
+            storage = elem.storage()._new_shared(numel)
+            out = elem.new(storage)
+        return torch.cat(batch, 0, out=out)
+    elif isinstance(elem, tuple):
+        transposed = list(zip(*batch)) # we lose memory here
+        l = [collate_fn(samples) for samples in transposed]
+        l.append(
+            collate_fn(
+                [torch.ones(len(t), dtype=ITYPE) * i 
+                    for i, t in enumerate(transposed[0])]))
+        l.append(
+            collate_fn(
+                [torch.ones(len(t), dtype=ITYPE) * i 
+                    for i, t in enumerate(transposed[1])]))
+        return l
+
+### Dataset ###
+
 class ObjectDataset(Dataset):
     """
     A Dataset class to hold our object data. Does not handle images of the
@@ -96,7 +137,7 @@ class ObjectDataset(Dataset):
         with open(path, 'w') as f:
             pickle.dump(self, f)
 
-class PartsDataset():
+class PartsDataset(Dataset):
     """
     Class for the Parts task.
     """
@@ -129,7 +170,7 @@ class PartsDataset():
         ref = self.refs[self.r_idx[idx]]
         r_batch = self.r_batch[self.r_idx[idx]]
         label = self.labels[idx]
-        return target, t_batch, ref, r_batch, label
+        return target, ref, label
 
 class ImageDataset(Dataset):
     """
@@ -143,3 +184,4 @@ class ImageDataset(Dataset):
 
     def __getattr__(self, idx):
         return None
+

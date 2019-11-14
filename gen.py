@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 from env import SamplingTimeout
 from env import Env
-from dataset import Dataset
+from dataset import Dataset, PartsDataset
 from utils import to_file, from_file
 
 N_SH = 3
@@ -277,7 +277,7 @@ class PartsGen():
             self.t_batch += n_t * [2*i] + n_t * [2*i + 1]
             self.refs += trueref + falseref
             self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
-            self.labels += [1, 0]
+            self.labels += [[1], [0]]
     
     def write_targets(self, f):
         """
@@ -309,7 +309,7 @@ class PartsGen():
         """
         f.write('labels\n')
         for label in self.labels:
-            f.write(str(label) + '\n')
+            f.write(str(label[0]) + '\n')
 
     def read_targets(self, lineit):
         """
@@ -354,7 +354,7 @@ class PartsGen():
         try:
             while True:
                 line = next(lineit)
-                labels.append(int(line))
+                labels.append([int(line)])
         except StopIteration:
             pass
         return labels
@@ -386,3 +386,13 @@ class PartsGen():
         self.r_batch = r_batch
         self.labels = labels
 
+    def to_dataset(self):
+        """
+        Creates a PartsDataset from the generated data and returns it.
+        """
+        ds = PartsDataset(self.targets,
+                          self.t_batch,
+                          self.refs,
+                          self.r_batch,
+                          self.labels)
+        return ds
