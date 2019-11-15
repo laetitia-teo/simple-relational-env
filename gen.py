@@ -23,6 +23,14 @@ from utils import to_file, from_file
 N_SH = 3
 DTYPE = torch.float32
 
+class Resample(Exception):
+    """
+    Raised when sampling of random transformations times out. This means the
+    generated config is probably too big and we should drop it.
+    """
+    def __init__(self, message):
+        self.message = message
+
 class AbstractGen():
     """
     Generator abstract class.
@@ -228,27 +236,34 @@ class PartsGen():
         The targets are perturbed (similarity + small noise) before being
         completed with distractors.
         """
-        self.env.reset()
-        n_t = np.random.randint(*self.range_t)
-        self.env.random_config(n_t)
-        target = self.env.to_state_list(norm=True)
-        # generate positive example
-        self.env.shuffle_objects()
-        self.env.random_transformation()
-        n_d = np.random.randint(*self.range_d)
-        self.env.random_config(n_d) # add random objects
-        trueref = self.env.to_state_list(norm=True)
-        # generate negative example
-        self.env.reset()
-        self.env.from_state_list(target, norm=True)
-        self.env.shuffle_objects() # shuffle order of the objects
-        self.env.random_mix() # mix config
-        self.env.random_transformation()
-        n_d = np.random.randint(*self.range_d)
-        self.env.random_config(n_d) # add random objects
-        falseref = self.env.to_state_list(norm=True)
-        target = target
-        return target, trueref, falseref
+        # Note : we could generate 4 by 4 with this code, by crossing targets
+        # and refs
+        try:
+            self.env.reset()
+            n_t = np.random.randint(*self.range_t)
+            n_d = np.random.randint(*self.range_d)
+            self.env.random_config(n_t)
+            target = self.env.to_state_list(norm=True)
+            # generate positive example
+            self.env.shuffle_objects()
+            self.env.random_transformation()
+            n_d = np.random.randint(*self.range_d)
+            self.env.random_config(n_d) # add random objects
+            trueref = self.env.to_state_list(norm=True)
+            # generate negative example
+            self.env.reset()
+            self.env.from_state_list(target, norm=True)
+            self.env.shuffle_objects() # shuffle order of the objects
+            self.env.random_mix() # mix config
+            self.env.random_transformation()
+            self.env.random_config(n_d) # add random objects
+            falseref = self.env.to_state_list(norm=True)
+            target = target
+            return target, trueref, falseref
+        except SamplingTimeout:
+            print('Sampling timed out, {} and {} objects'.format(n_t, n_d))
+            raise Resample('Resample configuration')
+        
 
     def generate(self, N):
         """
@@ -269,7 +284,12 @@ class PartsGen():
         """
         print('generating dataset of %s examples :' % (2 * N))
         for i in tqdm(range(N)):
-            target, trueref, falseref = self.gen_one()
+            try:
+                target, trueref, falseref = self.gen_one()
+            except Resample:
+                # We resample the config once
+                # If there is a sampling timeout here, we let it pass
+                target, trueref, falseref = self.gen_one()
             n_t = len(target)
             n_r1 = len(trueref)
             n_r2 = len(falseref)

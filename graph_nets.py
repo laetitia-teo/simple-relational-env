@@ -320,7 +320,7 @@ class NodeOnlyGlobalModel(torch.nn.Module):
         out = torch.cat([x_agg, u], 1)
         return self.phi_u(out)
 
-class NodeGlobalModelAttention(torch.nn.Module):
+class GlobalModelNodeAttention(torch.nn.Module):
     def __init__(self,
                  f_e,
                  f_x,
@@ -340,7 +340,7 @@ class NodeGlobalModelAttention(torch.nn.Module):
             - model_fn : function that takes input and output features and
                 returns a model.
         """
-        super(NodeGlobalModelAttention, self).__init__()
+        super(GlobalModelNodeAttention, self).__init__()
         if f_u_out is None:
             f_u_out = f_u
         self.phi_u = model_fn(f_x + f_u, f_u_out)

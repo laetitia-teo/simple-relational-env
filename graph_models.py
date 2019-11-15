@@ -256,7 +256,7 @@ class Simplified_GraphEmbedding(GraphModel):
         self.gnn = MetaLayer(
             gn.EdgeModelConcat(f_e, f_x, f_u, model_fn, h),
             gn.NodeModel(h, f_x, f_u, model_fn, h),
-            gn.NodeGlobalModelAttention(h, h, f_u, model_fn, h))
+            gn.GlobalModelNodeAttention(h, h, f_u, model_fn, h))
 
         self.mlp = model_fn(2 * h, f_out)
         
@@ -681,7 +681,7 @@ class AlternatingSimple(GraphModel):
         self.gnn = MetaLayer(
             gn.EdgeModelDiff(f_e, f_x + f_u, f_u, model_fn, f_e),
             gn.NodeModel(f_e, f_x + f_u, f_u, model_fn, f_x),
-            gn.NodeGlobalModelAttention(f_e, f_x, f_u, model_fn, f_u))
+            gn.GlobalModelNodeAttention(f_e, f_x, f_u, model_fn, f_u))
 
         self.mlp = model_fn(2 * f_u, f_out)
 

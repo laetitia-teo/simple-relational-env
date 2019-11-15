@@ -15,6 +15,8 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch_geometric.data import Data
 
+from graph_utils import tensor_to_graphs
+
 # seed
 
 # SEED = 42
@@ -31,6 +33,18 @@ F_OBJ = 10
 H = 16
 
 # functions
+
+def data_to_clss_parts(data):
+    """
+    Get the ground truth from the Parts task dataloader.
+    """
+    return data[2]
+
+def data_to_clss_simple(data):
+    """
+    Get the ground truth from the Simple task dataloader.
+    """
+    return data[1].long()[:, 1]
 
 def data_fn_naive(data):
     return (torch.reshape(data, [-1, 60]),)
@@ -55,8 +69,10 @@ def data_fn_graphs(n):
     n is number of objects. 
     """
     def data_fn_gr(data):
-        return gm.tensor_to_graphs(data)
+        return tensor_to_graphs(data[0])
     return data_fn_gr
+
+data_fn_graphs_three = data_fn_graphs(3)
 
 def load_dl(name):
     dpath = op.join('data', 'simple_task', 'dataset_binaries', name)
@@ -98,16 +114,16 @@ def compute_f1(precision, recall):
     """
     return 2 / ((1 / precision) + (1 / recall))
 
-def one_step(model, dl, data_fn, optimizer, train=True):
+def one_step(model, dl, data_fn, clss_fn, optimizer, criterion, train=True):
     accs = []
     losses = []
     n_passes = 0
     cum_loss = 0
     cum_acc = 0
-    for data, clss in dl:
+    for data in tqdm(dl):
         optimizer.zero_grad()
-        # reshape data to fit in MLP
-        clss = clss.long()[:, 1] # do this processing in dataset
+        # ground truth, model prediction
+        clss = clss_fn(data)
         pred_clss = model(*data_fn(data))
 
         if type(pred_clss) is list:
@@ -133,11 +149,15 @@ def one_step(model, dl, data_fn, optimizer, train=True):
         losses.append(l)
         accs.append(a)
         n_passes += 1
-    return cum_loss/n_passes, cum_acc/n_passes
+    return losses, accs
 
-def run(n_epochs, model, dl, data_fn, optimizer):
+def run(n_epochs, model, dl, data_fn, optimizer, criterion):
     for epoch in range(n_epochs):
-        mean_loss, mean_acc = one_step(model, dl, data_fn, optimizer)
+        mean_loss, mean_acc = one_step(model,
+                                       dl,
+                                       data_fn,
+                                       optimizer,
+                                       criterion)
         print('Epoch : {}, Mean loss : {}, Mean Accuracy {}'.format(
             epoch, mean_loss, mean_acc))
 
