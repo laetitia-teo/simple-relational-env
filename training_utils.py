@@ -169,43 +169,43 @@ def load_model(m, name):
     m.load_state_dict(torch.load(op.join(prefix, name)))
     return m
 
-# objects
+if __name__ == '__main__':
 
-f_dict = {
-    'f_x': F_OBJ,
-    'f_e': F_OBJ,
-    'f_u': F_OBJ,
-    'f_out': 2}
+    f_dict = {
+        'f_x': F_OBJ,
+        'f_e': F_OBJ,
+        'f_u': F_OBJ,
+        'f_out': 2}
 
-I = gm.identity_mapping
+    I = gm.identity_mapping
 
-data_fn = data_fn_graphs(N_OBJ)
-data_fn_4 = data_fn_graphs(4)
+    data_fn = data_fn_graphs(N_OBJ)
+    data_fn_4 = data_fn_graphs(4)
 
-nn_model = bm.SceneMLP(N_SH, F_OBJ, [H, H], H, [H, H])
-nn_model = gm.ObjectMean([H, H], f_dict)
-nn_model = gm.ObjectMeanDirectAttention([16, 16], f_dict)
-nn_model = gm.GraphEmbedding([16], 16, 5, f_dict)
-# nn_model = gm.GraphDifference([16, 16], 16, 5, f_dict, I)
-# nn_model = gm.Alternating([16, 16], 16, 5, f_dict)
+    nn_model = bm.SceneMLP(N_SH, F_OBJ, [H, H], H, [H, H])
+    nn_model = gm.ObjectMean([H, H], f_dict)
+    nn_model = gm.ObjectMeanDirectAttention([16, 16], f_dict)
+    nn_model = gm.GraphEmbedding([16], 16, 5, f_dict)
+    # nn_model = gm.GraphDifference([16, 16], 16, 5, f_dict, I)
+    # nn_model = gm.Alternating([16, 16], 16, 5, f_dict)
 
-opt = torch.optim.Adam(nn_model.parameters(), lr=L_RATE)
-criterion = torch.nn.CrossEntropyLoss()
+    opt = torch.optim.Adam(nn_model.parameters(), lr=L_RATE)
+    criterion = torch.nn.CrossEntropyLoss()
 
-# training
+    # training
 
-dl = load_dl('trainobject1')
+    dl = load_dl('trainobject1')
 
-# run(N_EPOCHS, nn_model, dl, data_fn, opt)
+    # run(N_EPOCHS, nn_model, dl, data_fn, opt)
 
-# testing
+    # testing
 
-test_dl_1 = load_dl('testobject1')
-test_dl_2 = load_dl('testobject2')
-rot_dl = load_dl('testrotations')
-four_dl = load_dl('4objtest')
-shuffle_dl = load_dl('shuffletest')
-shuffle_dl_2 = load_dl('shuffletest2')
+    test_dl_1 = load_dl('testobject1')
+    test_dl_2 = load_dl('testobject2')
+    rot_dl = load_dl('testrotations')
+    four_dl = load_dl('4objtest')
+    shuffle_dl = load_dl('shuffletest')
+    shuffle_dl_2 = load_dl('shuffletest2')
 
 # test_dl = load_dl('testobject1')
 

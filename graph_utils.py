@@ -7,6 +7,8 @@
 import numpy as np
 import torch
 
+from torch_geometric.data import Data
+
 from torch_scatter import scatter_mean
 
 def complete_edge_index(n, self_edges=True):
