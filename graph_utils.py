@@ -27,6 +27,21 @@ def complete_edge_index(n, self_edges=True):
         ei = ei[:, ei[0] != ei[1]]
     return ei
 
+def complete_ei(n, m=None):
+    """
+    This function creates a set of complete edges (via its edge_index tensor)
+    between nodes of two graphs of respective number of nodes n and m.
+    If m is unspecified, the second graph is considered to have the same number
+    of nodes as the first
+    """
+    en = torch.ones((n, m)).long() * torch.arange(n).unsqueeze(1)
+    if m is None:
+        em = en
+    else:
+        em = torch.ones((m, n)).long() * torch.arange(m).unsqueeze(1)
+    return torch.stack((
+        torch.reshape(en, (-1,)), torch.reshape(em.T, (-1,))))
+
 def identity_mapping(graph1, graph2):
     n = len(graph1.x)
     if len(graph2.x) != n:

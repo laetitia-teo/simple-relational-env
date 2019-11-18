@@ -79,8 +79,8 @@ print('done')
 # model
 
 # model = gm.Simplified_GraphEmbedding([16, 16], 16, f_dict)
-model = gm.AlternatingSimple([16, 16], 2, f_dict)
-# model = gm.GraphMatchingSimple([16, 16], 16, 1, f_dict)
+# model = gm.AlternatingSimple([16, 16], 2, f_dict)
+model = gm.GraphMatchingSimple([16, 16], 10, 1, f_dict)
 opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
 criterion = torch.nn.CrossEntropyLoss()
 

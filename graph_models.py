@@ -22,6 +22,7 @@ from torch_geometric.nn import MetaLayer
 from torch_geometric.data import Data
 
 from graph_utils import data_from_graph
+from graph_utils import complete_ei
 
 
 ###############################################################################
@@ -837,40 +838,85 @@ class GraphMatchingSimple(GraphModel):
 
         self.mlp = model_fn(2 * h, f_out)
 
+    def create_cg_ei(self, batch1, batch2):
+        """
+        Creates the cross-graph edge index for connecting both graphs.
+        """
+        bsize = batch1[-1] + 1
+
+        cg_ei = torch.zeros((2, 0), dtype=torch.long)
+        count1 = 0 # for keeping track of node offset
+        count2 = 0
+        for i in range(bsize):
+            idx1 = (batch1 == i).nonzero(as_tuple=True)[0]
+            idx2 = (batch2 == i).nonzero(as_tuple=True)[0]
+            n_x1 = len(idx1)
+            n_x2 = len(idx2)
+            # create edge index
+            ei = complete_ei(n_x1, n_x2)
+            # offset the node indices
+            ei[0] += count1
+            ei[1] += count2
+            # concatenate to complete edge_index
+            cg_ei = torch.cat((cg_ei, ei), 1)
+            count1 += n_x1
+            count2 += n_x2
+
+        return cg_ei
+
     def forward(self, graph1, graph2):
         """
         Forward pass.
         """
-        if self.cg_ei is None or self.b_size != len(graph1.y):
-            # artificially constructing this reduces the model's generality
-            # we want to have models that can also reason on different
-            # graphs
-            # there should be a way to compute thsi for any two graphs
-            # at the cost of some generality
-            n_obj = len(graph1.x) // len(graph1.y)
-            self.b_size = len(graph1.y)
-            ei = complete_edge_index(n_obj)
-            self.cg_ei = ei
-            for i in range(self.b_size - 1):
-                self.cg_ei = torch.cat([self.cg_ei, ei + (i + 1) * n_obj], 1)
+        # if self.cg_ei is None or self.b_size != len(graph1.y):
+        #     # artificially constructing this reduces the model's generality
+        #     # we want to have models that can also reason on different
+        #     # graphs
+        #     # there should be a way to compute thsi for any two graphs
+        #     # at the cost of some generality
+        #     n_obj = len(graph1.x) // len(graph1.y)
+        #     self.b_size = len(graph1.y)
+        #     ei = complete_edge_index(n_obj)
+        #     self.cg_ei = ei
+        #     for i in range(self.b_size - 1):
+        #         self.cg_ei = torch.cat([self.cg_ei, ei + (i + 1) * n_obj], 1)
 
+        # build complete cross-graph edge index tensor
         x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+
+        cg_ei = self.create_cg_ei(batch1, batch2)
 
         x1, e1, u1 = self.gnn(x1,
                               x2,
                               edge_index1,
-                              self.cg_ei,
+                              torch.flip(cg_ei, (0,)),
                               e1,
                               u1,
-                              batch1)
+                              batch1,
+                              batch2)
 
         x2, e2, u2 = self.gnn(x2,
                               x1,
                               edge_index2,
-                              self.cg_ei, # actually should switch the 2 rows
+                              cg_ei,
                               e2,
                               u2,
-                              batch2)
+                              batch2,
+                              batch1)
 
         return self.mlp(torch.cat([u1, u2], 1))
+
+class GraphMatchingv2(torch.nn.Module):
+    """
+    New version of the GMN, with learned cross-graph attentions.
+    We use the nodes and edges for aggregation.
+    """
+    def __init__(self, 
+                 mlp_layers,
+                 h,
+                 N,
+                 f_dict):
+        """
+        Initialization.
+        """

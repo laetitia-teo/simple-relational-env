@@ -147,7 +147,7 @@ class CosineAttention():
         """
         pass
 
-    def __call__(self, x, x_src, cg_edge_index, batch):
+    def __call__(self, x, x_src, cg_edge_index, batch_src):
         """
         No edge_attr and no u on this one.
 
@@ -170,10 +170,40 @@ class CosineAttention():
         # exp-cosine-similarity vector
         ecs = torch.exp(sim(x_src[src], x[dest]))
         # attentions
-        a = ecs / (scatter_add(ecs, batch[src])[batch[src]])
+        a = ecs / (scatter_add(ecs, batch_src[src])[batch_src[src]])
         vec = x[dest] - x_src[src] # to be multiplied by attentions
         mu = (a * vec.T)
         return scatter_add(mu, dest).T # see if we don't need mean instead here
+
+class LearnedCrossGraphAttention(torch.nn.Module):
+    """
+    Class for computing scalar attentions between the nodes of two different
+    graphs.
+    """
+    def __init__(self,
+                 f_x,
+                 model_fn):
+        """
+        This cross-graph attention function, to be used with a model similar
+        to the GraphMatching model, uses the node features of the source
+        (other) graph and the destination (current) graph to compute scalar
+        attentions that will be multiplied with the destination node features.
+        The computation of the attentions is done with a mlp.
+
+        The output of the model is a vector of size [X_dest], the number of 
+        destination graph nodes (on all batches).
+        """
+        self.mlp = model_fn(2 * f_x , 1)
+
+    def forward(self, x, x_src, cg_edge_index, batch_src):
+        src, dest = cg_edge_index
+        # attentions
+        a = self.mlp(torch.cat([x[dest], x_src[src]], 1))
+        # do a softmax of the attentions
+        # is this necessary ?
+        exp = torch.exp(a)
+        softmax = exp / scatter_add(exp, batch_src[src])[batch_src[src]]
+        return a * softmax
 
 class CosineSimNodeModel(torch.nn.Module):
     """
@@ -375,7 +405,6 @@ class DirectEdgeModel(torch.nn.Module):
         super(DirectEdgeModel, self).__init__()
         if f_e_out is None:
             f_e_out = f_e
-            print(model_fn)
         self.phi_e = model_fn(f_e, f_e_out)
 
     def forward(self, src, dest, edge_attr, u, batch):
@@ -614,9 +643,11 @@ class CosineAttentionLayer(torch.nn.Module):
                 cg_edge_index,
                 edge_attr,
                 u,
-                batch):
+                batch,
+                batch_src):
         """
-        Similar to MetaLayer, but has two additional terms, x_src and cg_edge_index.
+        Similar to MetaLayer, but has two additional terms, x_src and 
+        cg_edge_index.
         x_src is the tensor of node features of the second graph.
         cg_edge_index is the cross-graph connectivity (complete by default)
         """
@@ -630,7 +661,7 @@ class CosineAttentionLayer(torch.nn.Module):
 
         # maybe change the inputs for this, because it does not have the same 
         # format as the other functions
-        a = self.attention_function(x, x_src, cg_edge_index, batch)
+        a = self.attention_function(x, x_src, cg_edge_index, batch_src)
 
         x = self.node_model(x, a, edge_index, edge_attr, u, batch)
 
@@ -646,3 +677,64 @@ class CosineAttentionLayer(torch.nn.Module):
                 '    global_model={}\n'
                 ')').format(self.__class__.__name__, self.edge_model,
                             self.node_model, self.global_model)
+
+class CrossGraphAttentionLayer(torch.nn.Module):
+    """
+    This GNN layer computes scalar attentions between every node pair from
+    graph1 and graph2 respectively, and multiplies it by the node features 
+    before the node model.
+    """
+    def __init__(self,
+                 edge_model,
+                 attention_function,
+                 node_model,
+                 global_model):
+        """
+        Initializes the layer. 
+        """
+        super(CrossGraphAttentionLayer, self).__init__()
+        self.edge_model = edge_model
+        self.node_model = node_model # this needs a specific node model
+        self.global_model = global_model
+
+        self.attention_function = attention_function
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for item in [self.node_model, self.edge_model, self.global_model]:
+            if hasattr(item, 'reset_parameters'):
+                item.reset_parameters()
+
+    def forward(self,
+                x,
+                x_src,
+                edge_index,
+                cg_edge_index,
+                edge_attr,
+                u,
+                batch,
+                batch_src):
+        """
+        Forward pass.
+        Similar to the usual MetaLayer, but has additional inputs for the
+        source graph node features (x_src), the source graph batch (batch_src)
+        and the cross-graph edge index tensor (cg_edge_index).
+        """
+        row, col = edge_index
+
+        edge_attr = self.edge_model(x[row],
+                                    x[col],
+                                    edge_attr,
+                                    u,
+                                    batch[row])
+
+        # this cross-graph function modulates the node features of the current
+        # graph
+        a = self.attention_function(x, x_src, cg_edge_index, batch_src)
+
+        x = self.node_model(x * a, edge_index, edge_attr, u, batch)
+
+        u = self.global_model(x, edge_index, edge_attr, u, batch)
+
+        return x, edge_attr, u
