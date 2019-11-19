@@ -36,6 +36,7 @@ from training_utils import data_fn_graphs_three
 
 pretrain_path = op.join('data', 'simple_task', 'train.txt')
 train_path = op.join('data', 'parts_task', 'train1.txt')
+overfit_path = op.join('data', 'parts_task', 'overfit10000_32.txt')
 
 # hparams
 
@@ -64,21 +65,21 @@ args = parser.parse_args()
 
 # load data
 
-print('loading pretraining data ...')
-pretrain_dl = load_dl('trainobject1')
-print('done')
-print('loading data ...')
-p = PartsGen()
-p.load(train_path)
-train_dl = DataLoader(p.to_dataset(),
-                      batch_size=B_SIZE,
-                      shuffle=True,
-                      collate_fn=collate_fn)
-print('done')
+# print('loading pretraining data ...')
+# pretrain_dl = load_dl('trainobject1')
+# print('done')
+# print('loading data ...')
+# p = PartsGen()
+# p.load(train_path)
+# train_dl = DataLoader(p.to_dataset(),
+#                       batch_size=B_SIZE,
+#                       shuffle=True,
+#                       collate_fn=collate_fn)
+# print('done')
 print('loading overfitting data ...')
 p = PartsGen()
-p.load(train_path)
-train_dl = DataLoader(p.to_dataset(),
+p.load(overfit_path)
+overfit_dl = DataLoader(p.to_dataset(),
                       batch_size=B_SIZE,
                       shuffle=True,
                       collate_fn=collate_fn)
@@ -88,13 +89,15 @@ print('done')
 
 # model = gm.Simplified_GraphEmbedding([16, 16], 16, f_dict)
 # model = gm.AlternatingSimple([16, 16], 2, f_dict)
-model = gm.GraphMatchingSimple([16, 16], 10, 1, f_dict)
+# model = gm.GraphMatchingSimple([16, 16, 16], 10, 1, f_dict)
+model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
 opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
 criterion = torch.nn.CrossEntropyLoss()
 
 def pre_train(n):
     losses, accs = [], []
-    for _ in range(n):
+    for i in range(n):
+        print('Epoch %s' % i)
         l, a = one_step(model,
                         pretrain_dl,
                         data_fn_graphs_three,
@@ -109,9 +112,28 @@ def pre_train(n):
     plt.plot(accs)
     plt.show()
 
+def overfit(n):
+    losses, accs = [], []
+    for i in range(n):
+        print('Epoch %s' % i)
+        l, a = one_step(model,
+                        overfit_dl,
+                        data_to_graph_parts,
+                        data_to_clss_parts,
+                        opt, 
+                        criterion)
+        losses += l
+        accs += a
+    plt.figure()
+    plt.plot(losses)
+    plt.figure()
+    plt.plot(accs)
+    plt.show()
+
 def run(n=int(args.n)):
     losses, accs = [], []
-    for _ in range(n):
+    for i in range(n):
+        print('Epoch %s' % i)
         l, a = one_step(model,
                         train_dl,
                         data_to_graph_parts,

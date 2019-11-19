@@ -193,17 +193,18 @@ class LearnedCrossGraphAttention(torch.nn.Module):
         The output of the model is a vector of size [X_dest], the number of 
         destination graph nodes (on all batches).
         """
+        super(LearnedCrossGraphAttention, self).__init__()
         self.mlp = model_fn(2 * f_x , 1)
 
-    def forward(self, x, x_src, cg_edge_index, batch_src):
+    def forward(self, x, x_src, cg_edge_index, batch, batch_src):
         src, dest = cg_edge_index
         # attentions
         a = self.mlp(torch.cat([x[dest], x_src[src]], 1))
-        # do a softmax of the attentions
-        # is this necessary ?
-        exp = torch.exp(a)
-        softmax = exp / scatter_add(exp, batch_src[src])[batch_src[src]]
-        return a * softmax
+        a = scatter_add(a, dest, dim=0)
+        # get the attentions to the [0, 1] range after summing them over
+        # all destination nodes
+        a = torch.sigmoid(a)
+        return a
 
 class CosineSimNodeModel(torch.nn.Module):
     """
@@ -684,8 +685,8 @@ class CrossGraphAttentionLayer(torch.nn.Module):
     before any edge message-passing is done.
     """
     def __init__(self,
-                 edge_model,
                  attention_function,
+                 edge_model,
                  node_model,
                  global_model):
         """
@@ -722,7 +723,7 @@ class CrossGraphAttentionLayer(torch.nn.Module):
         and the cross-graph edge index tensor (cg_edge_index).
         """
         row, col = edge_index
-        a = self.attention_function(x, x_src, cg_edge_index, batch_src)
+        a = self.attention_function(x, x_src, cg_edge_index, batch, batch_src)
         x = x * a
         edge_attr = self.edge_model(x[row],
                                     x[col],

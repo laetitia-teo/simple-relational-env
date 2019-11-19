@@ -49,6 +49,13 @@ class GraphModel(torch.nn.Module):
         f_out = f_dict['f_out']
         return f_e, f_x, f_u, f_out
 
+    def reset_parameters(self):
+        """
+        Resets all the parameters of the neural networks in the model.
+        """
+        # for keys in 
+        pass
+
 class ObjectMean(GraphModel):
     """
     Simple object-based embedding model.
@@ -881,7 +888,7 @@ class GraphMatchingSimple(GraphModel):
 
         return self.mlp(torch.cat([u1, u2], 1))
 
-class GraphMatchingv2(torch.nn.Module):
+class GraphMatchingv2(GraphModel):
     """
     New version of the GMN, with learned cross-graph attentions.
     We use the nodes and edges for aggregation.
@@ -909,7 +916,7 @@ class GraphMatchingv2(torch.nn.Module):
         f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.gnn = gn.CrossGraphAttentionLayer(
-            gn.LearnedCrossGraphAttention(h, f_x, model_fn),
+            gn.LearnedCrossGraphAttention(f_x, model_fn),
             gn.EdgeModelDiff(f_e, f_x, f_u, model_fn, h), # edgemodelconcat here ?
             gn.NodeModel(h, f_x, f_u, model_fn, h),
             gn.GlobalModel(h, h, f_u, model_fn, h))

@@ -191,7 +191,7 @@ def data_from_graph(graph):
     batch = graph.batch
     return x, edge_index, e, u, batch
 
-def cross_graph_ei(self, batch1, batch2):
+def cross_graph_ei(batch1, batch2):
     """
     Creates the cross-graph edge index for connecting both graphs.
     """
