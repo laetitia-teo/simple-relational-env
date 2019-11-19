@@ -19,7 +19,8 @@ tasklist = ['simple', 'parts']
 parser = ArgumentParser()
 parser.add_argument('-d', '--directory',
                     dest='directory',
-                    help='directory for the generated datasets')
+                    help='directory for the generated datasets',
+                    default='data/parts_task')
 parser.add_argument('-n', '--name',
                      dest='name',
                      help='name of the dataset')
@@ -28,6 +29,15 @@ parser.add_argument('-t', '--task',
                     help='task for which to generate a dataset, available' \
                     + 'tasks are "simple" and "parts". Default is "parts"',
                     default='parts')
+parser.add_argument('-N', '--number',
+                     dest='N',
+                     help='number of objects in the dataset, ideally an' \
+                     + 'even number',
+                     default='10000')
+parser.add_argument('-D', '--distractors',
+                     dest='distractors',
+                     help='Number of distractor objects',
+                     default=None)
 
 args = parser.parse_args()
 if args.directory is None:
@@ -66,8 +76,7 @@ if args.task == 'simple':
     print('done')
 
 if args.task == 'parts':
-    N = 10000 # too big ? we'll see
 
-    gen = PartsGen()
-    gen.generate(N)
+    gen = PartsGen(n_d=int(args.distractors))
+    gen.generate(int(args.N))
     gen.save(path)

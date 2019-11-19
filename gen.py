@@ -7,6 +7,7 @@ number of objects, train a model to recognise object configuration,
 irrespective of object position.
 """
 import os.path as op
+import random
 import pickle
 import numpy as np
 
@@ -199,7 +200,7 @@ class PartsGen():
 
     Can also be used as a dataset, to plug a pytorch Dataloader.
     """
-    def __init__(self, env=None):
+    def __init__(self, env=None, n_d=None):
         """
         Initialize the Parts task generator. 
 
@@ -217,6 +218,8 @@ class PartsGen():
             self.env = Env(16, 20)
         self.range_t = [2, 5]
         self.range_d = [0, 10]
+
+        self.n_d = n_d
 
         # data
         self.reset()
@@ -241,16 +244,22 @@ class PartsGen():
         try:
             self.env.reset()
             n_t = np.random.randint(*self.range_t)
-            n_d = np.random.randint(*self.range_d)
+            if self.n_d is None:
+                n_d = np.random.randint(*self.range_d)
+            else:
+                n_d = self.n_d
             self.env.random_config(n_t)
             target = self.env.to_state_list(norm=True)
             # generate positive example
             self.env.shuffle_objects()
             self.env.random_transformation()
-            n_d = np.random.randint(*self.range_d)
             self.env.random_config(n_d) # add random objects
             trueref = self.env.to_state_list(norm=True)
             # generate negative example
+            if self.n_d is None:
+                n_d = np.random.randint(*self.range_d)
+            else:
+                n_d = self.n_d
             self.env.reset()
             self.env.from_state_list(target, norm=True)
             self.env.shuffle_objects() # shuffle order of the objects
@@ -290,6 +299,32 @@ class PartsGen():
                 # We resample the config once
                 # If there is a sampling timeout here, we let it pass
                 target, trueref, falseref = self.gen_one()
+            n_t = len(target)
+            n_r1 = len(trueref)
+            n_r2 = len(falseref)
+            self.targets += 2 * target
+            self.t_batch += n_t * [2*i] + n_t * [2*i + 1]
+            self.refs += trueref + falseref
+            self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
+            self.labels += [[1], [0]]
+
+    def generate_overfit(self, N, n):
+        """
+        Generates a dataset of size 2 * N with n positive and n negative
+        (n << N) samples. Used for overfitting a model to check model capacity.
+        """
+        print('generating dataset of %s examples :' % (2 * N))
+        mem = []
+        for i in range(n):
+            try:
+                target, trueref, falseref = self.gen_one()
+            except Resample:
+                # We resample the config once
+                # If there is a sampling timeout here, we let it pass
+                target, trueref, falseref = self.gen_one()
+            mem.append((target, trueref, falseref))
+        for i in tqdm(range(N)):
+            target, trueref, falseref = random.choice(mem)
             n_t = len(target)
             n_r1 = len(trueref)
             n_r2 = len(falseref)
@@ -388,7 +423,7 @@ class PartsGen():
             self.write_refs(f)
             self.write_labels(f)
 
-    def load(self, path):
+    def load(self, path, replace=True):
         """
         Reads previously saved generator data.
         """
@@ -400,11 +435,18 @@ class PartsGen():
             refs, r_batch = self.read_refs(lineit)
             labels = self.read_labels(lineit)
         # stores the data
-        self.targets = targets
-        self.t_batch = t_batch
-        self.refs = refs
-        self.r_batch = r_batch
-        self.labels = labels
+        if replace:
+            self.targets = targets
+            self.t_batch = t_batch
+            self.refs = refs
+            self.r_batch = r_batch
+            self.labels = labels
+        else:
+            self.targets += targets
+            self.t_batch += t_batch
+            self.refs += refs
+            self.r_batch += r_batch
+            self.labels += labels
 
     def to_dataset(self):
         """
