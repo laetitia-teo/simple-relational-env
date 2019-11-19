@@ -75,6 +75,14 @@ train_dl = DataLoader(p.to_dataset(),
                       shuffle=True,
                       collate_fn=collate_fn)
 print('done')
+print('loading overfitting data ...')
+p = PartsGen()
+p.load(train_path)
+train_dl = DataLoader(p.to_dataset(),
+                      batch_size=B_SIZE,
+                      shuffle=True,
+                      collate_fn=collate_fn)
+print('done')
 
 # model
 

@@ -190,3 +190,29 @@ def data_from_graph(graph):
     u = graph.y
     batch = graph.batch
     return x, edge_index, e, u, batch
+
+def cross_graph_ei(self, batch1, batch2):
+    """
+    Creates the cross-graph edge index for connecting both graphs.
+    """
+    bsize = batch1[-1] + 1
+
+    cg_ei = torch.zeros((2, 0), dtype=torch.long)
+    count1 = 0 # for keeping track of node offset
+    count2 = 0
+    for i in range(bsize):
+        idx1 = (batch1 == i).nonzero(as_tuple=True)[0]
+        idx2 = (batch2 == i).nonzero(as_tuple=True)[0]
+        n_x1 = len(idx1)
+        n_x2 = len(idx2)
+        # create edge index
+        ei = complete_ei(n_x1, n_x2)
+        # offset the node indices
+        ei[0] += count1
+        ei[1] += count2
+        # concatenate to complete edge_index
+        cg_ei = torch.cat((cg_ei, ei), 1)
+        count1 += n_x1
+        count2 += n_x2
+
+    return cg_ei

@@ -652,7 +652,6 @@ class CosineAttentionLayer(torch.nn.Module):
         cg_edge_index is the cross-graph connectivity (complete by default)
         """
         row, col = edge_index
-
         edge_attr = self.edge_model(x[row],
                                     x[col],
                                     edge_attr,
@@ -662,11 +661,8 @@ class CosineAttentionLayer(torch.nn.Module):
         # maybe change the inputs for this, because it does not have the same 
         # format as the other functions
         a = self.attention_function(x, x_src, cg_edge_index, batch_src)
-
         x = self.node_model(x, a, edge_index, edge_attr, u, batch)
-
         u = self.global_model(x, edge_index, edge_attr, u, batch)
-
         return x, edge_attr, u
 
 
@@ -682,7 +678,10 @@ class CrossGraphAttentionLayer(torch.nn.Module):
     """
     This GNN layer computes scalar attentions between every node pair from
     graph1 and graph2 respectively, and multiplies it by the node features 
-    before the node model.
+    before the edge and node models.
+
+    Note that the cross-graph attentions are applied to the node features
+    before any edge message-passing is done.
     """
     def __init__(self,
                  edge_model,
@@ -693,11 +692,12 @@ class CrossGraphAttentionLayer(torch.nn.Module):
         Initializes the layer. 
         """
         super(CrossGraphAttentionLayer, self).__init__()
+
+        self.attention_function = attention_function
+
         self.edge_model = edge_model
         self.node_model = node_model # this needs a specific node model
         self.global_model = global_model
-
-        self.attention_function = attention_function
 
         self.reset_parameters()
 
@@ -722,7 +722,8 @@ class CrossGraphAttentionLayer(torch.nn.Module):
         and the cross-graph edge index tensor (cg_edge_index).
         """
         row, col = edge_index
-
+        a = self.attention_function(x, x_src, cg_edge_index, batch_src)
+        x = x * a
         edge_attr = self.edge_model(x[row],
                                     x[col],
                                     edge_attr,
@@ -731,10 +732,6 @@ class CrossGraphAttentionLayer(torch.nn.Module):
 
         # this cross-graph function modulates the node features of the current
         # graph
-        a = self.attention_function(x, x_src, cg_edge_index, batch_src)
-
-        x = self.node_model(x * a, edge_index, edge_attr, u, batch)
-
+        x = self.node_model(x, edge_index, edge_attr, u, batch)
         u = self.global_model(x, edge_index, edge_attr, u, batch)
-
         return x, edge_attr, u

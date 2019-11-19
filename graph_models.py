@@ -22,7 +22,7 @@ from torch_geometric.nn import MetaLayer
 from torch_geometric.data import Data
 
 from graph_utils import data_from_graph
-from graph_utils import complete_ei
+from graph_utils import cross_graph_ei
 
 
 ###############################################################################
@@ -838,32 +838,6 @@ class GraphMatchingSimple(GraphModel):
 
         self.mlp = model_fn(2 * h, f_out)
 
-    def create_cg_ei(self, batch1, batch2):
-        """
-        Creates the cross-graph edge index for connecting both graphs.
-        """
-        bsize = batch1[-1] + 1
-
-        cg_ei = torch.zeros((2, 0), dtype=torch.long)
-        count1 = 0 # for keeping track of node offset
-        count2 = 0
-        for i in range(bsize):
-            idx1 = (batch1 == i).nonzero(as_tuple=True)[0]
-            idx2 = (batch2 == i).nonzero(as_tuple=True)[0]
-            n_x1 = len(idx1)
-            n_x2 = len(idx2)
-            # create edge index
-            ei = complete_ei(n_x1, n_x2)
-            # offset the node indices
-            ei[0] += count1
-            ei[1] += count2
-            # concatenate to complete edge_index
-            cg_ei = torch.cat((cg_ei, ei), 1)
-            count1 += n_x1
-            count2 += n_x2
-
-        return cg_ei
-
     def forward(self, graph1, graph2):
         """
         Forward pass.
@@ -885,7 +859,7 @@ class GraphMatchingSimple(GraphModel):
         x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
 
-        cg_ei = self.create_cg_ei(batch1, batch2)
+        cg_ei = cross_graph_ei(batch1, batch2)
 
         x1, e1, u1 = self.gnn(x1,
                               x2,
@@ -919,4 +893,60 @@ class GraphMatchingv2(torch.nn.Module):
                  f_dict):
         """
         Initialization.
+
+        The motivation for this model is that in the standard implementation of
+        the GMN model, the cross graph attentions between two nodes decreases
+        when the nodes are similar (to implement matching : the less the
+        graph match, the more cross-graph attention there is, because the 
+        learned distance function should be higher).
+        The intuition behind our model is somewhat the opposite : our model 
+        should be able to select, in the bigger scene, the objects that are
+        also present in the smaller one, and not attend to the other ones.
         """
+        super(GraphMatchingv2, self).__init__()
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.gnn = gn.CrossGraphAttentionLayer(
+            gn.LearnedCrossGraphAttention(h, f_x, model_fn),
+            gn.EdgeModelDiff(f_e, f_x, f_u, model_fn, h), # edgemodelconcat here ?
+            gn.NodeModel(h, f_x, f_u, model_fn, h),
+            gn.GlobalModel(h, h, f_u, model_fn, h))
+
+        self.cg_ei = None # cross-graph edge index
+        self.b_size = 0 # init
+
+        self.mlp = model_fn(2 * h, f_out)
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass.
+
+        Same outer logic as the regular GMN model, only the intra-layer logic
+        differs.
+        """
+        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+
+        cg_ei = cross_graph_ei(batch1, batch2)
+
+        _, _, u1 = self.gnn(x1,
+                            x2,
+                            edge_index1,
+                            torch.flip(cg_ei, (0,)),
+                            e1,
+                            u1,
+                            batch1,
+                            batch2)
+        # we use the original features to compute the cross-graph attentions
+        _, _, u2 = self.gnn(x2,
+                            x1,
+                            edge_index2,
+                            cg_ei,
+                            e2,
+                            u2,
+                            batch2,
+                            batch1)
+
+        return self.mlp(torch.cat([u1, u2], 1))
