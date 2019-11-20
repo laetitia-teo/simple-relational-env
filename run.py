@@ -29,8 +29,13 @@ from graph_utils import data_to_graph_parts
 
 from training_utils import one_step
 from training_utils import data_to_clss_parts, data_to_clss_simple
+from training_utils import batch_to_images
 from training_utils import load_dl
 from training_utils import data_fn_graphs_three
+
+# visualization/image generation
+
+from env import Env
 
 # data path
 
@@ -80,9 +85,9 @@ print('loading overfitting data ...')
 p = PartsGen()
 p.load(overfit_path)
 overfit_dl = DataLoader(p.to_dataset(),
-                      batch_size=B_SIZE,
-                      shuffle=True,
-                      collate_fn=collate_fn)
+                        batch_size=B_SIZE,
+                        shuffle=True,
+                        collate_fn=collate_fn)
 print('done')
 
 # model

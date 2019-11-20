@@ -5,6 +5,7 @@ given a model that is already defined.
 import os.path as op
 import pickle
 import numpy as np
+import cv2
 import torch
 
 import baseline_models as bm
@@ -16,6 +17,8 @@ from torch.utils.data import DataLoader
 from torch_geometric.data import Data
 
 from graph_utils import tensor_to_graphs
+
+from env import Env
 
 # seed
 
@@ -32,7 +35,11 @@ N_EPOCHS = 10
 F_OBJ = 10
 H = 16
 
-# functions
+# other params
+
+image_viz_path = op.join('data')
+
+### Data transformation functions ###
 
 def data_to_clss_parts(data):
     """
@@ -72,7 +79,31 @@ def data_fn_graphs(n):
         return tensor_to_graphs(data[0])
     return data_fn_gr
 
+def data_to_state_lists(data):
+    """
+    Used to transform data given by the parts DataLoader into a list of state
+    lists usable by env.Env to generate the configuration image corresponding
+    to this state of the environment.
+    There is one state list per graph in the batch, and there are two scenes
+    per batch (the target, smaller scene, and the reference scene).
+    """
+    targets, refs, labels, t_batch, r_batch = data
+    f_x = targets.shape[-1]
+    t_state_lists = []
+    r_state_lists = []
+    n = int(t_batch[-1] + 1)
+    for i in range(n):
+        t_idx = (t_batch == i).nonzero(as_tuple=True)[0]
+        r_idx = (r_batch == i).nonzero(as_tuple=True)[0]
+        target = list(targets[t_idx].numpy())
+        ref = list(refs[r_idx].numpy())
+        t_state_lists.append(target)
+        r_state_lists.append(ref)
+    return t_state_lists, r_state_lists, list(labels.numpy())
+
 data_fn_graphs_three = data_fn_graphs(3)
+
+### Data loading utilities ###
 
 def load_dl(name):
     dpath = op.join('data', 'simple_task', 'dataset_binaries', name)
@@ -82,6 +113,8 @@ def load_dl(name):
     print('done')
     dataloader = DataLoader(ds, batch_size=B_SIZE, shuffle=True)
     return dataloader
+
+### Model evaluation utilities ###
 
 def compute_accuracy(pred_clss, clss):
     """
@@ -113,6 +146,8 @@ def compute_f1(precision, recall):
     Computes the F1 score when given the precision and recall.
     """
     return 2 / ((1 / precision) + (1 / recall))
+
+### Training functions ###
 
 def one_step(model, dl, data_fn, clss_fn, optimizer, criterion, train=True):
     accs = []
@@ -189,76 +224,26 @@ def load_model(m, name):
     m.load_state_dict(torch.load(op.join(prefix, name)))
     return m
 
-if __name__ == '__main__':
+### Visualization/Image generation utilities ###
 
-    f_dict = {
-        'f_x': F_OBJ,
-        'f_e': F_OBJ,
-        'f_u': F_OBJ,
-        'f_out': 2}
-
-    I = gm.identity_mapping
-
-    data_fn = data_fn_graphs(N_OBJ)
-    data_fn_4 = data_fn_graphs(4)
-
-    nn_model = bm.SceneMLP(N_SH, F_OBJ, [H, H], H, [H, H])
-    nn_model = gm.ObjectMean([H, H], f_dict)
-    nn_model = gm.ObjectMeanDirectAttention([16, 16], f_dict)
-    nn_model = gm.GraphEmbedding([16], 16, 5, f_dict)
-    # nn_model = gm.GraphDifference([16, 16], 16, 5, f_dict, I)
-    # nn_model = gm.Alternating([16, 16], 16, 5, f_dict)
-
-    opt = torch.optim.Adam(nn_model.parameters(), lr=L_RATE)
-    criterion = torch.nn.CrossEntropyLoss()
-
-    # training
-
-    dl = load_dl('trainobject1')
-
-    # run(N_EPOCHS, nn_model, dl, data_fn, opt)
-
-    # testing
-
-    test_dl_1 = load_dl('testobject1')
-    test_dl_2 = load_dl('testobject2')
-    rot_dl = load_dl('testrotations')
-    four_dl = load_dl('4objtest')
-    shuffle_dl = load_dl('shuffletest')
-    shuffle_dl_2 = load_dl('shuffletest2')
-
-# test_dl = load_dl('testobject1')
-
-# one_step(nn_model, test_dl_1, data_fn, opt, train=False)
-
-# testing on rotations
-
-# rot_dl = load_dl('testrotations')
-
-# def data_fn(data):
-#     x1 = data[:, :3, :]
-#     x2 = data[:, 3:, :]
-#     u1 = torch.mean(x1, 1)
-#     u2 = torch.mean(x2, 1)
-#     return (torch.cat([u1, u2], 1),)
-
-# def identity(data):
-#     return data
-
-# def stupid_mean_predictor(data):
-#     shape = (data.shape[0], 2)
-#     res = torch.zeros(shape)
-#     idx = torch.mean((data[:, :3] == data[:, 10:13]).float(), 1).long()
-#     res[:, 1] = idx
-#     return res
-
-# acc = 0
-# count = 0
-# for data, clss in dl:
-#     clss = clss.long()[:, 1]
-#     res = stupid_mean_predictor(*data_fn(data))
-#     print(compute_accuracy(res, clss))
-#     acc += compute_accuracy(res, clss)
-#     count += 1
-
-# print(acc/count)
+def batch_to_images(data, folder_name='images'):
+    """
+    Transforms a batch of data into a set of images.
+    """
+    t_state_lists, r_state_lists, labels = data_to_state_lists(data)
+    env = Env(16, 20)
+    for tsl, rsl, l in zip(t_state_lists, r_state_lists, labels):
+        # state to env
+        # generate image
+        # save it, name is hash code
+        env.reset()
+        env.from_state_list(tsl, norm=False)
+        t_img = env.render(show=False)
+        env.reset()
+        env.from_state_list(rsl, norm=False)
+        r_img = env.render(show=False)
+        # separator is gray for false examples and white for true examples
+        sep = np.ones((2, t_img.shape[1], 3)) * 127.5  + (l * 127.5)
+        img = np.concatenate((t_img, sep, r_img)) # concatenate on what dim ?
+        img_name = str(hash(img.tostring())) + '.jpg'
+        cv2.imwrite(op.join('data', folder_name, img_name), img)

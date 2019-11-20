@@ -453,9 +453,9 @@ class Env(AbstractEnv):
         mat = np.flip(mat, axis=0)
         mat = (mat * 255).astype(int)
         if show:
-            plt.imshow(mat)
+            plt.imshow(mat[..., :-1])
             plt.show()
-        return mat
+        return mat[..., :-1]
 
     def to_state_list(self, norm=False):
         """
