@@ -33,7 +33,7 @@ parser.add_argument('-N', '--number',
                      dest='N',
                      help='number of objects in the dataset, ideally an' \
                      + 'even number',
-                     default='300000')
+                     default='10000')
 # parser.add_argument('-D', '--distractors',
 #                      dest='distractors',
 #                      help='Number of distractor objects',
@@ -88,5 +88,5 @@ if args.task == 'curriculum':
         print('Generating dataset with %s distractors' % n_d)
         gen = PartsGen(n_d=n_d)
         gen.generate(int(args.N))
-        path = op.join(args.directory, (args.name + str(n_d) + '.txt'))
+        path = op.join(args.directory, (args.name + str(n_d) + 'test.txt'))
         gen.save(path)

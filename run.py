@@ -107,6 +107,7 @@ def pre_train(n):
     plt.show()
 
 def overfit(n):
+    overfit_dl = load_dl_parts('overfit10000_32.txt', bsize=B_SIZE)
     losses, accs = [], []
     for i in range(n):
         print('Epoch %s' % i)
@@ -143,6 +144,19 @@ def run(n=int(args.n)):
     plt.plot(accs)
     plt.show()
 
+def several_steps(n, dl, model, opt):
+    losses, accs = [], []
+    for _ in range(n):
+        l, a = one_step(model,
+                        dl,
+                        data_to_graph_parts,
+                        data_to_clss_parts,
+                        opt, 
+                        criterion)
+        losses += l
+        accs += a
+    return losses, accs
+
 def run_curriculum(retrain=True):
     """
     In this experiment, we train on different datasets, parametrized by the 
@@ -174,17 +188,15 @@ def run_curriculum(retrain=True):
     for name in ds_names:
         print('Training %s' % name)
         if retrain or (model is None):
-            model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
+            model = gm.GraphMatchingSimple([16, 16, 16], 10, 1, f_dict)
             opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
         c_dl = load_dl_parts(name, bsize=B_SIZE)
-        l, a = one_step(one_step(model,
+        l, a = one_step(model,
                         c_dl,
                         data_to_graph_parts,
                         data_to_clss_parts,
                         opt, 
-                        criterion))
-        l = [1, 2, 3]
-        a = [0.99, 0.99, 0.999]
+                        criterion)
         # plot and save training metrics
         fig, axs = plt.subplots(2, 1, constrained_layout=True)
         axs[0].plot(l)
@@ -224,4 +236,72 @@ def run_curriculum(retrain=True):
                 'retrain',
                 (name[:-4] + '.pt')))
 
-run_curriculum()
+def curriculum_diffseeds(n, s, cur_n=0, training=None):
+    """
+    n : number of epochs;
+    s : number of seeds;
+    cur_n : number of distractors
+    """
+    dl_train = load_dl_parts('curriculum%s.txt' % cur_n)
+    dl_test = load_dl_parts('curriculum%stest.txt' % cur_n)
+    for i in range(s):
+        if training is None:
+            model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
+            opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
+        else:
+            model, opt = training
+        l, a = several_steps(n, dl_train, model, opt)
+        fig, axs = plt.subplots(2, 1, constrained_layout=True)
+        axs[0].plot(l)
+        axs[0].set_title('loss')
+        axs[0].set_xlabel('steps (batch size %s)' % B_SIZE)
+        fig.suptitle('Training metrics for seed {}'.format(i))
+
+        axs[1].plot(a)
+        axs[1].set_title('accuracy')
+        axs[1].set_ylabel('steps (batch size %s)' % B_SIZE)
+
+        filename = op.join(
+            'experimental_results',
+            'curriculum0',
+            (str(i) + '.png'))
+        plt.savefig(filename)
+        plt.clf()
+        # save losses and accuracies as numpy arrays
+        np.save(
+            op.join('experimental_results',
+                    'curriculum%s' % cur_n,
+                    (str(i) + 'loss.npy')),
+            np.array(l))
+        np.save(
+            op.join('experimental_results',
+                    'curriculum%s' % cur_n,
+                    (str(i) + 'acc.npy')),
+            np.array(a))
+        # checkpoint model
+        save_model(
+            model,
+            op.join(
+                'curriculum%s' % cur_n,
+                (str(i) + '.pt')))
+        # validation 
+        l_test, a_test = one_step(model,
+                                  dl_test,
+                                  data_to_graph_parts,
+                                  data_to_clss_parts,
+                                  opt, 
+                                  criterion,
+                                  train=False)
+        print('Test accuracy %s' % np.mean(a_test))
+# run_curriculum()
+
+def try_all_cur_n(s, n):
+    """
+    Performs computation with different initializations on all possible numbers
+    of distractors.
+
+    The goal of this test 
+    """
+    cur_list = [1, 2, 3, 4, 5]
+    for cur_n in cur_list:
+        curriculum_diffseeds(n, s, cur_n=cur_n)

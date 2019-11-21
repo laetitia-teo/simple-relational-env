@@ -32,17 +32,7 @@ class Resample(Exception):
     def __init__(self, message):
         self.message = message
 
-class AbstractGen():
-    """
-    Generator abstract class.
-
-    Defines all the methods that should be implemented.
-    """
-
-    def __init__(self):
-        pass
-
-class SimpleTaskGen(AbstractGen):
+class SimpleTaskGen():
     """
     docstring for SimpleTaskGen
 
@@ -194,7 +184,7 @@ class SimpleTaskGen(AbstractGen):
         self._config_id = len(self._configs) # this assumes the loaded data
                                              # begin at 0 and increment
 
-class PartsGen():
+class Gen():
     """
     Class for the generator of the Parts task.
 
@@ -213,6 +203,9 @@ class PartsGen():
         target range_t, and the range of the number of additional distractor
         objects range_d. If no distractors are provided, the tasks comes back
         to SimpleTask, judging the similarity of two scenes.
+
+        This class defines no generating functions, which must be implemented
+        according to the specific, concrete task at hand.
         """
         if env is None:
             self.env = Env(16, 20)
@@ -232,108 +225,14 @@ class PartsGen():
         self.labels = []
 
     def gen_one(self):
-        """
-        Generates one pair of true-false examples associated with a given
-        target.
-
-        The targets are perturbed (similarity + small noise) before being
-        completed with distractors.
-        """
-        # Note : we could generate 4 by 4 with this code, by crossing targets
-        # and refs
-        try:
-            self.env.reset()
-            n_t = np.random.randint(*self.range_t)
-            if self.n_d is None:
-                n_d = np.random.randint(*self.range_d)
-            else:
-                n_d = self.n_d
-            self.env.random_config(n_t)
-            target = self.env.to_state_list(norm=True)
-            # generate positive example
-            self.env.shuffle_objects()
-            self.env.random_transformation()
-            self.env.random_config(n_d) # add random objects
-            trueref = self.env.to_state_list(norm=True)
-            # generate negative example
-            if self.n_d is None:
-                n_d = np.random.randint(*self.range_d)
-            else:
-                n_d = self.n_d
-            self.env.reset()
-            self.env.from_state_list(target, norm=True)
-            self.env.shuffle_objects() # shuffle order of the objects
-            self.env.random_mix() # mix config
-            self.env.random_transformation()
-            self.env.random_config(n_d) # add random objects
-            falseref = self.env.to_state_list(norm=True)
-            target = target
-            return target, trueref, falseref
-        except SamplingTimeout:
-            print('Sampling timed out, {} and {} objects'.format(n_t, n_d))
-            raise Resample('Resample configuration')
-        
+        raise NotImplementedError()
 
     def generate(self, N):
-        """
-        Generates a dataset of N positive and N negative examples.
-
-        Arguments :
-            - N (int) : half of the dataset length
-
-        Generates:
-            - targets (list of vectors): list of all the target objets;
-            - t_batch (list of ints): list of indices linking the target
-                objects to their corresponding scene index;
-            - refs (list of object vectors): list of all the reference
-                objects;
-            - r_batch (list of ints): list of indices linking the reference
-                objects to their corresponding scene index;
-            - labels (list of ints): list of scene labels.
-        """
-        print('generating dataset of %s examples :' % (2 * N))
-        for i in tqdm(range(N)):
-            try:
-                target, trueref, falseref = self.gen_one()
-            except Resample:
-                # We resample the config once
-                # If there is a sampling timeout here, we let it pass
-                target, trueref, falseref = self.gen_one()
-            n_t = len(target)
-            n_r1 = len(trueref)
-            n_r2 = len(falseref)
-            self.targets += 2 * target
-            self.t_batch += n_t * [2*i] + n_t * [2*i + 1]
-            self.refs += trueref + falseref
-            self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
-            self.labels += [[1], [0]]
+        raise NotImplementedError()
 
     def generate_overfit(self, N, n):
-        """
-        Generates a dataset of size 2 * N with n positive and n negative
-        (n << N) samples. Used for overfitting a model to check model capacity.
-        """
-        print('generating dataset of %s examples :' % (2 * N))
-        mem = []
-        for i in range(n):
-            try:
-                target, trueref, falseref = self.gen_one()
-            except Resample:
-                # We resample the config once
-                # If there is a sampling timeout here, we let it pass
-                target, trueref, falseref = self.gen_one()
-            mem.append((target, trueref, falseref))
-        for i in tqdm(range(N)):
-            target, trueref, falseref = random.choice(mem)
-            n_t = len(target)
-            n_r1 = len(trueref)
-            n_r2 = len(falseref)
-            self.targets += 2 * target
-            self.t_batch += n_t * [2*i] + n_t * [2*i + 1]
-            self.refs += trueref + falseref
-            self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
-            self.labels += [[1], [0]]
-    
+        raise NotImplementedError()
+
     def write_targets(self, f):
         """
         Writes the targets, and the t_batch to file f. Every object vector
@@ -461,3 +360,139 @@ class PartsGen():
                           self.r_batch[:n],
                           self.labels[:n])
         return ds
+
+class PartsGen(Gen):
+    """
+    Generator for the Parts Task.
+    """
+    def __init__(self, env=None, n_d=None):
+        """
+        Initialize the Parts task generator. 
+
+        The Parts dataset trains a model to recognize if a target configuration
+        is present or not in a given reference. The target objects are always
+        present in the reference, but may be present in a different spatial
+        arrangement (this is a negative example).
+
+        The constructor defines the range of the number of objects in the
+        target range_t, and the range of the number of additional distractor
+        objects range_d. If no distractors are provided, the tasks comes back
+        to SimpleTask, judging the similarity of two scenes.
+
+        This concrete class defines the generation functions.
+        """
+        super(PartsGen, self).__init__(env, n_d)
+
+    def gen_one(self):
+        """
+        Generates one pair of true-false examples associated with a given
+        target.
+
+        The targets are perturbed (similarity + small noise) before being
+        completed with distractors.
+        """
+        # Note : we could generate 4 by 4 with this code, by crossing targets
+        # and refs
+        try:
+            self.env.reset()
+            n_t = np.random.randint(*self.range_t)
+            if self.n_d is None:
+                n_d = np.random.randint(*self.range_d)
+            else:
+                n_d = self.n_d
+            self.env.random_config(n_t)
+            target = self.env.to_state_list(norm=True)
+            # generate positive example
+            self.env.shuffle_objects()
+            self.env.random_transformation()
+            self.env.random_config(n_d) # add random objects
+            trueref = self.env.to_state_list(norm=True)
+            # generate negative example
+            if self.n_d is None:
+                n_d = np.random.randint(*self.range_d)
+            else:
+                n_d = self.n_d
+            self.env.reset()
+            self.env.from_state_list(target, norm=True)
+            self.env.shuffle_objects() # shuffle order of the objects
+            self.env.random_mix() # mix config
+            self.env.random_transformation()
+            self.env.random_config(n_d) # add random objects
+            falseref = self.env.to_state_list(norm=True)
+            target = target
+            return target, trueref, falseref
+        except SamplingTimeout:
+            print('Sampling timed out, {} and {} objects'.format(n_t, n_d))
+            raise Resample('Resample configuration')
+
+    def generate(self, N):
+        """
+        Generates a dataset of N positive and N negative examples.
+
+        Arguments :
+            - N (int) : half of the dataset length
+
+        Generates:
+            - targets (list of vectors): list of all the target objets;
+            - t_batch (list of ints): list of indices linking the target
+                objects to their corresponding scene index;
+            - refs (list of object vectors): list of all the reference
+                objects;
+            - r_batch (list of ints): list of indices linking the reference
+                objects to their corresponding scene index;
+            - labels (list of ints): list of scene labels.
+        """
+        print('generating dataset of %s examples :' % (2 * N))
+        for i in tqdm(range(N)):
+            try:
+                target, trueref, falseref = self.gen_one()
+            except Resample:
+                # We resample the config once
+                # If there is a sampling timeout here, we let it pass
+                target, trueref, falseref = self.gen_one()
+            n_t = len(target)
+            n_r1 = len(trueref)
+            n_r2 = len(falseref)
+            self.targets += 2 * target
+            self.t_batch += n_t * [2*i] + n_t * [2*i + 1]
+            self.refs += trueref + falseref
+            self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
+            self.labels += [[1], [0]]
+
+    def generate_overfit(self, N, n):
+        """
+        Generates a dataset of size 2 * N with n positive and n negative
+        (n << N) samples. Used for overfitting a model to check model capacity.
+        """
+        print('generating dataset of %s examples :' % (2 * N))
+        mem = []
+        for i in range(n):
+            try:
+                target, trueref, falseref = self.gen_one()
+            except Resample:
+                # We resample the config once
+                # If there is a sampling timeout here, we let it pass
+                target, trueref, falseref = self.gen_one()
+            mem.append((target, trueref, falseref))
+        for i in tqdm(range(N)):
+            target, trueref, falseref = random.choice(mem)
+            n_t = len(target)
+            n_r1 = len(trueref)
+            n_r2 = len(falseref)
+            self.targets += 2 * target
+            self.t_batch += n_t * [2*i] + n_t * [2*i + 1]
+            self.refs += trueref + falseref
+            self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
+            self.labels += [[1], [0]]
+
+class NumberGen(Gen):
+
+    def __init__(self, env=None, n_d=None):
+        """
+        Initialize the Number class generator.
+
+        blabla
+
+        This concrete class defines the generation functions.
+        """
+        super(PartsGen, self).__init__(env, n_d)
