@@ -177,12 +177,12 @@ def run_curriculum(retrain=True):
             model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
             opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
         c_dl = load_dl_parts(name, bsize=B_SIZE)
-        # l, a = one_step(one_step(model,
-        #                 c_dl,
-        #                 data_to_graph_parts,
-        #                 data_to_clss_parts,
-        #                 opt, 
-        #                 criterion))
+        l, a = one_step(one_step(model,
+                        c_dl,
+                        data_to_graph_parts,
+                        data_to_clss_parts,
+                        opt, 
+                        criterion))
         l = [1, 2, 3]
         a = [0.99, 0.99, 0.999]
         # plot and save training metrics
