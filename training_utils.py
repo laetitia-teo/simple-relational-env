@@ -16,6 +16,8 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch_geometric.data import Data
 
+from gen import PartsGen
+from dataset import collate_fn
 from graph_utils import tensor_to_graphs
 
 from env import Env
@@ -105,13 +107,31 @@ data_fn_graphs_three = data_fn_graphs(3)
 
 ### Data loading utilities ###
 
-def load_dl(name):
-    dpath = op.join('data', 'simple_task', 'dataset_binaries', name)
+def load_dl_legacy(name):
+    """
+    Loads a DataLoader, for the old data format in SimpleTask.
+    """
+    path = op.join('data', 'simple_task', 'dataset_binaries', name)
     print('loading dataset...')
-    with open(dpath, 'rb') as f:
+    with open(path, 'rb') as f:
         ds = pickle.load(f)
     print('done')
     dataloader = DataLoader(ds, batch_size=B_SIZE, shuffle=True)
+    return dataloader
+
+def load_dl_parts(name, bsize=128):
+    """
+    Loads a DataLoader in the Parts Task data format.
+    """
+    path = op.join('data', 'parts_task', name)
+    print('loading data ...')
+    p = PartsGen()
+    p.load(path)
+    dataloader = DataLoader(p.to_dataset(),
+                            batch_size=bsize,
+                            shuffle=True,
+                            collate_fn=collate_fn)
+    print('done')
     return dataloader
 
 ### Model evaluation utilities ###

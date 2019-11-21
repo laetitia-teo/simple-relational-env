@@ -30,8 +30,10 @@ from graph_utils import data_to_graph_parts
 from training_utils import one_step
 from training_utils import data_to_clss_parts, data_to_clss_simple
 from training_utils import batch_to_images
-from training_utils import load_dl
+from training_utils import load_dl_legacy
 from training_utils import data_fn_graphs_three
+from training_utils import load_dl_parts
+from training_utils import save_model, load_model
 
 # visualization/image generation
 
@@ -47,7 +49,7 @@ overfit_path = op.join('data', 'parts_task', 'overfit10000_32.txt')
 
 N_SH = 3
 N_OBJ = 3
-B_SIZE = 128 # batch size for graphs is small, because of edges
+B_SIZE = 128
 L_RATE = 1e-3
 N_EPOCHS = 1
 F_OBJ = 10
@@ -71,24 +73,11 @@ args = parser.parse_args()
 # load data
 
 # print('loading pretraining data ...')
-# pretrain_dl = load_dl('trainobject1')
+# pretrain_dl = load_dl_legacy('trainobject1')
 # print('done')
-# print('loading data ...')
-# p = PartsGen()
-# p.load(train_path)
-# train_dl = DataLoader(p.to_dataset(),
-#                       batch_size=B_SIZE,
-#                       shuffle=True,
-#                       collate_fn=collate_fn)
-# print('done')
-print('loading overfitting data ...')
-p = PartsGen()
-p.load(overfit_path)
-overfit_dl = DataLoader(p.to_dataset(),
-                        batch_size=B_SIZE,
-                        shuffle=True,
-                        collate_fn=collate_fn)
-print('done')
+# train_dl = load_dl_parts('train1.txt', bsize=B_SIZE)
+# print('loading overfitting data ...')
+# overfit_dl = load_dl_parts('overfit10000_32.txt', bsize=B_SIZE)
 
 # model
 
@@ -134,6 +123,7 @@ def overfit(n):
     plt.figure()
     plt.plot(accs)
     plt.show()
+    return losses, accs
 
 def run(n=int(args.n)):
     losses, accs = [], []
@@ -152,3 +142,86 @@ def run(n=int(args.n)):
     plt.figure()
     plt.plot(accs)
     plt.show()
+
+def run_curriculum(retrain=True):
+    """
+    In this experiment, we train on different datasets, parametrized by the 
+    number of distractor objects in the reference image.
+
+    The number of distractors goes from 0 to 5, so there are 6 different
+    datasets to train on.
+
+    The argument retrain controls whether to start a different network for 
+    each dataset (in which case we control the learning ability of our model as
+    a function of the number of distractors), or to keep the same parameters
+    and optimizer throughout the different datasets (in which case we monitor
+    the effect of a curriculum of training data on the optimization process).
+
+    This last setting should be contrasted with learning on a dataset of 0-5
+    distractors with no curriculum for the same amounts of steps.
+
+    Don't forget to test the overfitting capacity of the model beforehand.
+
+    We save the resulting plots in the directory specified at save_path.
+    """
+    ds_names = ['curriculum0.txt',
+                'curriculum1.txt',
+                'curriculum2.txt',
+                'curriculum3.txt',
+                'curriculum4.txt',
+                'curriculum5.txt']
+    model = None
+    for name in ds_names:
+        print('Training %s' % name)
+        if retrain or (model is None):
+            model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
+            opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
+        c_dl = load_dl_parts(name, bsize=B_SIZE)
+        # l, a = one_step(one_step(model,
+        #                 c_dl,
+        #                 data_to_graph_parts,
+        #                 data_to_clss_parts,
+        #                 opt, 
+        #                 criterion))
+        l = [1, 2, 3]
+        a = [0.99, 0.99, 0.999]
+        # plot and save training metrics
+        fig, axs = plt.subplots(2, 1, constrained_layout=True)
+        axs[0].plot(l)
+        axs[0].set_title('loss')
+        axs[0].set_xlabel('steps (batch size %s)' % B_SIZE)
+        fig.suptitle('Training metrics for {}'.format(name[:-4]))
+
+        axs[1].plot(a)
+        axs[1].set_title('accuracy')
+        axs[1].set_ylabel('steps (batch size %s)' % B_SIZE)
+
+        filename = op.join(
+            'experimental_results',
+            'parts_curriculum',
+            'retrain',
+            name[:-4] + '.png')
+        plt.savefig(filename)
+        plt.clf()
+        # save losses and accuracies as numpy arrays
+        np.save(
+            op.join('experimental_results',
+                    'parts_curriculum',
+                    'retrain',
+                    name[:-4] + 'loss.npy'),
+            np.array(l))
+        np.save(
+            op.join('experimental_results',
+                    'parts_curriculum',
+                    'retrain',
+                    name[:-4] + 'acc.npy'),
+            np.array(a))
+        # checkpoint model
+        save_model(
+            model,
+            op.join(
+                'parts_curriculum',
+                'retrain',
+                (name[:-4] + '.pt')))
+
+run_curriculum()

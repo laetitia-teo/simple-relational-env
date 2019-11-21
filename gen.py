@@ -217,7 +217,7 @@ class PartsGen():
         if env is None:
             self.env = Env(16, 20)
         self.range_t = [2, 5]
-        self.range_d = [0, 10]
+        self.range_d = [0, 6]
 
         self.n_d = n_d
 
@@ -448,13 +448,16 @@ class PartsGen():
             self.r_batch += r_batch
             self.labels += labels
 
-    def to_dataset(self):
+    def to_dataset(self, n=None):
         """
         Creates a PartsDataset from the generated data and returns it.
+
+        Arguments :
+            - n (int) : allows to contol the dataset size for export.
         """
-        ds = PartsDataset(self.targets,
-                          self.t_batch,
-                          self.refs,
-                          self.r_batch,
-                          self.labels)
+        ds = PartsDataset(self.targets[:n],
+                          self.t_batch[:n],
+                          self.refs[:n],
+                          self.r_batch[:n],
+                          self.labels[:n])
         return ds

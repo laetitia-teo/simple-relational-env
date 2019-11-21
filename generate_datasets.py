@@ -33,11 +33,11 @@ parser.add_argument('-N', '--number',
                      dest='N',
                      help='number of objects in the dataset, ideally an' \
                      + 'even number',
-                     default='10000')
-parser.add_argument('-D', '--distractors',
-                     dest='distractors',
-                     help='Number of distractor objects',
-                     default=None)
+                     default='300000')
+# parser.add_argument('-D', '--distractors',
+#                      dest='distractors',
+#                      help='Number of distractor objects',
+#                      default=None)
 
 args = parser.parse_args()
 if args.directory is None:
@@ -77,6 +77,16 @@ if args.task == 'simple':
 
 if args.task == 'parts':
 
-    gen = PartsGen(n_d=int(args.distractors))
+    gen = PartsGen()
     gen.generate(int(args.N))
     gen.save(path)
+
+if args.task == 'curriculum':
+
+    curr = [0, 1, 2, 3, 4, 5]
+    for n_d in curr:
+        print('Generating dataset with %s distractors' % n_d)
+        gen = PartsGen(n_d=n_d)
+        gen.generate(int(args.N))
+        path = op.join(args.directory, (args.name + str(n_d) + '.txt'))
+        gen.save(path)
