@@ -194,13 +194,13 @@ class Gen():
         """
         Initialize the Parts task generator. 
 
-        The Parts dataset trains a model to recognize if a target configuration
-        is present or not in a given reference. The target objects are always
+        The Parts dataset trains a model to recognize if a query configuration
+        is present or not in a given reference. The query objects are always
         present in the reference, but may be present in a different spatial
         arrangement (this is a negative example).
 
         The constructor defines the range of the number of objects in the
-        target range_t, and the range of the number of additional distractor
+        query range_t, and the range of the number of additional distractor
         objects range_d. If no distractors are provided, the tasks comes back
         to SimpleTask, judging the similarity of two scenes.
 
@@ -218,10 +218,10 @@ class Gen():
         self.reset()
 
     def reset(self):
-        self.targets = []
-        self.t_batch = []
-        self.refs = []
-        self.r_batch = []
+        self.queries = []
+        self.q_batch = []
+        self.worlds = []
+        self.w_batch = []
         self.labels = []
 
     def gen_one(self):
@@ -233,26 +233,26 @@ class Gen():
     def generate_overfit(self, N, n):
         raise NotImplementedError()
 
-    def write_targets(self, f):
+    def write_queries(self, f):
         """
-        Writes the targets, and the t_batch to file f. Every object vector
+        Writes the queries, and the q_batch to file f. Every object vector
         is prepended its batch index.
         """
-        f.write('targets\n')
-        for i, obj in enumerate(self.targets):
-            f.write(str(self.t_batch[i]) + ' ')
+        f.write('queries\n')
+        for i, obj in enumerate(self.queries):
+            f.write(str(self.q_batch[i]) + ' ')
             for num in obj:
                 f.write(str(num) + ' ')
             f.write('\n')
 
-    def write_refs(self, f):
+    def write_worlds(self, f):
         """
-        Writes the refs, and the r_batch to file f. Every object vector
+        Writes the worlds, and the w_batch to file f. Every object vector
         is prepended its batch index.
         """
-        f.write('refs\n')
-        for i, obj in enumerate(self.refs):
-            f.write(str(self.r_batch[i]) + ' ')
+        f.write('worlds\n')
+        for i, obj in enumerate(self.worlds):
+            f.write(str(self.w_batch[i]) + ' ')
             for num in obj:
                 f.write(str(num) + ' ')
             f.write('\n')
@@ -265,40 +265,40 @@ class Gen():
         for label in self.labels:
             f.write(str(label[0]) + '\n')
 
-    def read_targets(self, lineit):
+    def read_queries(self, lineit):
         """
         Takes in an iterator of the lines read.
-        Reads the targets and t_batch from lines, returns targets, t_batch
+        Reads the queries and q_batch from lines, returns queries, q_batch
         and stopping index.
         """
-        targets = []
-        t_batch = []
+        queries = []
+        q_batch = []
         line = next(lineit)
-        while 'refs' not in line:
-            if 'targets' in line:
+        while 'worlds' not in line:
+            if 'queries' in line:
                 pass
             else:
                 linelist = line.split(' ')
-                t_batch.append(int(linelist[0]))
-                targets.append(np.array(linelist[1:-1], dtype=float))
+                q_batch.append(int(linelist[0]))
+                queries.append(np.array(linelist[1:-1], dtype=float))
             line = next(lineit)
-        return targets, t_batch
+        return queries, q_batch
 
-    def read_refs(self, lineit):
+    def read_worlds(self, lineit):
         """
         Takes in an iterator of the lines read.
-        Reads the refs and r_batch from lines, returns refs, r_batch
+        Reads the worlds and w_batch from lines, returns worlds, w_batch
         and stopping index.
         """
-        refs = []
-        r_batch = []
+        worlds = []
+        w_batch = []
         line = next(lineit)
         while 'labels' not in line:
             linelist = line.split(' ')
-            r_batch.append(int(linelist[0]))
-            refs.append(np.array(linelist[1:-1], dtype=float))
+            w_batch.append(int(linelist[0]))
+            worlds.append(np.array(linelist[1:-1], dtype=float))
             line = next(lineit)
-        return refs, r_batch
+        return worlds, w_batch
 
     def read_labels(self, lineit):
         """
@@ -318,8 +318,8 @@ class Gen():
         Saves the dataset as a file. 
         """
         with open(path, 'w') as f:
-            self.write_targets(f)
-            self.write_refs(f)
+            self.write_queries(f)
+            self.write_worlds(f)
             self.write_labels(f)
 
     def load(self, path, replace=True):
@@ -330,21 +330,21 @@ class Gen():
             # reads from line iterator
             lines = f.readlines()
             lineit = iter(lines)
-            targets, t_batch = self.read_targets(lineit)
-            refs, r_batch = self.read_refs(lineit)
+            queries, q_batch = self.read_queries(lineit)
+            worlds, w_batch = self.read_worlds(lineit)
             labels = self.read_labels(lineit)
         # stores the data
         if replace:
-            self.targets = targets
-            self.t_batch = t_batch
-            self.refs = refs
-            self.r_batch = r_batch
+            self.queries = queries
+            self.q_batch = q_batch
+            self.worlds = worlds
+            self.w_batch = w_batch
             self.labels = labels
         else:
-            self.targets += targets
-            self.t_batch += t_batch
-            self.refs += refs
-            self.r_batch += r_batch
+            self.queries += queries
+            self.q_batch += q_batch
+            self.worlds += worlds
+            self.w_batch += w_batch
             self.labels += labels
 
     def to_dataset(self, n=None):
@@ -354,10 +354,10 @@ class Gen():
         Arguments :
             - n (int) : allows to contol the dataset size for export.
         """
-        ds = PartsDataset(self.targets[:n],
-                          self.t_batch[:n],
-                          self.refs[:n],
-                          self.r_batch[:n],
+        ds = PartsDataset(self.queries[:n],
+                          self.q_batch[:n],
+                          self.worlds[:n],
+                          self.w_batch[:n],
                           self.labels[:n])
         return ds
 
@@ -369,13 +369,13 @@ class PartsGen(Gen):
         """
         Initialize the Parts task generator. 
 
-        The Parts dataset trains a model to recognize if a target configuration
-        is present or not in a given reference. The target objects are always
+        The Parts dataset trains a model to recognize if a query configuration
+        is present or not in a given reference. The query objects are always
         present in the reference, but may be present in a different spatial
         arrangement (this is a negative example).
 
         The constructor defines the range of the number of objects in the
-        target range_t, and the range of the number of additional distractor
+        query range_t, and the range of the number of additional distractor
         objects range_d. If no distractors are provided, the tasks comes back
         to SimpleTask, judging the similarity of two scenes.
 
@@ -386,13 +386,13 @@ class PartsGen(Gen):
     def gen_one(self):
         """
         Generates one pair of true-false examples associated with a given
-        target.
+        query.
 
-        The targets are perturbed (similarity + small noise) before being
+        The queries are perturbed (similarity + small noise) before being
         completed with distractors.
         """
-        # Note : we could generate 4 by 4 with this code, by crossing targets
-        # and refs
+        # Note : we could generate 4 by 4 with this code, by crossing queries
+        # and worlds
         try:
             self.env.reset()
             n_t = np.random.randint(*self.range_t)
@@ -401,26 +401,26 @@ class PartsGen(Gen):
             else:
                 n_d = self.n_d
             self.env.random_config(n_t)
-            target = self.env.to_state_list(norm=True)
+            query = self.env.to_state_list(norm=True)
             # generate positive example
             self.env.shuffle_objects()
             self.env.random_transformation()
             self.env.random_config(n_d) # add random objects
-            trueref = self.env.to_state_list(norm=True)
+            trueworld = self.env.to_state_list(norm=True)
             # generate negative example
             if self.n_d is None:
                 n_d = np.random.randint(*self.range_d)
             else:
                 n_d = self.n_d
             self.env.reset()
-            self.env.from_state_list(target, norm=True)
+            self.env.from_state_list(query, norm=True)
             self.env.shuffle_objects() # shuffle order of the objects
             self.env.random_mix() # mix config
             self.env.random_transformation()
             self.env.random_config(n_d) # add random objects
-            falseref = self.env.to_state_list(norm=True)
-            target = target
-            return target, trueref, falseref
+            falseworld = self.env.to_state_list(norm=True)
+            query = query
+            return query, trueworld, falseworld
         except SamplingTimeout:
             print('Sampling timed out, {} and {} objects'.format(n_t, n_d))
             raise Resample('Resample configuration')
@@ -433,30 +433,30 @@ class PartsGen(Gen):
             - N (int) : half of the dataset length
 
         Generates:
-            - targets (list of vectors): list of all the target objets;
-            - t_batch (list of ints): list of indices linking the target
+            - queries (list of vectors): list of all the query objets;
+            - q_batch (list of ints): list of indices linking the query
                 objects to their corresponding scene index;
-            - refs (list of object vectors): list of all the reference
+            - worlds (list of object vectors): list of all the reference
                 objects;
-            - r_batch (list of ints): list of indices linking the reference
+            - w_batch (list of ints): list of indices linking the reference
                 objects to their corresponding scene index;
             - labels (list of ints): list of scene labels.
         """
         print('generating dataset of %s examples :' % (2 * N))
         for i in tqdm(range(N)):
             try:
-                target, trueref, falseref = self.gen_one()
+                query, trueworld, falseworld = self.gen_one()
             except Resample:
                 # We resample the config once
                 # If there is a sampling timeout here, we let it pass
-                target, trueref, falseref = self.gen_one()
-            n_t = len(target)
-            n_r1 = len(trueref)
-            n_r2 = len(falseref)
-            self.targets += 2 * target
-            self.t_batch += n_t * [2*i] + n_t * [2*i + 1]
-            self.refs += trueref + falseref
-            self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
+                query, trueworld, falseworld = self.gen_one()
+            n_t = len(query)
+            n_r1 = len(trueworld)
+            n_r2 = len(falseworld)
+            self.queries += 2 * query
+            self.q_batch += n_t * [2*i] + n_t * [2*i + 1]
+            self.worlds += trueworld + falseworld
+            self.w_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
             self.labels += [[1], [0]]
 
     def generate_overfit(self, N, n):
@@ -468,21 +468,21 @@ class PartsGen(Gen):
         mem = []
         for i in range(n):
             try:
-                target, trueref, falseref = self.gen_one()
+                query, trueworld, falseworld = self.gen_one()
             except Resample:
                 # We resample the config once
                 # If there is a sampling timeout here, we let it pass
-                target, trueref, falseref = self.gen_one()
-            mem.append((target, trueref, falseref))
+                query, trueworld, falseworld = self.gen_one()
+            mem.append((query, trueworld, falseworld))
         for i in tqdm(range(N)):
-            target, trueref, falseref = random.choice(mem)
-            n_t = len(target)
-            n_r1 = len(trueref)
-            n_r2 = len(falseref)
-            self.targets += 2 * target
-            self.t_batch += n_t * [2*i] + n_t * [2*i + 1]
-            self.refs += trueref + falseref
-            self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
+            query, trueworld, falseworld = random.choice(mem)
+            n_t = len(query)
+            n_r1 = len(trueworld)
+            n_r2 = len(falseworld)
+            self.queries += 2 * query
+            self.q_batch += n_t * [2*i] + n_t * [2*i + 1]
+            self.worlds += trueworld + falseworld
+            self.w_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
             self.labels += [[1], [0]]
 
 class NumberGen(Gen):
@@ -495,4 +495,65 @@ class NumberGen(Gen):
 
         This concrete class defines the generation functions.
         """
-        super(PartsGen, self).__init__(env, n_d)
+        super(NumberGen, self).__init__(env, n_d)
+
+        self.max_n = 10
+        self.color_sigma = 0.05 # standard deviation for the color, test this
+
+    def gen_one(self):
+        """
+        Generates one example.
+
+        For now we consider only one object in the query, we'll see later for 
+        greater number of objects.
+
+        To generate objects that are 'the same', we sample their color from a 
+        3-dimensional Gaussian centered on the color of the query object, and 
+        with small standard deviation.
+        """
+        try:
+            self.env.reset()
+            # sample query object
+            self.env.add_random_object()
+            obj = self.env.objects[0]
+            color = obj.color
+            idx = obj.shape_index
+            # sample number
+            n = np.random.randint(0, self.max_n + 1)
+            query = self.env.to_state_list(norm=True)
+            # fill world with similar objects, as the number requires
+            self.env.reset()
+            for _ in range(n):
+                sampled_color = np.random.normal(
+                    color / 255,
+                    self.color_sigma)
+                sampled_color = (sampled_color * 255).astype(int)
+                self.env.add_random_object(color=sampled_color, shape=idx)
+            if self.n_d is None:
+                n_d = np.random.randint(*self.range_d)
+            else:
+                n_d = self.n_d
+            # fill with other stuff
+            self.random_config(n_d)
+            world = self.env.to_state_list(norm=True)
+            return query, world, n
+        except SamplingTimeout:
+            print('Sampling timed out, {} and {} objects'.format(n_t, n_d))
+            raise Resample('Resample configuration')
+
+    def generate(self, N):
+        """
+        Generate a dataset for the task Number.
+        """
+        for i in range(N):
+            try:
+                query, world, n = gen_one()
+            except Resample:
+                query, world, n = gen_one()
+            n_q = len(query)
+            n_w = len(world)
+            self.queries += query
+            self.q_batch += n_q * [i]
+            self.worlds += world
+            self.w_batch += n_w * [i]
+            self.labels += [[n]]

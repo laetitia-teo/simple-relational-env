@@ -263,7 +263,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None):
 
         filename = op.join(
             'experimental_results',
-            'curriculum0',
+            'curriculum%s' % cur_n,
             (str(i) + '.png'))
         plt.savefig(filename)
         plt.clf()
@@ -284,7 +284,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None):
             op.join(
                 'curriculum%s' % cur_n,
                 (str(i) + '.pt')))
-        # validation 
+        # test 
         l_test, a_test = one_step(model,
                                   dl_test,
                                   data_to_graph_parts,
@@ -305,3 +305,66 @@ def try_all_cur_n(s, n):
     cur_list = [1, 2, 3, 4, 5]
     for cur_n in cur_list:
         curriculum_diffseeds(n, s, cur_n=cur_n)
+
+def try_full_cur(s, n):
+    # try all seeds
+    dl_train_list = []
+    dl_test_list = []
+    for cur_n in range(6):
+        dl_train_list.append(load_dl_parts('curriculum%s.txt' % cur_n))
+        dl_test_list.append(load_dl_parts('curriculum%stest.txt' % cur_n))
+    for i in range(s):
+        model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
+        opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
+        losses = []
+        accs = []
+        for cur_n in range(6):
+            dl_train = dl_train_list[cur_n]
+            # dl_test = dl_test_list[cur_n]
+            l, a = several_steps(n, dl_train, model, opt)
+            losses += l
+            accs += a
+        # save data
+        fig, axs = plt.subplots(2, 1, constrained_layout=True)
+        axs[0].plot(losses)
+        axs[0].set_title('loss')
+        axs[0].set_xlabel('steps (batch size %s)' % B_SIZE)
+        fig.suptitle('Training metrics for seed {}'.format(i))
+
+        axs[1].plot(accs)
+        axs[1].set_title('accuracy')
+        axs[1].set_ylabel('steps (batch size %s)' % B_SIZE)
+
+        filename = op.join(
+            'experimental_results',
+            'curriculum_full',
+            (str(i) + '.png'))
+        plt.savefig(filename)
+        plt.clf()
+        # save losses and accuracies as numpy arrays
+        np.save(
+            op.join('experimental_results',
+                    'curriculum_full',
+                    (str(i) + 'loss.npy')),
+            np.array(losses))
+        np.save(
+            op.join('experimental_results',
+                    'curriculum_full',
+                    (str(i) + 'acc.npy')),
+            np.array(accs))
+        # checkpoint model
+        save_model(
+            model,
+            op.join(
+                'curriculum_full',
+                (str(i) + '.pt')))
+
+        dl_test = dl_test_list[-1]
+        l_test, a_test = one_step(model,
+                                  dl_test,
+                                  data_to_graph_parts,
+                                  data_to_clss_parts,
+                                  opt, 
+                                  criterion,
+                                  train=False)
+        print('Test accuracy %s' % np.mean(a_test))

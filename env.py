@@ -512,7 +512,7 @@ class Env(AbstractEnv):
             count += 1
         raise SamplingTimeout('Too many rejected samplings, try fewer objects')
 
-    def add_random_object(self, timeout=30):
+    def add_random_object(self, timeout=30, color=None, shape=None):
         """
         Adds a random object, with collision handling.
 
@@ -531,9 +531,11 @@ class Env(AbstractEnv):
         minsize = 0.5
         maxsize = 2
         while count < timeout:
-            shape = np.random.randint(N_SH)
-            color = np.random.random(3) # U(0, 1) in 3d
-            color = (255 * color).astype(int)
+            if shape is None:
+                shape = np.random.randint(N_SH)
+            if color is None:
+                color = np.random.random(3) # U(0, 1) in 3d
+                color = (255 * color).astype(int)
             size = np.random.random()
             size = (1 - size) * minsize + size * maxsize
             ori = np.random.random()
