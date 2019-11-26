@@ -11,6 +11,8 @@ from torch_geometric.data import Data
 
 from torch_scatter import scatter_mean
 
+DTYPE = torch.float
+
 def complete_edge_index(n, self_edges=True):
     """
     This function creates an edge_index tensor corresponding to the
@@ -144,7 +146,7 @@ def data_to_graph_parts(data):
     t_batch (batch of the first graph), refs (second graph), r_batch (batch
     of the second graph) and labels (not used here).
 
-    The funtion creates edges (complete) and global vectors for each 
+    The function creates edges (complete) and global vectors for each 
     scene graph in the target and reference batches.
     """
     x1, x2, labels, batch1, batch2 = data
@@ -182,6 +184,36 @@ def data_to_graph_parts(data):
     graph1 = Data(x=x1, edge_index=ei1, edge_attr=e1, y=u1, batch=batch1)
     graph2 = Data(x=x2, edge_index=ei2, edge_attr=e2, y=u2, batch=batch2)
     return graph1, graph2
+
+def state_list_to_graph(state_list):
+    """
+    Transforms a single state list into a fully connected graphs.
+    """
+    x1 = torch.tensor(state_list, dtype=DTYPE)
+    batch1 = torch.zeros(len(state_list), dtype=int)
+    f_x = x1.shape[-1]
+    # create edges for graph1
+    ei1 = torch.zeros((2, 0), dtype=torch.long)
+    n = batch1[-1] + 1 # number of graphs, same as batch size
+    count = 0 # for counting node index offset
+    for i in range(n):
+        idx = (batch1 == i).nonzero(as_tuple=True)[0]
+        n_x = len(idx)
+        # create edge index
+        ei = complete_edge_index(n_x, self_edges=False)
+        ei += count
+        ei1 = torch.cat((ei1, ei), 1)
+        count += n_x
+    e1 = x1[ei1[1]] - x1[ei1[0]]
+    u1 = scatter_mean(x1, batch1, dim=0)
+    graph = Data(x=x1, edge_index=ei1, edge_attr=e1, y=u1, batch=batch1)
+    return graph
+
+def merge_graphs(g_list):
+    """
+    Merge graphs.
+    """
+    pass
 
 def data_from_graph(graph):
     x = graph.x

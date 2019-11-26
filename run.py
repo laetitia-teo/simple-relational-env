@@ -38,6 +38,7 @@ from training_utils import save_model, load_model
 # visualization/image generation
 
 from env import Env
+from test_utils import ModelPlayground
 
 # data path
 
@@ -435,3 +436,10 @@ def mix_all_cur(s, n):
                                   criterion,
                                   train=False)
         print('Test accuracy %s' % np.mean(a_test))
+
+def load_model_playground():
+    model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
+    model.load_state_dict(torch.load('saves/models/curriculum5/19.pt'))
+    pg = ModelPlayground(16, 20, model)
+    maps = pg.model_heat_map(4)
+    return maps

@@ -451,7 +451,7 @@ class Env(AbstractEnv):
             obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
             mat[ox:ox + s, oy:oy + s] += obj_mat
         mat = np.flip(mat, axis=0)
-        mat = (mat * 255).astype(int)
+        mat = mat.astype(int)
         if show:
             plt.imshow(mat[..., :-1])
             plt.show()
@@ -483,7 +483,6 @@ class Env(AbstractEnv):
         Saves the current env image and the state description into the
         specified path.
         """
-        print(np.max(self.render(False)))
         cv2.imwrite(path, self.render(False))
 
     def random_mix(self, timeout=30):
@@ -742,7 +741,7 @@ class NActionSpace():
 
 class Playground():
 
-    def __init__(self, gridsize, envsize, state):
+    def __init__(self, gridsize, envsize, state=None):
         """
         Environment wrapper for use in a RL setting.
 
@@ -765,6 +764,10 @@ class Playground():
         as a game.
         """
         self._env = Env(gridsize, envsize)
+        if state is None:
+            # re-write this
+            self._env.random_config(3)
+            state = self._env.to_state_list()
         self._state = state
         self.reset()
         self.action_space = NActionSpace(len(self._env.objects), 4)

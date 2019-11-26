@@ -5,7 +5,7 @@ configurations of shapes in our environment.
 The Datasets should allow saving and (dynamic) loading, and efficient batching
 for downstream processing.
 """
-
+import time
 import pickle
 import numpy as np
 import torch
@@ -147,19 +147,31 @@ class PartsDataset(Dataset):
         The inputs are the outputs of the Parts generator, defined in the gen
         module (as lists).
         """
+        self.time = time.time()
+        self.time_dict = {}
+
         self.targets = torch.tensor(targets, dtype=DTYPE)
         self.t_batch = torch.tensor(t_batch, dtype=ITYPE)
         self.refs = torch.tensor(refs, dtype=DTYPE)
         self.r_batch = torch.tensor(r_batch, dtype=ITYPE)
         self.labels = torch.tensor(labels, dtype=ITYPE)
 
+        t = time.time()
+        self.time_dict['tensorize'] = t - self.time
+        self.time = t
+
         self.t_idx = []
         self.r_idx = []
         # build lists of all the indices corresponding to one set of
         # (target, reference, label) for efficient access
+        # this is O(n^2) ! fix this
+        self.time_dict['idxlist'] = []
         for idx in range(len(self.labels)):
+            t = time.time()
             self.t_idx.append((self.t_batch == idx).nonzero(as_tuple=True)[0])
             self.r_idx.append((self.r_batch == idx).nonzero(as_tuple=True)[0])
+            self.time_dict['idxlist'].append(time.time() - t)
+        self.time_dict['idx_total'] = sum(self.time_dict['idxlist'])
 
     def __len__(self):
         return len(self.labels)
