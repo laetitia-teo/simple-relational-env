@@ -368,3 +368,70 @@ def try_full_cur(s, n):
                                   criterion,
                                   train=False)
         print('Test accuracy %s' % np.mean(a_test))
+
+def mix_all_cur(s, n):
+    """
+    This is the experiment that examines the relevance of training with a
+    curriculum on the number of distractors. Instead of presenting our model
+    with first only 0 distractors, then 1, then 2, we mix all distractor
+    numbers by merging all those datasets, and train for the same number of
+    iterations.
+    """
+    names = ['curriculum%s.txt' % i for i in range(6)]
+    test_name = 'curriculum5test.txt'
+    p = PartsGen()
+    for name in names:
+        p.load(op.join('data', 'parts_task', name), replace=False)
+    dl_test = load_dl_parts(test_name)
+    # load all the datasets
+    dl = DataLoader(p.to_dataset(),
+                    batch_size=B_SIZE,
+                    shuffle=True,
+                    collate_fn=collate_fn)
+    for i in range(s):
+        model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
+        opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
+        losses, accs = several_steps(n, dl, model, opt)
+        # plot
+        fig, axs = plt.subplots(2, 1, constrained_layout=True)
+        axs[0].plot(losses)
+        axs[0].set_title('loss')
+        axs[0].set_xlabel('steps (batch size %s)' % B_SIZE)
+        fig.suptitle('Training metrics for seed {}'.format(i))
+
+        axs[1].plot(accs)
+        axs[1].set_title('accuracy')
+        axs[1].set_ylabel('steps (batch size %s)' % B_SIZE)
+
+        filename = op.join(
+            'experimental_results',
+            'full',
+            (str(i) + '.png'))
+        plt.savefig(filename)
+        plt.clf()
+        # save losses and accuracies as numpy arrays
+        np.save(
+            op.join('experimental_results',
+                    'full',
+                    (str(i) + 'loss.npy')),
+            np.array(losses))
+        np.save(
+            op.join('experimental_results',
+                    'full',
+                    (str(i) + 'acc.npy')),
+            np.array(accs))
+        # checkpoint model
+        save_model(
+            model,
+            op.join(
+                'full',
+                (str(i) + '.pt')))
+        # test 
+        l_test, a_test = one_step(model,
+                                  dl_test,
+                                  data_to_graph_parts,
+                                  data_to_clss_parts,
+                                  opt, 
+                                  criterion,
+                                  train=False)
+        print('Test accuracy %s' % np.mean(a_test))

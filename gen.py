@@ -238,7 +238,7 @@ class Gen():
         Writes the queries, and the q_batch to file f. Every object vector
         is prepended its batch index.
         """
-        f.write('queries\n')
+        f.write('targets\n')
         for i, obj in enumerate(self.queries):
             f.write(str(self.q_batch[i]) + ' ')
             for num in obj:
@@ -250,7 +250,7 @@ class Gen():
         Writes the worlds, and the w_batch to file f. Every object vector
         is prepended its batch index.
         """
-        f.write('worlds\n')
+        f.write('refs\n')
         for i, obj in enumerate(self.worlds):
             f.write(str(self.w_batch[i]) + ' ')
             for num in obj:
@@ -274,8 +274,8 @@ class Gen():
         queries = []
         q_batch = []
         line = next(lineit)
-        while 'worlds' not in line:
-            if 'queries' in line:
+        while 'refs' not in line:
+            if 'targets' in line:
                 pass
             else:
                 linelist = line.split(' ')
