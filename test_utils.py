@@ -3,8 +3,10 @@ A module for testing out models.
 
 Defines various functions for testing stuff.
 """
+import time
 import os.path as op
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import pygame
 
@@ -15,6 +17,7 @@ from tqdm import tqdm
 
 from training_utils import load_dl_parts
 from graph_utils import state_list_to_graph
+from graph_utils import merge_graphs
 
 def test_models(save_dir, test_list, taxon):
     """
@@ -172,7 +175,7 @@ class ModelPlayground(env.Playground):
             trues.append(true)
         return falses, trues
 
-    def model_heat_map(self, n):
+    def model_heat_map(self, n, show=False):
         """
         This function samples a random configuration and then explores what
         happens to the model prediction when we vary the position of each of
@@ -191,25 +194,49 @@ class ModelPlayground(env.Playground):
         pos_idx = [env.N_SH+4, env.N_SH+5]
         size = self._env.envsize * self._env.gridsize
         # for state in s:
-        state = s[0]
-        mem = state[pos_idx]
-        falsemap = np.zeros((size, size))
-        truemap = np.zeros((size, size))
-        for x in tqdm(range(size)):
-            for y in range(size):
-                state[pos_idx] = np.array([x / self._env.gridsize,
-                                           y / self._env.gridsize])
-                g2 = state_list_to_graph(s)
-                pred = self.model(g1, g2)
-                falsemap[x, y] = pred[0, 0].detach().numpy()
-                truemap[x, y] = pred[0, 1].detach().numpy()
+        gq = merge_graphs([state_list_to_graph(s)] * size)
+        matlist = []
         for state in s:
-            pos = state[pos_idx]
-            idx = (pos * self._env.gridsize).astype(int)
-            falsemap[idx[0], idx[1]] = -10
-        maps.append(falsemap)
-        maps.append(truemap)
-        state[pos_idx] = mem
+            mem = state[pos_idx]
+            mat = np.zeros((0, size, 2))
+            for x in tqdm(range(size)):
+                glist = []
+                t = time.time()
+                for y in range(size):
+                    state[pos_idx] = np.array([x / self._env.gridsize,
+                                               y / self._env.gridsize])
+                    glist.append(state_list_to_graph(s))
+                gw = merge_graphs(glist)
+                pred = self.model(gq, gw).detach().numpy()
+                pred = np.expand_dims(pred, 0)
+                mat = np.concatenate((mat, pred), 0)
+            state[pos_idx] = mem
+            matlist.append(mat) # maybe change data format here
+            poslist = [state[pos_idx] * self._env.gridsize for state in s]
+        if show:
+            for i, (mat, pos) in enumerate(zip(matlist, poslist)):
+                fig, axs = plt.subplots(1, 2, constrained_layout=true)
+                fig.suptitle(
+                    'Scores as a function of the red object\'s position')
 
-        # make a parallel version : group all candidate state lists into a graph
-        return maps
+                axs[0].matshow(mat[..., 0])
+                axs[0].set_title('Score for the "false" class')
+                for j, pos in enumerate(poslist):
+                    if i == j:
+                        c = 'r'
+                    else:
+                        c = 'b'
+                    axs[0].scatter(pos[1], pos[0], color=c)
+
+                axs[1].set_title('Score for the "false" class')
+                axs[1].matshow(mat[..., 1])
+                for j, pos in enumerate(poslist):
+                    if i == j:
+                        c = 'r'
+                    else:
+                        c = 'b'
+                    axs[0].scatter(pos[1], pos[0], color=c)
+
+                plt.show()
+            plt.close()
+        return matlist, poslist

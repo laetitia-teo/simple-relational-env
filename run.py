@@ -441,5 +441,5 @@ def load_model_playground():
     model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
     model.load_state_dict(torch.load('saves/models/curriculum5/19.pt'))
     pg = ModelPlayground(16, 20, model)
-    maps = pg.model_heat_map(4)
+    maps = pg.model_heat_map(4, show=True)
     return maps

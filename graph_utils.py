@@ -211,9 +211,36 @@ def state_list_to_graph(state_list):
 
 def merge_graphs(g_list):
     """
-    Merge graphs.
+    Merge graphs provided in a list.
+
+    All graphs must have the same number of node features, edge features and
+    global features respectively.
     """
-    pass
+    n_x = 0
+    n_batch = 0
+    x = None
+    e = None
+    ei = None
+    u = None
+    batch = None
+    for g in g_list:
+        if x is None:
+            x = g.x
+            e = g.edge_attr
+            ei = g.edge_index
+            u = g.y
+            batch = g.batch
+            n_x = len(x)
+            n_batch = batch[-1] + 1
+            continue
+        x = torch.cat([x, g.x], 0)
+        e = torch.cat([e, g.edge_attr], 0)
+        ei = torch.cat([ei, (g.edge_index + n_x)], -1)
+        u = torch.cat([u, g.y], 0)
+        batch = torch.cat([batch, (g.batch + n_batch)], 0)
+        n_x += len(g.x)
+        n_batch += g.batch[-1] + 1
+    return Data(x=x, edge_attr=e, edge_index=ei, y=u, batch=batch)
 
 def data_from_graph(graph):
     x = graph.x
