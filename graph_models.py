@@ -957,3 +957,137 @@ class GraphMatchingv2(GraphModel):
                             batch1)
 
         return self.mlp(torch.cat([u1, u2], 1))
+
+class GraphMatchingv2_EdgeConcat(GraphModel):
+    """
+    Upgraded version of the preceding model.
+    Replaced EdgeModelDiff with EdgeModelConcat;
+    """
+    def __init__(self, 
+                 mlp_layers,
+                 h,
+                 N,
+                 f_dict):
+        """
+        Init.
+        """
+        super(GraphMatchingv2_EdgeConcat, self).__init__()
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.gnn = gn.CrossGraphAttentionLayer(
+            gn.LearnedCrossGraphAttention(f_x, model_fn),
+            gn.EdgeModelConcat(f_e, f_x, f_u, model_fn, h), # edgemodelconcat here ?
+            gn.NodeModel(h, f_x, f_u, model_fn, h),
+            gn.GlobalModel(h, h, f_u, model_fn, h))
+
+        self.cg_ei = None # cross-graph edge index
+        self.b_size = 0 # init
+
+        self.mlp = model_fn(2 * h, f_out)
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass.
+
+        Same outer logic as the regular GMN model, only the intra-layer logic
+        differs.
+
+        The ordering of graphs matters here : the first graph is the query
+        graph, the second one is the world graph.
+        """
+        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+
+        cg_ei = cross_graph_ei(batch1, batch2)
+
+        _, _, u1 = self.gnn(x1,
+                            x2,
+                            edge_index1,
+                            torch.flip(cg_ei, (0,)),
+                            e1,
+                            u1,
+                            batch1,
+                            batch2)
+        # we use the original features to compute the cross-graph attentions
+        _, _, u2 = self.gnn(x2,
+                            x1,
+                            edge_index2,
+                            cg_ei,
+                            e2,
+                            u2,
+                            batch2,
+                            batch1)
+
+        return self.mlp(torch.cat([u1, u2], 1))
+
+class GraphMatchingv2_DiffGraphs(GraphModel):
+    def __init__(self, 
+                 mlp_layers,
+                 h,
+                 N,
+                 f_dict):
+        """
+        Same as previous model, but we use 2 different GNNs for the 2 different
+        input graphs.
+        """
+        super(GraphMatchingv2, self).__init__()
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.gnn_q = gn.CrossGraphAttentionLayer(
+            gn.LearnedCrossGraphAttention(f_x, model_fn),
+            gn.EdgeModelDiff(f_e, f_x, f_u, model_fn, h), # edgemodelconcat here ?
+            gn.NodeModel(h, f_x, f_u, model_fn, h),
+            gn.GlobalModel(h, h, f_u, model_fn, h))
+
+        self.gnn_w = gn.CrossGraphAttentionLayer(
+            gn.LearnedCrossGraphAttention(f_x, model_fn),
+            gn.EdgeModelDiff(f_e, f_x, f_u, model_fn, h), # edgemodelconcat here ?
+            gn.NodeModel(h, f_x, f_u, model_fn, h),
+            gn.GlobalModel(h, h, f_u, model_fn, h))
+
+        self.cg_ei = None # cross-graph edge index
+        self.b_size = 0 # init
+
+        self.mlp = model_fn(2 * h, f_out)
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass.
+
+        Same outer logic as the regular GMN model, only the intra-layer logic
+        differs.
+
+        The ordering of graphs matters here : the first graph is the query
+        graph, the second one is the world graph.
+        """
+        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+
+        cg_ei = cross_graph_ei(batch1, batch2)
+
+        _, _, u1 = self.gnn_q(x1,
+                              x2,
+                              edge_index1,
+                              torch.flip(cg_ei, (0,)),
+                              e1,
+                              u1,
+                              batch1,
+                              batch2)
+        # we use the original features to compute the cross-graph attentions
+        _, _, u2 = self.gnn_w(x2,
+                              x1,
+                              edge_index2,
+                              cg_ei,
+                              e2,
+                              u2,
+                              batch2,
+                              batch1)
+
+        return self.mlp(torch.cat([u1, u2], 1))
+
+class ConditionByGraphEmbedding():
+    pass

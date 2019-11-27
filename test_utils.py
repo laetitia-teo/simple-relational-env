@@ -175,7 +175,7 @@ class ModelPlayground(env.Playground):
             trues.append(true)
         return falses, trues
 
-    def model_heat_map(self, n, show=False):
+    def model_heat_map(self, n, show=False, save=None):
         """
         This function samples a random configuration and then explores what
         happens to the model prediction when we vary the position of each of
@@ -215,7 +215,7 @@ class ModelPlayground(env.Playground):
             poslist = [state[pos_idx] * self._env.gridsize for state in s]
         if show:
             for i, (mat, pos) in enumerate(zip(matlist, poslist)):
-                fig, axs = plt.subplots(1, 2, constrained_layout=true)
+                fig, axs = plt.subplots(1, 2, constrained_layout=True)
                 fig.suptitle(
                     'Scores as a function of the red object\'s position')
 
@@ -228,14 +228,14 @@ class ModelPlayground(env.Playground):
                         c = 'b'
                     axs[0].scatter(pos[1], pos[0], color=c)
 
-                axs[1].set_title('Score for the "false" class')
+                axs[1].set_title('Score for the "true" class')
                 axs[1].matshow(mat[..., 1])
                 for j, pos in enumerate(poslist):
                     if i == j:
                         c = 'r'
                     else:
                         c = 'b'
-                    axs[0].scatter(pos[1], pos[0], color=c)
+                    axs[1].scatter(pos[1], pos[0], color=c)
 
                 plt.show()
             plt.close()

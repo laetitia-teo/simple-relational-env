@@ -6,6 +6,7 @@ The Datasets should allow saving and (dynamic) loading, and efficient batching
 for downstream processing.
 """
 import time
+import os.path as op
 import pickle
 import numpy as np
 import torch
@@ -141,46 +142,42 @@ class PartsDataset(Dataset):
     """
     Class for the Parts task.
     """
-    def __init__(self, targets, t_batch, refs, r_batch, labels):
+    def __init__(self, targets, t_batch, refs, r_batch, labels, indices=None):
         """
         Initializes the Parts Dataset.
         The inputs are the outputs of the Parts generator, defined in the gen
         module (as lists).
-        """
-        self.time = time.time()
-        self.time_dict = {}
 
+        When indices is not given, we compute them by hand. Since this is a
+        costly operation, we prefer to write them to a file.
+        """
         self.targets = torch.tensor(targets, dtype=DTYPE)
         self.t_batch = torch.tensor(t_batch, dtype=ITYPE)
         self.refs = torch.tensor(refs, dtype=DTYPE)
         self.r_batch = torch.tensor(r_batch, dtype=ITYPE)
         self.labels = torch.tensor(labels, dtype=ITYPE)
 
-        t = time.time()
-        self.time_dict['tensorize'] = t - self.time
-        self.time = t
-
-        self.t_idx = []
-        self.r_idx = []
-        # build lists of all the indices corresponding to one set of
-        # (target, reference, label) for efficient access
-        # this is O(n^2) ! fix this
-        self.time_dict['idxlist'] = []
-        for idx in range(len(self.labels)):
-            t = time.time()
-            self.t_idx.append((self.t_batch == idx).nonzero(as_tuple=True)[0])
-            self.r_idx.append((self.r_batch == idx).nonzero(as_tuple=True)[0])
-            self.time_dict['idxlist'].append(time.time() - t)
-        self.time_dict['idx_total'] = sum(self.time_dict['idxlist'])
+        if indices is None:
+            self.t_idx = []
+            self.r_idx = []
+            # build lists of all the indices corresponding to one set of
+            # (target, reference, label) for efficient access
+            # this is O(n^2) ! fix this
+            for idx in range(len(self.labels)):
+                t = time.time()
+                self.t_idx.append((self.t_batch == idx).nonzero(as_tuple=True)[0])
+                self.r_idx.append((self.r_batch == idx).nonzero(as_tuple=True)[0])
+        else:
+            t_idx, r_idx = indices
+            self.t_idx = t_idx
+            self.r_idx = r_idx
 
     def __len__(self):
         return len(self.labels)
 
     def __getitem__(self, idx):
         target = self.targets[self.t_idx[idx]]
-        t_batch = self.t_batch[self.t_idx[idx]]
         ref = self.refs[self.r_idx[idx]]
-        r_batch = self.r_batch[self.r_idx[idx]]
         label = self.labels[idx]
         return target, ref, label
 

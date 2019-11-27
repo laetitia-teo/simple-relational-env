@@ -247,7 +247,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None):
     dl_test = load_dl_parts('curriculum%stest.txt' % cur_n)
     for i in range(s):
         if training is None:
-            model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
+            model = gm.GraphMatchingv2_EdgeConcat([16, 16], 10, 1, f_dict)
             opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
         else:
             model, opt = training
@@ -264,6 +264,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None):
 
         filename = op.join(
             'experimental_results',
+            'cur_run2',
             'curriculum%s' % cur_n,
             (str(i) + '.png'))
         plt.savefig(filename)
@@ -271,11 +272,13 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None):
         # save losses and accuracies as numpy arrays
         np.save(
             op.join('experimental_results',
+                    'cur_run2',
                     'curriculum%s' % cur_n,
                     (str(i) + 'loss.npy')),
             np.array(l))
         np.save(
             op.join('experimental_results',
+                    'cur_run2',
                     'curriculum%s' % cur_n,
                     (str(i) + 'acc.npy')),
             np.array(a))
@@ -283,6 +286,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None):
         save_model(
             model,
             op.join(
+                'cur_run2',
                 'curriculum%s' % cur_n,
                 (str(i) + '.pt')))
         # test 
@@ -439,7 +443,7 @@ def mix_all_cur(s, n):
 
 def load_model_playground():
     model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
-    model.load_state_dict(torch.load('saves/models/curriculum5/19.pt'))
+    model.load_state_dict(torch.load('saves/models/curriculum2/6.pt'))
     pg = ModelPlayground(16, 20, model)
     maps = pg.model_heat_map(4, show=True)
     return maps

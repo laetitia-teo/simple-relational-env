@@ -223,6 +223,21 @@ class Gen():
         self.worlds = []
         self.w_batch = []
         self.labels = []
+        # careful, those are lists of torch.tensors
+        self.t_idx = []
+        self.r_idx = []
+
+    def compute_access_indices(self):
+        """
+        Computes lists of target and reference indices for downsream efficient
+        access. Computation-intensive.
+        """
+        t_batch = torch.tensor(self.t_batch, dtype=torch.float32)
+        r_batch = torch.tensor(self.r_batch, dtype=torch.float32)
+        for idx in range(len(self.labels)):
+            self.t_idx.append((t_batch == idx).nonzero(as_tuple=True)[0])
+            self.r_idx.append((r_batch == idx).nonzero(as_tuple=True)[0])
+        self.t_idx = list(self.t)
 
     def gen_one(self):
         raise NotImplementedError()
@@ -265,6 +280,26 @@ class Gen():
         for label in self.labels:
             f.write(str(label[0]) + '\n')
 
+    def write_t_idx(self, f):
+        """
+        Writes the t-indices.
+        """
+        f.write('t_idx\n')
+        for idx in self.t_idx:
+            for i in idx:
+                f.write(str(i.numpy()) + ' ')
+            f.write('\n')
+
+    def write_r_idx(self, f):
+        """
+        Writes the r-indices.
+        """
+        f.write('r_idx\n')
+        for idx in self.r_idx:
+            for i in idx:
+                f.write(str(i.numpy()) + ' ')
+            f.write('\n')
+
     def read_queries(self, lineit):
         """
         Takes in an iterator of the lines read.
@@ -276,7 +311,7 @@ class Gen():
         line = next(lineit)
         while 'refs' not in line:
             if 'targets' in line:
-                pass
+                pass # first line
             else:
                 linelist = line.split(' ')
                 q_batch.append(int(linelist[0]))
@@ -306,14 +341,39 @@ class Gen():
         """
         labels = []
         try:
-            while True:
-                line = next(lineit)
+            line = next(lineit)
+            while 't_idx' not in line:
                 labels.append([int(line)])
-        except StopIteration:
+                line = next(lineit)
+        except StopIteration: # the file may also end here
             pass
         return labels
 
-    def save(self, path):
+    def read_t_idx(self, lineit):
+        """
+        Reads the t-indices from the file line iterator.
+        """
+        t_idx = []
+        line = next(lineit)
+        while 'r_idx' not in line:
+            linelist = line.split(' ')
+            t_idx.append(torch.tensor(linelist[:-1], dtype=otrch.float32))
+            line = next(lineit)
+        return t_idx
+
+    def read_r_idx(self, lineit):
+        r_idx = []
+        try:
+            line = next(lineit)
+            while 'some_other_stuff' not in line:
+                linelist = line.split(' ')
+                t_idx.append(torch.tensor(linelist[:-1], dtype=otrch.float32))
+                line = next(lineit)
+        except StopIteration:
+            pass
+        return r_idx
+
+    def save(self, path, write_indices=True):
         """
         Saves the dataset as a file. 
         """
@@ -321,8 +381,11 @@ class Gen():
             self.write_queries(f)
             self.write_worlds(f)
             self.write_labels(f)
+            if write_indices:
+                self.write_t_idx(f)
+                self.write_r_idx(f)
 
-    def load(self, path, replace=True):
+    def load(self, path, read_indices=True, replace=True):
         """
         Reads previously saved generator data.
         """
@@ -333,6 +396,9 @@ class Gen():
             queries, q_batch = self.read_queries(lineit)
             worlds, w_batch = self.read_worlds(lineit)
             labels = self.read_labels(lineit)
+            if read_indices:
+                t_idx = self.read_t_idx(lineit)
+                r_idx = self.read_r_idx(lineit)
         # stores the data
         if replace:
             self.queries = queries
@@ -340,6 +406,9 @@ class Gen():
             self.worlds = worlds
             self.w_batch = w_batch
             self.labels = labels
+            if read_indices:
+                self.t_idx = t_idx
+                self.r_idx = r_idx
         else:
             self.queries += queries
             self.q_batch += q_batch
@@ -347,18 +416,26 @@ class Gen():
             self.w_batch += w_batch
             self.labels += labels
 
-    def to_dataset(self, n=None):
+    def to_dataset(self, indices=True, n=None):
         """
         Creates a PartsDataset from the generated data and returns it.
 
         Arguments :
             - n (int) : allows to contol the dataset size for export.
         """
-        ds = PartsDataset(self.queries[:n],
-                          self.q_batch[:n],
-                          self.worlds[:n],
-                          self.w_batch[:n],
-                          self.labels[:n])
+        if indices:
+            ds = PartsDataset(self.queries[:n],
+                              self.q_batch[:n],
+                              self.worlds[:n],
+                              self.w_batch[:n],
+                              self.labels[:n],
+                              (self.t_idx[:n], self.r_idx[:n]))
+        else:
+            ds = PartsDataset(self.queries[:n],
+                              self.q_batch[:n],
+                              self.worlds[:n],
+                              self.w_batch[:n],
+                              self.labels[:n])
         return ds
 
 class PartsGen(Gen):
