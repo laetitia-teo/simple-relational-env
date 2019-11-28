@@ -18,7 +18,9 @@ from torch.utils.data import Dataset
 
 N_SH = 3
 DTYPE = torch.float32
+CUDA_DTYPE = torch.cuda.FloatTensor
 ITYPE = torch.long
+CUDA_ITYPE = torch.cuda.LongTensor
 
 ### Utils ###
 
@@ -142,7 +144,13 @@ class PartsDataset(Dataset):
     """
     Class for the Parts task.
     """
-    def __init__(self, targets, t_batch, refs, r_batch, labels, indices=None):
+    def __init__(self,
+                 targets,
+                 t_batch,
+                 refs,
+                 r_batch,
+                 labels,
+                 indices=None):
         """
         Initializes the Parts Dataset.
         The inputs are the outputs of the Parts generator, defined in the gen
@@ -164,9 +172,10 @@ class PartsDataset(Dataset):
             # (target, reference, label) for efficient access
             # this is O(n^2) ! fix this
             for idx in range(len(self.labels)):
-                t = time.time()
-                self.t_idx.append((self.t_batch == idx).nonzero(as_tuple=True)[0])
-                self.r_idx.append((self.r_batch == idx).nonzero(as_tuple=True)[0])
+                t = (self.t_batch == idx).nonzero(as_tuple=True)[0]
+                r = (self.r_batch == idx).nonzero(as_tuple=True)[0]
+                self.t_idx.append(t)
+                self.r_idx.append(r)
         else:
             t_idx, r_idx = indices
             self.t_idx = t_idx

@@ -145,7 +145,7 @@ def run(n=int(args.n)):
     plt.plot(accs)
     plt.show()
 
-def several_steps(n, dl, model, opt):
+def several_steps(n, dl, model, opt, cuda=False):
     losses, accs = [], []
     for _ in range(n):
         l, a = one_step(model,
@@ -153,7 +153,8 @@ def several_steps(n, dl, model, opt):
                         data_to_graph_parts,
                         data_to_clss_parts,
                         opt, 
-                        criterion)
+                        criterion,
+                        cuda=cuda)
         losses += l
         accs += a
     return losses, accs
@@ -237,7 +238,7 @@ def run_curriculum(retrain=True):
                 'retrain',
                 (name[:-4] + '.pt')))
 
-def curriculum_diffseeds(n, s, cur_n=0, training=None):
+def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
     """
     n : number of epochs;
     s : number of seeds;
@@ -247,11 +248,13 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None):
     dl_test = load_dl_parts('curriculum%stest.txt' % cur_n)
     for i in range(s):
         if training is None:
-            model = gm.GraphMatchingv2_EdgeConcat([16, 16], 10, 1, f_dict)
+            model = gm.GraphMatchingv2_DiffGNNs([16, 16], 10, 1, f_dict)
+            if cuda:
+                model.cuda()
             opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
         else:
             model, opt = training
-        l, a = several_steps(n, dl_train, model, opt)
+        l, a = several_steps(n, dl_train, model, opt, cuda=cuda)
         fig, axs = plt.subplots(2, 1, constrained_layout=True)
         axs[0].plot(l)
         axs[0].set_title('loss')
@@ -264,7 +267,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None):
 
         filename = op.join(
             'experimental_results',
-            'cur_run2',
+            'cur_run3',
             'curriculum%s' % cur_n,
             (str(i) + '.png'))
         plt.savefig(filename)
@@ -272,13 +275,13 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None):
         # save losses and accuracies as numpy arrays
         np.save(
             op.join('experimental_results',
-                    'cur_run2',
+                    'cur_run3',
                     'curriculum%s' % cur_n,
                     (str(i) + 'loss.npy')),
             np.array(l))
         np.save(
             op.join('experimental_results',
-                    'cur_run2',
+                    'cur_run3',
                     'curriculum%s' % cur_n,
                     (str(i) + 'acc.npy')),
             np.array(a))
@@ -286,7 +289,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None):
         save_model(
             model,
             op.join(
-                'cur_run2',
+                'cur_run3',
                 'curriculum%s' % cur_n,
                 (str(i) + '.pt')))
         # test 
@@ -300,16 +303,16 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None):
         print('Test accuracy %s' % np.mean(a_test))
 # run_curriculum()
 
-def try_all_cur_n(s, n):
+def try_all_cur_n(s, n, cuda=False):
     """
     Performs computation with different initializations on all possible numbers
     of distractors.
 
     The goal of this test 
     """
-    cur_list = [1, 2, 3, 4, 5]
+    cur_list = [0, 1, 2, 3, 4, 5]
     for cur_n in cur_list:
-        curriculum_diffseeds(n, s, cur_n=cur_n)
+        curriculum_diffseeds(n, s, cur_n=cur_n, cuda=cuda)
 
 def try_full_cur(s, n):
     # try all seeds

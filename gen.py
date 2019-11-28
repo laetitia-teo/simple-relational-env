@@ -218,10 +218,10 @@ class Gen():
         self.reset()
 
     def reset(self):
-        self.queries = []
-        self.q_batch = []
-        self.worlds = []
-        self.w_batch = []
+        self.targets = []
+        self.t_batch = []
+        self.refs = []
+        self.r_batch = []
         self.labels = []
         # careful, those are lists of torch.tensors
         self.t_idx = []
@@ -233,11 +233,10 @@ class Gen():
         access. Computation-intensive.
         """
         t_batch = torch.tensor(self.t_batch, dtype=torch.float32)
-        r_batch = torch.tensor(self.r_batch, dtype=torch.float32)
+        t_batch = torch.tensor(self.t_batch, dtype=torch.float32)
         for idx in range(len(self.labels)):
             self.t_idx.append((t_batch == idx).nonzero(as_tuple=True)[0])
-            self.r_idx.append((r_batch == idx).nonzero(as_tuple=True)[0])
-        self.t_idx = list(self.t)
+            self.r_idx.append((t_batch == idx).nonzero(as_tuple=True)[0])
 
     def gen_one(self):
         raise NotImplementedError()
@@ -248,26 +247,26 @@ class Gen():
     def generate_overfit(self, N, n):
         raise NotImplementedError()
 
-    def write_queries(self, f):
+    def write_targets(self, f):
         """
-        Writes the queries, and the q_batch to file f. Every object vector
+        Writes the targets, and the t_batch to file f. Every object vector
         is prepended its batch index.
         """
         f.write('targets\n')
-        for i, obj in enumerate(self.queries):
-            f.write(str(self.q_batch[i]) + ' ')
+        for i, obj in enumerate(self.targets):
+            f.write(str(self.t_batch[i]) + ' ')
             for num in obj:
                 f.write(str(num) + ' ')
             f.write('\n')
 
-    def write_worlds(self, f):
+    def write_refs(self, f):
         """
-        Writes the worlds, and the w_batch to file f. Every object vector
+        Writes the refs, and the r_batch to file f. Every object vector
         is prepended its batch index.
         """
         f.write('refs\n')
-        for i, obj in enumerate(self.worlds):
-            f.write(str(self.w_batch[i]) + ' ')
+        for i, obj in enumerate(self.refs):
+            f.write(str(self.r_batch[i]) + ' ')
             for num in obj:
                 f.write(str(num) + ' ')
             f.write('\n')
@@ -300,40 +299,40 @@ class Gen():
                 f.write(str(i.numpy()) + ' ')
             f.write('\n')
 
-    def read_queries(self, lineit):
+    def read_targets(self, lineit):
         """
         Takes in an iterator of the lines read.
-        Reads the queries and q_batch from lines, returns queries, q_batch
+        Reads the targets and t_batch from lines, returns targets, t_batch
         and stopping index.
         """
-        queries = []
-        q_batch = []
+        targets = []
+        t_batch = []
         line = next(lineit)
         while 'refs' not in line:
             if 'targets' in line:
                 pass # first line
             else:
                 linelist = line.split(' ')
-                q_batch.append(int(linelist[0]))
-                queries.append(np.array(linelist[1:-1], dtype=float))
+                t_batch.append(int(linelist[0]))
+                targets.append(np.array(linelist[1:-1], dtype=float))
             line = next(lineit)
-        return queries, q_batch
+        return targets, t_batch
 
-    def read_worlds(self, lineit):
+    def read_refs(self, lineit):
         """
         Takes in an iterator of the lines read.
-        Reads the worlds and w_batch from lines, returns worlds, w_batch
+        Reads the refs and r_batch from lines, returns refs, r_batch
         and stopping index.
         """
-        worlds = []
-        w_batch = []
+        refs = []
+        r_batch = []
         line = next(lineit)
         while 'labels' not in line:
             linelist = line.split(' ')
-            w_batch.append(int(linelist[0]))
-            worlds.append(np.array(linelist[1:-1], dtype=float))
+            r_batch.append(int(linelist[0]))
+            refs.append(np.array(linelist[1:-1], dtype=float))
             line = next(lineit)
-        return worlds, w_batch
+        return refs, r_batch
 
     def read_labels(self, lineit):
         """
@@ -378,8 +377,8 @@ class Gen():
         Saves the dataset as a file. 
         """
         with open(path, 'w') as f:
-            self.write_queries(f)
-            self.write_worlds(f)
+            self.write_targets(f)
+            self.write_refs(f)
             self.write_labels(f)
             if write_indices:
                 self.write_t_idx(f)
@@ -393,49 +392,52 @@ class Gen():
             # reads from line iterator
             lines = f.readlines()
             lineit = iter(lines)
-            queries, q_batch = self.read_queries(lineit)
-            worlds, w_batch = self.read_worlds(lineit)
+            targets, t_batch = self.read_targets(lineit)
+            refs, r_batch = self.read_refs(lineit)
             labels = self.read_labels(lineit)
             if read_indices:
-                t_idx = self.read_t_idx(lineit)
-                r_idx = self.read_r_idx(lineit)
+                try:
+                    t_idx = self.read_t_idx(lineit)
+                    r_idx = self.read_r_idx(lineit)
+                except StopIteration:
+                    print('No indices were found but the generator was '\
+                        + 'asked to read them. Index lists are empty.')
+                    t_idx = []
+                    r_idx = []
         # stores the data
         if replace:
-            self.queries = queries
-            self.q_batch = q_batch
-            self.worlds = worlds
-            self.w_batch = w_batch
+            self.targets = targets
+            self.t_batch = t_batch
+            self.refs = refs
+            self.r_batch = r_batch
             self.labels = labels
             if read_indices:
                 self.t_idx = t_idx
                 self.r_idx = r_idx
         else:
-            self.queries += queries
-            self.q_batch += q_batch
-            self.worlds += worlds
-            self.w_batch += w_batch
+            self.targets += targets
+            self.t_batch += t_batch
+            self.refs += refs
+            self.r_batch += r_batch
             self.labels += labels
 
-    def to_dataset(self, indices=True, n=None):
+    def to_dataset(self, cuda=False, n=None):
         """
         Creates a PartsDataset from the generated data and returns it.
 
         Arguments :
             - n (int) : allows to contol the dataset size for export.
         """
-        if indices:
-            ds = PartsDataset(self.queries[:n],
-                              self.q_batch[:n],
-                              self.worlds[:n],
-                              self.w_batch[:n],
-                              self.labels[:n],
-                              (self.t_idx[:n], self.r_idx[:n]))
+        if self.t_idx == []:
+            indices = None
         else:
-            ds = PartsDataset(self.queries[:n],
-                              self.q_batch[:n],
-                              self.worlds[:n],
-                              self.w_batch[:n],
-                              self.labels[:n])
+            indices = (self.t_idx, self.r_idx)
+        ds = PartsDataset(self.targets[:n],
+                          self.t_batch[:n],
+                          self.refs[:n],
+                          self.r_batch[:n],
+                          self.labels[:n],
+                          indices)
         return ds
 
 class PartsGen(Gen):
@@ -465,11 +467,11 @@ class PartsGen(Gen):
         Generates one pair of true-false examples associated with a given
         query.
 
-        The queries are perturbed (similarity + small noise) before being
+        The targets are perturbed (similarity + small noise) before being
         completed with distractors.
         """
-        # Note : we could generate 4 by 4 with this code, by crossing queries
-        # and worlds
+        # Note : we could generate 4 by 4 with this code, by crossing targets
+        # and refs
         try:
             self.env.reset()
             n_t = np.random.randint(*self.range_t)
@@ -510,12 +512,12 @@ class PartsGen(Gen):
             - N (int) : half of the dataset length
 
         Generates:
-            - queries (list of vectors): list of all the query objets;
-            - q_batch (list of ints): list of indices linking the query
+            - targets (list of vectors): list of all the query objets;
+            - t_batch (list of ints): list of indices linking the query
                 objects to their corresponding scene index;
-            - worlds (list of object vectors): list of all the reference
+            - refs (list of object vectors): list of all the reference
                 objects;
-            - w_batch (list of ints): list of indices linking the reference
+            - r_batch (list of ints): list of indices linking the reference
                 objects to their corresponding scene index;
             - labels (list of ints): list of scene labels.
         """
@@ -530,10 +532,10 @@ class PartsGen(Gen):
             n_t = len(query)
             n_r1 = len(trueworld)
             n_r2 = len(falseworld)
-            self.queries += 2 * query
-            self.q_batch += n_t * [2*i] + n_t * [2*i + 1]
-            self.worlds += trueworld + falseworld
-            self.w_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
+            self.targets += 2 * query
+            self.t_batch += n_t * [2*i] + n_t * [2*i + 1]
+            self.refs += trueworld + falseworld
+            self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
             self.labels += [[1], [0]]
 
     def generate_overfit(self, N, n):
@@ -556,10 +558,10 @@ class PartsGen(Gen):
             n_t = len(query)
             n_r1 = len(trueworld)
             n_r2 = len(falseworld)
-            self.queries += 2 * query
-            self.q_batch += n_t * [2*i] + n_t * [2*i + 1]
-            self.worlds += trueworld + falseworld
-            self.w_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
+            self.targets += 2 * query
+            self.t_batch += n_t * [2*i] + n_t * [2*i + 1]
+            self.refs += trueworld + falseworld
+            self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
             self.labels += [[1], [0]]
 
 class NumberGen(Gen):
@@ -629,8 +631,8 @@ class NumberGen(Gen):
                 query, world, n = gen_one()
             n_q = len(query)
             n_w = len(world)
-            self.queries += query
-            self.q_batch += n_q * [i]
-            self.worlds += world
-            self.w_batch += n_w * [i]
+            self.targets += query
+            self.t_batch += n_q * [i]
+            self.refs += world
+            self.r_batch += n_w * [i]
             self.labels += [[n]]

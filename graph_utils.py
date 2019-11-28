@@ -242,36 +242,56 @@ def merge_graphs(g_list):
         n_batch += g.batch[-1] + 1
     return Data(x=x, edge_attr=e, edge_index=ei, y=u, batch=batch)
 
-def data_from_graph(graph):
-    x = graph.x
-    edge_index = graph.edge_index
-    e = graph.edge_attr
-    u = graph.y
-    batch = graph.batch
-    return x, edge_index, e, u, batch
-
-def cross_graph_ei(batch1, batch2):
+def data_from_graph_maker(cuda=False):
     """
-    Creates the cross-graph edge index for connecting both graphs.
+    Makes the data_from_graph function
     """
-    bsize = batch1[-1] + 1
+    def data_from_graph(graph):
+        x = graph.x
+        edge_index = graph.edge_index
+        e = graph.edge_attr
+        u = graph.y
+        batch = graph.batch
+        if cuda:
+            x = x.cuda()
+            edge_index = edge_index.cuda()
+            e = e.cuda()
+            u = u.cuda()
+            batch = batch.cuda()
+        return x, edge_index, e, u, batch
+    return data_from_graph
 
-    cg_ei = torch.zeros((2, 0), dtype=torch.long)
-    count1 = 0 # for keeping track of node offset
-    count2 = 0
-    for i in range(bsize):
-        idx1 = (batch1 == i).nonzero(as_tuple=True)[0]
-        idx2 = (batch2 == i).nonzero(as_tuple=True)[0]
-        n_x1 = len(idx1)
-        n_x2 = len(idx2)
-        # create edge index
-        ei = complete_ei(n_x1, n_x2)
-        # offset the node indices
-        ei[0] += count1
-        ei[1] += count2
-        # concatenate to complete edge_index
-        cg_ei = torch.cat((cg_ei, ei), 1)
-        count1 += n_x1
-        count2 += n_x2
+data_from_graph = data_from_graph_maker()
 
-    return cg_ei
+def cross_graph_ei_maker(cuda=False):
+    def cross_graph_ei(batch1, batch2):
+        """
+        Creates the cross-graph edge index for connecting both graphs.
+        """
+        bsize = batch1[-1] + 1
+
+        cg_ei = torch.zeros((2, 0), dtype=torch.long)
+        count1 = 0 # for keeping track of node offset
+        count2 = 0
+        for i in range(bsize):
+            idx1 = (batch1 == i).nonzero(as_tuple=True)[0]
+            idx2 = (batch2 == i).nonzero(as_tuple=True)[0]
+            n_x1 = len(idx1)
+            n_x2 = len(idx2)
+            # create edge index
+            ei = complete_ei(n_x1, n_x2)
+            # offset the node indices
+            ei[0] += count1
+            ei[1] += count2
+            # concatenate to complete edge_index
+            cg_ei = torch.cat((cg_ei, ei), 1)
+            count1 += n_x1
+            count2 += n_x2
+
+        if cuda:
+            cg_ei = cg_ei.cuda()
+
+        return cg_ei
+    return cross_graph_ei
+
+cross_graph_ei = cross_graph_ei_maker()

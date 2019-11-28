@@ -21,8 +21,8 @@ from torch_scatter import scatter_mean
 from torch_geometric.nn import MetaLayer
 from torch_geometric.data import Data
 
-from graph_utils import data_from_graph
-from graph_utils import cross_graph_ei
+from graph_utils import data_from_graph_maker
+from graph_utils import cross_graph_ei_maker
 
 
 ###############################################################################
@@ -35,9 +35,17 @@ from graph_utils import cross_graph_ei
 class GraphModel(torch.nn.Module):
     """
     Base class for all models operating on graphs.
+
+    Graph models are on CPU by default, call .cuda() to pass computation on
+    GPU.
     """
     def __init__(self):
         super(GraphModel, self).__init__()
+        self.GPU = False
+
+        self.data_from_graph = data_from_graph_maker()
+        # not all models use this, maybe subclass into CrossGraphModel
+        self.cross_graph_ei = cross_graph_ei_maker()
 
     def get_features(self, f_dict):
         """
@@ -48,6 +56,13 @@ class GraphModel(torch.nn.Module):
         f_u = f_dict['f_u']
         f_out = f_dict['f_out']
         return f_e, f_x, f_u, f_out
+
+    def cuda(self):
+        super(GraphModel, self).cuda()
+        self.GPU = True
+
+        self.data_from_graph = data_from_graph_maker(cuda=True)
+        self.cross_graph_ei = cross_graph_ei_maker(cuda=True)
 
     def reset_parameters(self):
         """
@@ -89,8 +104,8 @@ class ObjectMean(GraphModel):
 
     def forward(self, graph1, graph2):
 
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
         return self.final_mlp(torch.cat([u1, u2], 1))
 
@@ -128,7 +143,7 @@ class ObjectMeanDirectAttention(GraphModel):
         features with attention scalars computed by an mlp on all node features
         successively.
         """
-        x, edge_index, e, u, batch = data_from_graph(graph)
+        x, edge_index, e, u, batch = self.data_from_graph(graph)
         a_x = self.attention_model(x, edge_index, e, u, batch)
 
         return scatter_mean(x * a_x, batch, dim=0) # see if this works
@@ -228,8 +243,8 @@ class GraphEmbedding(GraphModel):
 
         TODO optimize this.
         """
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
         l1 = self.graph_embedding(x1, edge_index1, e1, u1, batch1)
         l2 = self.graph_embedding(x2, edge_index2, e2, u2, batch2)
@@ -278,8 +293,8 @@ class Simplified_GraphEmbedding(GraphModel):
         return u_h
 
     def forward(self, graph1, graph2):
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
         u1 = self.graph_embedding(x1, edge_index1, e1, u1, batch1)
         u2 = self.graph_embedding(x2, edge_index2, e2, u2, batch2)
@@ -398,8 +413,8 @@ class GraphDifference(GraphModel):
         mapping = self.mapping_fn(graph2, graph1)
         graph2 = permute_graph(graph2, mapping)
 
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
         x1, e1, u1 = self.processing(
             x1, edge_index1, e1, u1, batch1)
@@ -529,8 +544,8 @@ class Alternating(GraphModel):
         """
         outputs = []
 
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
         x1h, e1h, u1h = self.encoder(
             x1, edge_index1, e1, u1, batch1)
@@ -641,8 +656,8 @@ class Alternatingv2(GraphModel):
         """
         outputs = []
 
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
         x1h, e1h, u1h = self.encoder(
             x1, edge_index1, e1, u1, batch1)
@@ -699,8 +714,8 @@ class AlternatingSimple(GraphModel):
         We initialize the conditioning vector at 0.
         At each step we concatenate the global vectors to the node vectors.
         """
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
         out_list = []
 
@@ -772,8 +787,8 @@ class GraphMatchingNetwork(GraphModel):
 
         
         """
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
         # encode first 
         x1h, e1h, u1h = self.encoder(
@@ -863,10 +878,10 @@ class GraphMatchingSimple(GraphModel):
         #         self.cg_ei = torch.cat([self.cg_ei, ei + (i + 1) * n_obj], 1)
 
         # build complete cross-graph edge index tensor
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
-        cg_ei = cross_graph_ei(batch1, batch2)
+        cg_ei = self.cross_graph_ei(batch1, batch2)
 
         x1, e1, u1 = self.gnn(x1,
                               x2,
@@ -933,10 +948,10 @@ class GraphMatchingv2(GraphModel):
         Same outer logic as the regular GMN model, only the intra-layer logic
         differs.
         """
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
-        cg_ei = cross_graph_ei(batch1, batch2)
+        cg_ei = self.cross_graph_ei(batch1, batch2)
 
         _, _, u1 = self.gnn(x1,
                             x2,
@@ -997,10 +1012,10 @@ class GraphMatchingv2_EdgeConcat(GraphModel):
         The ordering of graphs matters here : the first graph is the query
         graph, the second one is the world graph.
         """
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
-        cg_ei = cross_graph_ei(batch1, batch2)
+        cg_ei = self.cross_graph_ei(batch1, batch2)
 
         _, _, u1 = self.gnn(x1,
                             x2,
@@ -1022,7 +1037,7 @@ class GraphMatchingv2_EdgeConcat(GraphModel):
 
         return self.mlp(torch.cat([u1, u2], 1))
 
-class GraphMatchingv2_DiffGraphs(GraphModel):
+class GraphMatchingv2_DiffGNNs(GraphModel):
     def __init__(self, 
                  mlp_layers,
                  h,
@@ -1032,7 +1047,7 @@ class GraphMatchingv2_DiffGraphs(GraphModel):
         Same as previous model, but we use 2 different GNNs for the 2 different
         input graphs.
         """
-        super(GraphMatchingv2, self).__init__()
+        super(GraphMatchingv2_DiffGNNs, self).__init__()
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
         f_e, f_x, f_u, f_out = self.get_features(f_dict)
@@ -1064,10 +1079,10 @@ class GraphMatchingv2_DiffGraphs(GraphModel):
         The ordering of graphs matters here : the first graph is the query
         graph, the second one is the world graph.
         """
-        x1, edge_index1, e1, u1, batch1 = data_from_graph(graph1)
-        x2, edge_index2, e2, u2, batch2 = data_from_graph(graph2)
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
-        cg_ei = cross_graph_ei(batch1, batch2)
+        cg_ei = self.cross_graph_ei(batch1, batch2)
 
         _, _, u1 = self.gnn_q(x1,
                               x2,
@@ -1090,4 +1105,9 @@ class GraphMatchingv2_DiffGraphs(GraphModel):
         return self.mlp(torch.cat([u1, u2], 1))
 
 class ConditionByGraphEmbedding():
-    pass
+    """
+    In this model, there is no symmetry between the two graphs anymore; the 
+    query graph is processed, and an embedding is made out of it. 
+    """
+    def __init__(self):
+        ...

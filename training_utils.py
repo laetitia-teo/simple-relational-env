@@ -123,7 +123,7 @@ def load_dl_parts(name, bsize=128):
     """
     Loads a DataLoader in the Parts Task data format.
     """
-    path = op.join('data', 'parts_task', name)
+    path = op.join('data', 'parts_task', 'old', name)
     print('loading data ...')
     p = PartsGen()
     p.load(path)
@@ -169,7 +169,14 @@ def compute_f1(precision, recall):
 
 ### Training functions ###
 
-def one_step(model, dl, data_fn, clss_fn, optimizer, criterion, train=True):
+def one_step(model,
+             dl,
+             data_fn,
+             clss_fn,
+             optimizer,
+             criterion,
+             train=True,
+             cuda=False):
     accs = []
     losses = []
     n_passes = 0
@@ -179,6 +186,8 @@ def one_step(model, dl, data_fn, clss_fn, optimizer, criterion, train=True):
         optimizer.zero_grad()
         # ground truth, model prediction
         clss = clss_fn(data)
+        if cuda:
+            clss = clss.cuda()
         pred_clss = model(*data_fn(data))
 
         if type(pred_clss) is list:
@@ -193,12 +202,12 @@ def one_step(model, dl, data_fn, clss_fn, optimizer, criterion, train=True):
         if train:
             optimizer.step()
 
-        l = loss.detach().item()
+        l = loss.detach().cpu().item()
         if type(pred_clss) is list:
             # we evaluate accuracy on the last prediction
-            a = compute_accuracy(pred_clss[-1].detach(), clss)
+            a = compute_accuracy(pred_clss[-1].detach().cpu(), clss.cpu())
         else:
-            a = compute_accuracy(pred_clss.detach(), clss)
+            a = compute_accuracy(pred_clss.detach().cpu(), clss.cpu())
         cum_loss += l
         cum_acc += a
         losses.append(l)
