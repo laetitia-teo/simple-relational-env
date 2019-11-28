@@ -248,7 +248,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
     dl_test = load_dl_parts('curriculum%stest.txt' % cur_n)
     for i in range(s):
         if training is None:
-            model = gm.GraphMatchingv2_DiffGNNs([16, 16], 10, 1, f_dict)
+            model = gm.AlternatingSimple([16, 16], 3, f_dict)
             if cuda:
                 model.cuda()
             opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
@@ -267,7 +267,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
 
         filename = op.join(
             'experimental_results',
-            'cur_run3',
+            'cur_run5',
             'curriculum%s' % cur_n,
             (str(i) + '.png'))
         plt.savefig(filename)
@@ -275,13 +275,13 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
         # save losses and accuracies as numpy arrays
         np.save(
             op.join('experimental_results',
-                    'cur_run3',
+                    'cur_run5',
                     'curriculum%s' % cur_n,
                     (str(i) + 'loss.npy')),
             np.array(l))
         np.save(
             op.join('experimental_results',
-                    'cur_run3',
+                    'cur_run5',
                     'curriculum%s' % cur_n,
                     (str(i) + 'acc.npy')),
             np.array(a))
@@ -289,7 +289,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
         save_model(
             model,
             op.join(
-                'cur_run3',
+                'cur_run5',
                 'curriculum%s' % cur_n,
                 (str(i) + '.pt')))
         # test 
@@ -299,7 +299,8 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
                                   data_to_clss_parts,
                                   opt, 
                                   criterion,
-                                  train=False)
+                                  train=False,
+                                  cuda=cuda)
         print('Test accuracy %s' % np.mean(a_test))
 # run_curriculum()
 

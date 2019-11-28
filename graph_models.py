@@ -594,7 +594,7 @@ class Alternatingv2(GraphModel):
             - f_dict : dictionnary of feature sizes
             - n (int) : number of passes to do in each processing step.
         """
-        super(Alternating, self).__init__()
+        super(Alternatingv2, self).__init__()
         self.N = N
         self.n = n
         model_fn = gn.mlp_fn(mlp_layers)
@@ -1107,7 +1107,56 @@ class GraphMatchingv2_DiffGNNs(GraphModel):
 class ConditionByGraphEmbedding():
     """
     In this model, there is no symmetry between the two graphs anymore; the 
-    query graph is processed, and an embedding is made out of it. 
+    query graph is processed, and an embedding is made out of it.
+
+    I'm not sure this model 
     """
-    def __init__(self):
-        ...
+    def __init__(self, 
+                 mlp_layers,
+                 h,
+                 h_u,
+                 N,
+                 f_dict):
+        """
+        Description.
+
+        h has to have same dimension as the input features.
+        """
+        super(ConditionByGraphEmbedding, self).__init__()
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        # simple 1-time-step GNN layer for 
+        self.gnn_q = gn.MetaLayer(
+            gn.EdgeModelDiff(f_e, f_x, f_u, model_fn, h),
+            gn.NodeModel(h, f_x, f_u, model_fn, h),
+            gn.GlobalModel(h, h, f_u, model_fn, h_u))
+
+        self.gnn_w = gn.MetaLayer(
+            gn.EdgeModelDiff(f_e + h_u, f_x + h_u, f_u + h_u, model_fn, h),
+            gn.NodeModel(h, f_x + h_u, f_u + h_u, model_fn, h),
+            gn.GlobalModel(h, h, f_u + h_u, model_fn, h))
+
+        self.mlp = model_fn(h, f_out)
+
+    def forward(self, graph_q, graph_w):
+        """
+        Description...
+        """
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph_q)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph_w)
+
+        out_list = []
+
+        for _ in range(self.N):
+            x1, e1, u1 = self.gnn_q(x1, edge_index1, e1, u1, batch1)
+            # condition with the query graph's embedding
+            x2 = torch.cat([x2, u1], 1)
+            e2 = torch.cat([e2, u1], 1)
+            u2 = torch.cat([u2, u1], 1)
+            x2, e2, u2 = self.gnn_w(x2, edge_index2, e2, u2, batch2)
+
+            out_list.append(self.mlp(u2))
+
+        return out_list

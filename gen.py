@@ -356,7 +356,9 @@ class Gen():
         line = next(lineit)
         while 'r_idx' not in line:
             linelist = line.split(' ')
-            t_idx.append(torch.tensor(linelist[:-1], dtype=otrch.float32))
+            if isinstance(linelist[0], str):
+                continue
+            t_idx.append(torch.tensor(linelist[:-1], dtype=torch.float32))
             line = next(lineit)
         return t_idx
 
@@ -366,7 +368,7 @@ class Gen():
             line = next(lineit)
             while 'some_other_stuff' not in line:
                 linelist = line.split(' ')
-                t_idx.append(torch.tensor(linelist[:-1], dtype=otrch.float32))
+                r_idx.append(torch.tensor(linelist[:-1], dtype=torch.float32))
                 line = next(lineit)
         except StopIteration:
             pass
