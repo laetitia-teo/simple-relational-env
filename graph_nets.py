@@ -7,6 +7,7 @@ import torch.nn.functional as F
 
 from torch.nn import Sequential, Linear, ReLU
 from torch.nn import Sigmoid, LayerNorm, Dropout
+from torch.nn import BatchNorm1d
 
 from torch_geometric.data import Data
 from torch_scatter import scatter_mean
@@ -23,7 +24,7 @@ from utils import sim
 #                                                                             #
 ###############################################################################
 
-def mlp_fn(hidden_layer_sizes):
+def mlp_fn(hidden_layer_sizes, normalize=True):
     def mlp(f_in, f_out):
         """
         This function returns a Multi-Layer Perceptron with ReLU
@@ -32,8 +33,10 @@ def mlp_fn(hidden_layer_sizes):
         """
         layers = []
         f1 = f_in
-        for f2 in hidden_layer_sizes:
+        for i, f2 in enumerate(hidden_layer_sizes):
             layers.append(Linear(f1, f2))
+            if (i == len(hidden_layer_sizes) - 1) and normalize:
+                layers.append(LayerNorm(f2))
             layers.append(ReLU())
             f1 = f2
         layers.append(Linear(f1, f_out))
@@ -123,6 +126,22 @@ class EdgeModelDiff(torch.nn.Module):
         """
         out = torch.cat([dest - src, edge_attr, u[batch]], 1)
         return self.phi_e(out)
+
+class EdgeModelConcatNoMem(torch.nn.Module):
+    def __init__(self,
+                 f_e,
+                 f_x,
+                 f_u,
+                 model_fn,
+                 f_e_out=None):
+        super(EdgeModelConcatNoMem, self).__init__()
+        if f_e_out is None:
+            f_e_out = f_e
+        self.phi_e = model_fn(f_e + f_x + f_u, f_e_out)
+
+    def forward(self, src, dest, edge_attr, u, batch):
+         out = torch.cat([dest, src, u[batch]], 1)
+         return out
 
 class CosineAttention():
     """

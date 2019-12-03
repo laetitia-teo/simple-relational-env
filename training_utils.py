@@ -41,6 +41,14 @@ H = 16
 
 image_viz_path = op.join('data')
 
+### General utils ###
+
+def nparams(model):
+    """
+    Returns the number of trainable parameters in a pytorch model.
+    """
+    return sum(p.numel() for p in model.parameters())
+
 ### Data transformation functions ###
 
 def data_to_clss_parts(data):
@@ -125,6 +133,17 @@ def load_dl_parts(name, bsize=128):
     """
     path = op.join('data', 'parts_task', 'old', name)
     print('loading data ...')
+    p = PartsGen()
+    p.load(path)
+    dataloader = DataLoader(p.to_dataset(),
+                            batch_size=bsize,
+                            shuffle=True,
+                            collate_fn=collate_fn)
+    print('done')
+    return dataloader
+
+def load_dl(path, bsize=128):
+    print('loading data...')
     p = PartsGen()
     p.load(path)
     dataloader = DataLoader(p.to_dataset(),

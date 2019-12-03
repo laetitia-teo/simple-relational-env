@@ -150,7 +150,8 @@ class PartsDataset(Dataset):
                  refs,
                  r_batch,
                  labels,
-                 indices=None):
+                 indices=None,
+                 task='parts_task'):
         """
         Initializes the Parts Dataset.
         The inputs are the outputs of the Parts generator, defined in the gen
@@ -159,6 +160,8 @@ class PartsDataset(Dataset):
         When indices is not given, we compute them by hand. Since this is a
         costly operation, we prefer to write them to a file.
         """
+        self.task = task
+
         self.targets = torch.tensor(targets, dtype=DTYPE)
         self.t_batch = torch.tensor(t_batch, dtype=ITYPE)
         self.refs = torch.tensor(refs, dtype=DTYPE)
@@ -182,13 +185,19 @@ class PartsDataset(Dataset):
             self.r_idx = r_idx
 
     def __len__(self):
-        return len(self.labels)
+        return self.t_batch[-1]
 
     def __getitem__(self, idx):
-        target = self.targets[self.t_idx[idx]]
-        ref = self.refs[self.r_idx[idx]]
-        label = self.labels[idx]
-        return target, ref, label
+        if self.task == 'parts_task':
+            target = self.targets[self.t_idx[idx]]
+            ref = self.refs[self.r_idx[idx]]
+            label = self.labels[idx]
+            return target, ref, label
+        if self.task == 'similarity_object':
+            target = self.targets[self.t_idx[idx]]
+            ref = self.refs[self.r_idx[idx]]
+            label = self.labels[self.r_idx[idx]]
+            return target, ref, label
 
 class ImageDataset(Dataset):
     """

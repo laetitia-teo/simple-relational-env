@@ -1104,7 +1104,66 @@ class GraphMatchingv2_DiffGNNs(GraphModel):
 
         return self.mlp(torch.cat([u1, u2], 1))
 
-class ConditionByGraphEmbedding():
+class GraphMatchingv2NoMem(GraphModel):
+    """
+    Change Edge Model.
+    """
+    def __init__(self, 
+                 mlp_layers,
+                 h,
+                 N,
+                 f_dict):
+        """
+        """
+        super(GraphMatchingv2, self).__init__()
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.gnn = gn.CrossGraphAttentionLayer(
+            gn.LearnedCrossGraphAttention(f_x, model_fn),
+            gn.EdgeModelConcatNoMem(f_e, f_x, f_u, model_fn, h),
+            gn.NodeModel(h, f_x, f_u, model_fn, h),
+            gn.GlobalModel(h, h, f_u, model_fn, h))
+
+        self.cg_ei = None # cross-graph edge index
+        self.b_size = 0 # init
+
+        self.mlp = model_fn(2 * h, f_out)
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass.
+
+        Same outer logic as the regular GMN model, only the intra-layer logic
+        differs.
+        """
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        cg_ei = self.cross_graph_ei(batch1, batch2)
+
+        _, _, u1 = self.gnn(x1,
+                            x2,
+                            edge_index1,
+                            torch.flip(cg_ei, (0,)),
+                            e1,
+                            u1,
+                            batch1,
+                            batch2)
+        # we use the original features to compute the cross-graph attentions
+        _, _, u2 = self.gnn(x2,
+                            x1,
+                            edge_index2,
+                            cg_ei,
+                            e2,
+                            u2,
+                            batch2,
+                            batch1)
+
+        return self.mlp(torch.cat([u1, u2], 1))
+
+class ConditionByGraphEmbedding(GraphModel):
     """
     In this model, there is no symmetry between the two graphs anymore; the 
     query graph is processed, and an embedding is made out of it.
@@ -1138,6 +1197,10 @@ class ConditionByGraphEmbedding():
             gn.NodeModel(h, f_x + h_u, f_u + h_u, model_fn, h),
             gn.GlobalModel(h, h, f_u + h_u, model_fn, h))
 
+        self.resize_u = torch.nn.Sequential(
+            torch.nn.ReLU(),
+            torch.nn.Linear(h_u, f_u))
+
         self.mlp = model_fn(h, f_out)
 
     def forward(self, graph_q, graph_w):
@@ -1152,10 +1215,15 @@ class ConditionByGraphEmbedding():
         for _ in range(self.N):
             x1, e1, u1 = self.gnn_q(x1, edge_index1, e1, u1, batch1)
             # condition with the query graph's embedding
-            x2 = torch.cat([x2, u1], 1)
-            e2 = torch.cat([e2, u1], 1)
+            x2 = torch.cat([x2, u1[batch2]], 1)
+            # compute the batch to which each edge belongs
+            src, dest = edge_index2
+            e2 = torch.cat([e2, u1[batch2[src]]], 1)
             u2 = torch.cat([u2, u1], 1)
             x2, e2, u2 = self.gnn_w(x2, edge_index2, e2, u2, batch2)
+
+            # transform the global to have the same size
+            u1 = self.resize_u(u1)
 
             out_list.append(self.mlp(u2))
 

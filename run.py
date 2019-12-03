@@ -32,8 +32,9 @@ from training_utils import data_to_clss_parts, data_to_clss_simple
 from training_utils import batch_to_images
 from training_utils import load_dl_legacy
 from training_utils import data_fn_graphs_three
-from training_utils import load_dl_parts
+from training_utils import load_dl_parts, load_dl
 from training_utils import save_model, load_model
+from training_utils import nparams
 
 # visualization/image generation
 
@@ -190,7 +191,7 @@ def run_curriculum(retrain=True):
     for name in ds_names:
         print('Training %s' % name)
         if retrain or (model is None):
-            model = gm.GraphMatchingSimple([16, 16, 16], 10, 1, f_dict)
+            model = gm.ConditionByGraphEmbedding([16, 16], 10, 20, 3, f_dict)
             opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
         c_dl = load_dl_parts(name, bsize=B_SIZE)
         l, a = one_step(model,
@@ -238,7 +239,7 @@ def run_curriculum(retrain=True):
                 'retrain',
                 (name[:-4] + '.pt')))
 
-def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
+def curriculum_diffseeds(s, n, cur_n=0, training=None, cuda=False):
     """
     n : number of epochs;
     s : number of seeds;
@@ -248,7 +249,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
     dl_test = load_dl_parts('curriculum%stest.txt' % cur_n)
     for i in range(s):
         if training is None:
-            model = gm.AlternatingSimple([16, 16], 3, f_dict)
+            model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
             if cuda:
                 model.cuda()
             opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
@@ -267,7 +268,7 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
 
         filename = op.join(
             'experimental_results',
-            'cur_run5',
+            'cur_run11',
             'curriculum%s' % cur_n,
             (str(i) + '.png'))
         plt.savefig(filename)
@@ -275,13 +276,13 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
         # save losses and accuracies as numpy arrays
         np.save(
             op.join('experimental_results',
-                    'cur_run5',
+                    'cur_run11',
                     'curriculum%s' % cur_n,
                     (str(i) + 'loss.npy')),
             np.array(l))
         np.save(
             op.join('experimental_results',
-                    'cur_run5',
+                    'cur_run11',
                     'curriculum%s' % cur_n,
                     (str(i) + 'acc.npy')),
             np.array(a))
@@ -289,10 +290,11 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
         save_model(
             model,
             op.join(
-                'cur_run5',
+                'cur_run11',
                 'curriculum%s' % cur_n,
                 (str(i) + '.pt')))
         # test 
+        model.eval()
         l_test, a_test = one_step(model,
                                   dl_test,
                                   data_to_graph_parts,
@@ -301,7 +303,67 @@ def curriculum_diffseeds(n, s, cur_n=0, training=None, cuda=False):
                                   criterion,
                                   train=False,
                                   cuda=cuda)
+        model.train()
         print('Test accuracy %s' % np.mean(a_test))
+
+def run_one_diffseeds(s, n, cuda=False):
+    """
+    Runs one experiment with s seeds for n epochs.
+    """
+    dl_train = load_dl('data/parts_task/idx/mixed2-5_0-6_100000.txt')
+    dl_test = load_dl('data/parts_task/idx/test1.txt')
+    for i in range(s):
+        model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
+        if cuda:
+            model.cuda()
+        opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
+        l, a = several_steps(n, dl_train, model, opt, cuda=cuda)
+        fig, axs = plt.subplots(2, 1, constrained_layout=True)
+        axs[0].plot(l)
+        axs[0].set_title('loss')
+        axs[0].set_xlabel('steps (batch size %s)' % B_SIZE)
+        fig.suptitle('Training metrics for seed {}'.format(i))
+
+        axs[1].plot(a)
+        axs[1].set_title('accuracy')
+        axs[1].set_ylabel('steps (batch size %s)' % B_SIZE)
+
+        filename = op.join(
+            'experimental_results',
+            'run1',
+            (str(i) + '.png'))
+        plt.savefig(filename)
+        plt.clf()
+        # save losses and accuracies as numpy arrays
+        np.save(
+            op.join('experimental_results',
+                    'run1',
+                    (str(i) + 'loss.npy')),
+            np.array(l))
+        np.save(
+            op.join('experimental_results',
+                    'run1',
+                    (str(i) + 'acc.npy')),
+            np.array(a))
+        # checkpoint model
+        save_model(
+            model,
+            op.join(
+                'run1',
+                (str(i) + '.pt')))
+        # test 
+        model.eval()
+        l_test, a_test = one_step(model,
+                                  dl_test,
+                                  data_to_graph_parts,
+                                  data_to_clss_parts,
+                                  opt, 
+                                  criterion,
+                                  train=False,
+                                  cuda=cuda)
+        model.train()
+        print('Test accuracy %s' % np.mean(a_test))
+
 # run_curriculum()
 
 def try_all_cur_n(s, n, cuda=False):
@@ -313,7 +375,7 @@ def try_all_cur_n(s, n, cuda=False):
     """
     cur_list = [0, 1, 2, 3, 4, 5]
     for cur_n in cur_list:
-        curriculum_diffseeds(n, s, cur_n=cur_n, cuda=cuda)
+        curriculum_diffseeds(s, n, cur_n=cur_n, cuda=cuda)
 
 def try_full_cur(s, n):
     # try all seeds
@@ -447,7 +509,7 @@ def mix_all_cur(s, n):
 
 def load_model_playground():
     model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
-    model.load_state_dict(torch.load('saves/models/curriculum2/6.pt'))
+    model.load_state_dict(torch.load('saves/models/cur_run10/curriculum3/5.pt'))
     pg = ModelPlayground(16, 20, model)
     maps = pg.model_heat_map(4, show=True)
     return maps

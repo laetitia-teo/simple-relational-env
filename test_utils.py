@@ -169,8 +169,8 @@ class ModelPlayground(env.Playground):
                 self._env.add_random_object()
                 g2 = self.get_graph()
                 pred = self.model(g1, g2)
-                false.append(pred[0, 0].numpy())
-                true.append(pred[0, 1].numpy())
+                false.append(pred[0, 0].detach().numpy())
+                true.append(pred[0, 1].detach().numpy())
             falses.append(false)
             trues.append(true)
         return falses, trues

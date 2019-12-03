@@ -233,10 +233,10 @@ class Gen():
         access. Computation-intensive.
         """
         t_batch = torch.tensor(self.t_batch, dtype=torch.float32)
-        t_batch = torch.tensor(self.t_batch, dtype=torch.float32)
+        r_batch = torch.tensor(self.r_batch, dtype=torch.float32)
         for idx in range(len(self.labels)):
             self.t_idx.append((t_batch == idx).nonzero(as_tuple=True)[0])
-            self.r_idx.append((t_batch == idx).nonzero(as_tuple=True)[0])
+            self.r_idx.append((r_batch == idx).nonzero(as_tuple=True)[0])
 
     def gen_one(self):
         raise NotImplementedError()
@@ -277,7 +277,9 @@ class Gen():
         """
         f.write('labels\n')
         for label in self.labels:
-            f.write(str(label[0]) + '\n')
+            for i in label:
+                f.write(str(i) + ' ')
+            f.write('\n')
 
     def write_t_idx(self, f):
         """
@@ -356,9 +358,8 @@ class Gen():
         line = next(lineit)
         while 'r_idx' not in line:
             linelist = line.split(' ')
-            if isinstance(linelist[0], str):
-                continue
-            t_idx.append(torch.tensor(linelist[:-1], dtype=torch.float32))
+            to_array = np.array(linelist[:-1], dtype=int)
+            t_idx.append(torch.tensor(to_array, dtype=torch.long))
             line = next(lineit)
         return t_idx
 
@@ -368,7 +369,9 @@ class Gen():
             line = next(lineit)
             while 'some_other_stuff' not in line:
                 linelist = line.split(' ')
-                r_idx.append(torch.tensor(linelist[:-1], dtype=torch.float32))
+                # print(linelist)
+                to_array = np.array(linelist[:-1], dtype=int)
+                r_idx.append(torch.tensor(to_array, dtype=torch.long))
                 line = next(lineit)
         except StopIteration:
             pass
@@ -378,6 +381,8 @@ class Gen():
         """
         Saves the dataset as a file. 
         """
+        if write_indices and not self.t_idx:
+            self.compute_access_indices()
         with open(path, 'w') as f:
             self.write_targets(f)
             self.write_refs(f)
@@ -417,13 +422,14 @@ class Gen():
                 self.t_idx = t_idx
                 self.r_idx = r_idx
         else:
+            # this doesn't work as is, need to update indices
             self.targets += targets
             self.t_batch += t_batch
             self.refs += refs
             self.r_batch += r_batch
             self.labels += labels
 
-    def to_dataset(self, cuda=False, n=None):
+    def to_dataset(self, n=None):
         """
         Creates a PartsDataset from the generated data and returns it.
 
@@ -439,7 +445,8 @@ class Gen():
                           self.refs[:n],
                           self.r_batch[:n],
                           self.labels[:n],
-                          indices)
+                          indices,
+                          self.task)
         return ds
 
 class PartsGen(Gen):
@@ -463,6 +470,7 @@ class PartsGen(Gen):
         This concrete class defines the generation functions.
         """
         super(PartsGen, self).__init__(env, n_d)
+        self.task = 'parts_task'
 
     def gen_one(self):
         """
@@ -565,6 +573,115 @@ class PartsGen(Gen):
             self.refs += trueworld + falseworld
             self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
             self.labels += [[1], [0]]
+
+class SimilarityObjectGen(Gen):
+    """
+    A generator for the Similarity-Object task.
+
+    Similar to the generator for Similarity-Boolean task, except the labels are
+    not 1 and 0 for each scene, but fir each object.
+    """
+    def __init__(self, env=None, n_d=None):
+        """
+        Initialize the Parts task generator. 
+
+        The Parts dataset trains a model to recognize if a query configuration
+        is present or not in a given reference. The query objects are always
+        present in the reference, but may be present in a different spatial
+        arrangement (this is a negative example).
+
+        The constructor defines the range of the number of objects in the
+        query range_t, and the range of the number of additional distractor
+        objects range_d. If no distractors are provided, the tasks comes back
+        to SimpleTask, judging the similarity of two scenes.
+
+        This concrete class defines the generation functions.
+        """
+        super(SimilarityObjectGen, self).__init__(env, n_d)
+        self.task = 'similarity_object'
+
+    def gen_one(self):
+        """
+        Generates one pair of true-false examples associated with a given
+        query.
+
+        The targets are perturbed (similarity + small noise) before being
+        completed with distractors.
+        """
+        # Note : we could generate 4 by 4 with this code, by crossing targets
+        # and refs
+        try:
+            self.env.reset()
+            n_t = np.random.randint(*self.range_t)
+            if self.n_d is None:
+                n_d = np.random.randint(*self.range_d)
+            else:
+                n_d = self.n_d
+            self.env.random_config(n_t)
+            query = self.env.to_state_list(norm=True)
+            # generate positive example
+            self.env.shuffle_objects() # useless
+            self.env.random_transformation()
+            self.env.random_config(n_d) # add random objects
+            trueworld = self.env.to_state_list(norm=True)
+            truelabel = np.zeros(len(trueworld), dtype=int)
+            truelabel[:len(query)] = 1 # distractors are appended
+            # generate negative example
+            if self.n_d is None:
+                n_d = np.random.randint(*self.range_d)
+            else:
+                n_d = self.n_d
+            self.env.reset()
+            self.env.from_state_list(query, norm=True)
+            self.env.shuffle_objects() # shuffle order of the objects
+            self.env.random_mix() # mix config
+            self.env.random_transformation()
+            self.env.random_config(n_d) # add random objects
+            falseworld = self.env.to_state_list(norm=True)
+            falselabel = np.zeros(len(falseworld), dtype=int)
+            query = query
+            return query, trueworld, falseworld, truelabel, falselabel
+        except SamplingTimeout:
+            print('Sampling timed out, {} and {} objects'.format(n_t, n_d))
+            raise Resample('Resample configuration')
+
+    def generate(self, N):
+        """
+        Generates a dataset of N positive and N negative examples.
+
+        Arguments :
+            - N (int) : half of the dataset length
+
+        Generates:
+            - targets (list of vectors): list of all the query objets;
+            - t_batch (list of ints): list of indices linking the query
+                objects to their corresponding scene index;
+            - refs (list of object vectors): list of all the reference
+                objects;
+            - r_batch (list of ints): list of indices linking the reference
+                objects to their corresponding scene index;
+            - labels (list of ints): list of scene labels.
+        """
+        print('generating dataset of %s examples :' % (2 * N))
+        for i in tqdm(range(N)):
+            try:
+                query, trueworld, falseworld, truelabel, falselabel = \
+                    self.gen_one()
+            except Resample:
+                # We resample the config once
+                # If there is a sampling timeout here, we let it pass
+                query, trueworld, falseworld, truelabel, falselabel = \
+                    self.gen_one()
+            n_t = len(query)
+            n_r1 = len(trueworld)
+            n_r2 = len(falseworld)
+            self.targets += 2 * query
+            self.t_batch += n_t * [2*i] + n_t * [2*i + 1]
+            self.refs += trueworld + falseworld
+            self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
+            self.labels += [[1]] * len(query)
+            self.labels += [[0]] * (len(trueworld) - len(query))
+            self.labels += [[0]] * len(falseworld)
 
 class NumberGen(Gen):
 
