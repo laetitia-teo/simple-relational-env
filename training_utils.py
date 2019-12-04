@@ -274,7 +274,7 @@ def load_model(m, name):
 
 ### Visualization/Image generation utilities ###
 
-def batch_to_images(data, folder_name='images'):
+def batch_to_images(data, path):
     """
     Transforms a batch of data into a set of images.
     """
@@ -285,13 +285,13 @@ def batch_to_images(data, folder_name='images'):
         # generate image
         # save it, name is hash code
         env.reset()
-        env.from_state_list(tsl, norm=False)
+        env.from_state_list(tsl, norm=True)
         t_img = env.render(show=False)
         env.reset()
-        env.from_state_list(rsl, norm=False)
+        env.from_state_list(rsl, norm=True)
         r_img = env.render(show=False)
         # separator is gray for false examples and white for true examples
         sep = np.ones((2, t_img.shape[1], 3)) * 127.5  + (l * 127.5)
         img = np.concatenate((t_img, sep, r_img)) # concatenate on what dim ?
         img_name = str(hash(img.tostring())) + '.jpg'
-        cv2.imwrite(op.join('data', folder_name, img_name), img)
+        cv2.imwrite(op.join(path, img_name), img)

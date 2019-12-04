@@ -21,6 +21,11 @@ from env import Env
 from dataset import Dataset, PartsDataset
 from utils import to_file, from_file
 
+### quick testing ###
+
+from torch.utils.data import DataLoader
+from dataset import collate_fn
+
 N_SH = 3
 DTYPE = torch.float32
 
@@ -234,7 +239,7 @@ class Gen():
         """
         t_batch = torch.tensor(self.t_batch, dtype=torch.float32)
         r_batch = torch.tensor(self.r_batch, dtype=torch.float32)
-        for idx in range(len(self.labels)):
+        for idx in tqdm(range(len(self.labels))):
             self.t_idx.append((t_batch == idx).nonzero(as_tuple=True)[0])
             self.r_idx.append((r_batch == idx).nonzero(as_tuple=True)[0])
 
@@ -382,7 +387,9 @@ class Gen():
         Saves the dataset as a file. 
         """
         if write_indices and not self.t_idx:
+            print('computing access indices...')
             self.compute_access_indices()
+            print('done')
         with open(path, 'w') as f:
             self.write_targets(f)
             self.write_refs(f)
@@ -446,7 +453,7 @@ class Gen():
                           self.r_batch[:n],
                           self.labels[:n],
                           indices,
-                          self.task)
+                          self.task_type)
         return ds
 
 class PartsGen(Gen):
@@ -471,6 +478,7 @@ class PartsGen(Gen):
         """
         super(PartsGen, self).__init__(env, n_d)
         self.task = 'parts_task'
+        self.task_type = 'scene'
 
     def gen_one(self):
         """
@@ -599,6 +607,7 @@ class SimilarityObjectGen(Gen):
         """
         super(SimilarityObjectGen, self).__init__(env, n_d)
         self.task = 'similarity_object'
+        self.task_type = 'object'
 
     def gen_one(self):
         """
@@ -683,8 +692,10 @@ class SimilarityObjectGen(Gen):
             self.labels += [[0]] * (len(trueworld) - len(query))
             self.labels += [[0]] * len(falseworld)
 
-class NumberGen(Gen):
-
+class CountGen(Gen):
+    """
+    A generator for the conting task.
+    """
     def __init__(self, env=None, n_d=None):
         """
         Initialize the Number class generator.
@@ -693,8 +704,10 @@ class NumberGen(Gen):
 
         This concrete class defines the generation functions.
         """
-        super(NumberGen, self).__init__(env, n_d)
+        super(CountGen, self).__init__(env, n_d)
 
+        self.task = 'count'
+        self.task_type = 'scene'
         self.max_n = 10
         self.color_sigma = 0.05 # standard deviation for the color, test this
 
@@ -732,7 +745,7 @@ class NumberGen(Gen):
             else:
                 n_d = self.n_d
             # fill with other stuff
-            self.random_config(n_d)
+            self.env.random_config(n_d)
             world = self.env.to_state_list(norm=True)
             return query, world, n
         except SamplingTimeout:
@@ -743,11 +756,11 @@ class NumberGen(Gen):
         """
         Generate a dataset for the task Number.
         """
-        for i in range(N):
+        for i in tqdm(range(N)):
             try:
-                query, world, n = gen_one()
+                query, world, n = self.gen_one()
             except Resample:
-                query, world, n = gen_one()
+                query, world, n = self.gen_one()
             n_q = len(query)
             n_w = len(world)
             self.targets += query
@@ -755,3 +768,76 @@ class NumberGen(Gen):
             self.refs += world
             self.r_batch += n_w * [i]
             self.labels += [[n]]
+
+class SelectGen(Gen):
+    """
+    A generator for the object selection task. This is very similar to the
+    object counting task, except the prediction is done on objects : 1 for 
+    objects to select, 0 for distractors.
+    """
+    def __init__(self, env=None, n_d=None):
+        super(SelectGen, self).__init__(env, n_d)
+
+        self.task = 'select'
+        self.task_type = 'object'
+        self.max_n = 5
+        self.color_sigma = 0.05 # standard deviation for the color, test this
+
+    def gen_one(self):
+        """
+        Generates one example.
+
+        For now we consider only one object in the query, we'll see later for 
+        greater number of objects.
+
+        To generate objects that are 'the same', we sample their color from a 
+        3-dimensional Gaussian centered on the color of the query object, and 
+        with small standard deviation.
+        """
+        try:
+            self.env.reset()
+            # sample query object
+            self.env.add_random_object()
+            obj = self.env.objects[0]
+            color = obj.color
+            idx = obj.shape_index
+            # sample number
+            n = np.random.randint(0, self.max_n + 1)
+            query = self.env.to_state_list(norm=True)
+            # fill world with similar objects, as the number requires
+            self.env.reset()
+            for _ in range(n):
+                sampled_color = np.random.normal(
+                    color / 255,
+                    self.color_sigma)
+                sampled_color = (sampled_color * 255).astype(int)
+                self.env.add_random_object(color=sampled_color, shape=idx)
+            if self.n_d is None:
+                n_d = np.random.randint(*self.range_d)
+            else:
+                n_d = self.n_d
+            # fill with other stuff
+            self.env.random_config(n_d)
+            world = self.env.to_state_list(norm=True)
+            label = [[1]] * n + [[0]] * n_d
+            return query, world, label
+        except SamplingTimeout:
+            print('Sampling timed out, {} and {} objects'.format(n_t, n_d))
+            raise Resample('Resample configuration')
+
+    def generate(self, N):
+        """
+        Generate a dataset for the task Number.
+        """
+        for i in tqdm(range(N)):
+            try:
+                query, world, label = self.gen_one()
+            except Resample:
+                query, world, label = self.gen_one()
+            n_q = len(query)
+            n_w = len(world)
+            self.targets += query
+            self.t_batch += n_q * [i]
+            self.refs += world
+            self.r_batch += n_w * [i]
+            self.labels += label

@@ -151,7 +151,7 @@ class PartsDataset(Dataset):
                  r_batch,
                  labels,
                  indices=None,
-                 task='parts_task'):
+                 task_type='scene'):
         """
         Initializes the Parts Dataset.
         The inputs are the outputs of the Parts generator, defined in the gen
@@ -160,7 +160,7 @@ class PartsDataset(Dataset):
         When indices is not given, we compute them by hand. Since this is a
         costly operation, we prefer to write them to a file.
         """
-        self.task = task
+        self.task_type = task_type
 
         self.targets = torch.tensor(targets, dtype=DTYPE)
         self.t_batch = torch.tensor(t_batch, dtype=ITYPE)
@@ -184,20 +184,29 @@ class PartsDataset(Dataset):
             self.t_idx = t_idx
             self.r_idx = r_idx
 
+        self.get = self._get_maker()
+
+    def _get_maker(self):
+        get = None
+        if self.task_type == 'scene':
+            def get(idx):
+                target = self.targets[self.t_idx[idx]]
+                ref = self.refs[self.r_idx[idx]]
+                label = self.labels[idx]
+                return target, ref, label
+        if self.task_type == 'object':
+            def get(idx):
+                target = self.targets[self.t_idx[idx]]
+                ref = self.refs[self.r_idx[idx]]
+                label = self.labels[self.r_idx[idx]]
+                return target, ref, label
+        return get
+
     def __len__(self):
         return self.t_batch[-1]
 
     def __getitem__(self, idx):
-        if self.task == 'parts_task':
-            target = self.targets[self.t_idx[idx]]
-            ref = self.refs[self.r_idx[idx]]
-            label = self.labels[idx]
-            return target, ref, label
-        if self.task == 'similarity_object':
-            target = self.targets[self.t_idx[idx]]
-            ref = self.refs[self.r_idx[idx]]
-            label = self.labels[self.r_idx[idx]]
-            return target, ref, label
+        return self.get(idx)
 
 class ImageDataset(Dataset):
     """

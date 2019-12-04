@@ -64,6 +64,13 @@ class GraphModel(torch.nn.Module):
         self.data_from_graph = data_from_graph_maker(cuda=True)
         self.cross_graph_ei = cross_graph_ei_maker(cuda=True)
 
+    def cpu(self):
+        super(GraphModel, self).cpu()
+        self.GPU = False
+
+        self.data_from_graph = data_from_graph_maker(cuda=False)
+        self.cross_graph_ei = cross_graph_ei_maker(cuda=False)
+
     def reset_parameters(self):
         """
         Resets all the parameters of the neural networks in the model.
