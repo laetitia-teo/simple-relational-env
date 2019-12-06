@@ -1254,6 +1254,8 @@ class GraphMatchingv2_U(GraphModel):
 
         if self.task_type == 'scene':
             self.mlp = model_fn(2 * h, f_out)
+        if self.task_type == 'objects':
+            self.mlp = model_fn(h, f_out) 
 
     def forward(self, graph1, graph2):
         """
@@ -1282,6 +1284,6 @@ class GraphMatchingv2_U(GraphModel):
                                 batch2,
                                 batch1)
         if self.task_type == 'objects':
-            return x2_
+            return self.mlp(x2_)
         if self.task_type == 'scene':
             return self.mlp(torch.cat([u1, u2], 1))

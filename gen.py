@@ -610,7 +610,7 @@ class SimilarityObjectsGen(Gen):
         super(SimilarityObjectsGen, self).__init__(env, n_d)
         self.task = 'similarity_object'
         self.task_type = 'object'
-        self.label_type = 'float'
+        self.label_type = 'long'
 
     def gen_one(self):
         """
@@ -786,7 +786,7 @@ class SelectGen(Gen):
         self.task_type = 'object'
         self.max_n = 5
         self.color_sigma = 0.05 # standard deviation for the color, test this
-        self.label_type = 'float'
+        self.label_type = 'long'
 
     def gen_one(self):
         """

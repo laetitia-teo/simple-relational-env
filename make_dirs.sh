@@ -1,21 +1,21 @@
 #!/bin/bash
+cd experimental_results/all_tasks
 
-cd experimental_results
+declare -a tasks=("parts_task" "similarity_objects" "count" "select")
 
-mkdir cur_run$1
-cd cur_run$1
-
-for i in `seq 0 5`;
+for t in "${tasks[@]}"
 do
-	mkdir curriculum$i
+    if [ -d t ]; then
+        cd $t
+    else
+        mkdir $t
+        cd $t
+    fi
+    mkdir run$1
+    cd run$1
+    for i in `seq 1 5`;
+    do
+        mkdir curriculum$i
+    done
+    cd ../..
 done
-
-cd ../..
-cd saves/models
-mkdir cur_run$1
-cd cur_run$1
-
-for i in `seq 0 5`;
-do
-	mkdir curriculum$i
-done	
