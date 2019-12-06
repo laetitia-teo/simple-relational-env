@@ -25,7 +25,8 @@ def complete_edge_index(n, self_edges=True):
 
     ei = torch.stack(
         (torch.reshape(e, (-1,)), torch.reshape(e.T, (-1,))))
-    if not self_edges:
+    if not self_edges and n > 1:
+        # we enforce self-edges with 1 object
         ei = ei[:, ei[0] != ei[1]]
     return ei
 

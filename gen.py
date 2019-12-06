@@ -349,7 +349,7 @@ class Gen():
         try:
             line = next(lineit)
             while 't_idx' not in line:
-                labels.append([int(line)])
+                labels.append([float(line)])
                 line = next(lineit)
         except StopIteration: # the file may also end here
             pass
@@ -436,7 +436,7 @@ class Gen():
             self.r_batch += r_batch
             self.labels += labels
 
-    def to_dataset(self, n=None):
+    def to_dataset(self, n=None, label_type='long'):
         """
         Creates a PartsDataset from the generated data and returns it.
 
@@ -453,7 +453,8 @@ class Gen():
                           self.r_batch[:n],
                           self.labels[:n],
                           indices,
-                          self.task_type)
+                          self.task_type,
+                          self.label_type)
         return ds
 
 class PartsGen(Gen):
@@ -479,6 +480,7 @@ class PartsGen(Gen):
         super(PartsGen, self).__init__(env, n_d)
         self.task = 'parts_task'
         self.task_type = 'scene'
+        self.label_type='long'
 
     def gen_one(self):
         """
@@ -582,7 +584,7 @@ class PartsGen(Gen):
             self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
             self.labels += [[1], [0]]
 
-class SimilarityObjectGen(Gen):
+class SimilarityObjectsGen(Gen):
     """
     A generator for the Similarity-Object task.
 
@@ -605,9 +607,10 @@ class SimilarityObjectGen(Gen):
 
         This concrete class defines the generation functions.
         """
-        super(SimilarityObjectGen, self).__init__(env, n_d)
+        super(SimilarityObjectsGen, self).__init__(env, n_d)
         self.task = 'similarity_object'
         self.task_type = 'object'
+        self.label_type = 'float'
 
     def gen_one(self):
         """
@@ -710,6 +713,7 @@ class CountGen(Gen):
         self.task_type = 'scene'
         self.max_n = 10
         self.color_sigma = 0.05 # standard deviation for the color, test this
+        self.label_type = 'float'
 
     def gen_one(self):
         """
@@ -730,7 +734,7 @@ class CountGen(Gen):
             color = obj.color
             idx = obj.shape_index
             # sample number
-            n = np.random.randint(0, self.max_n + 1)
+            n = np.random.randint(1, self.max_n + 1)
             query = self.env.to_state_list(norm=True)
             # fill world with similar objects, as the number requires
             self.env.reset()
@@ -782,6 +786,7 @@ class SelectGen(Gen):
         self.task_type = 'object'
         self.max_n = 5
         self.color_sigma = 0.05 # standard deviation for the color, test this
+        self.label_type = 'float'
 
     def gen_one(self):
         """

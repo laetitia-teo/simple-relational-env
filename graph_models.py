@@ -47,6 +47,8 @@ class GraphModel(torch.nn.Module):
         # not all models use this, maybe subclass into CrossGraphModel
         self.cross_graph_ei = cross_graph_ei_maker()
 
+        self.task_type = 'parts_task' # by default
+
     def get_features(self, f_dict):
         """
         Gets the input and output features for graph processing.
@@ -862,9 +864,6 @@ class GraphMatchingSimple(GraphModel):
             gn.CosineSimNodeModel(h, f_x, f_u, model_fn, h),
             gn.GlobalModel(h, h, f_u, model_fn, h))
 
-        self.cg_ei = None # cross-graph edge index
-        self.b_size = 0 # init
-
         self.mlp = model_fn(2 * h, f_out)
 
     def forward(self, graph1, graph2):
@@ -943,9 +942,6 @@ class GraphMatchingv2(GraphModel):
             gn.NodeModel(h, f_x, f_u, model_fn, h),
             gn.GlobalModel(h, h, f_u, model_fn, h))
 
-        self.cg_ei = None # cross-graph edge index
-        self.b_size = 0 # init
-
         self.mlp = model_fn(2 * h, f_out)
 
     def forward(self, graph1, graph2):
@@ -1003,9 +999,6 @@ class GraphMatchingv2_EdgeConcat(GraphModel):
             gn.EdgeModelConcat(f_e, f_x, f_u, model_fn, h), # edgemodelconcat here ?
             gn.NodeModel(h, f_x, f_u, model_fn, h),
             gn.GlobalModel(h, h, f_u, model_fn, h))
-
-        self.cg_ei = None # cross-graph edge index
-        self.b_size = 0 # init
 
         self.mlp = model_fn(2 * h, f_out)
 
@@ -1071,9 +1064,6 @@ class GraphMatchingv2_DiffGNNs(GraphModel):
             gn.NodeModel(h, f_x, f_u, model_fn, h),
             gn.GlobalModel(h, h, f_u, model_fn, h))
 
-        self.cg_ei = None # cross-graph edge index
-        self.b_size = 0 # init
-
         self.mlp = model_fn(2 * h, f_out)
 
     def forward(self, graph1, graph2):
@@ -1111,9 +1101,9 @@ class GraphMatchingv2_DiffGNNs(GraphModel):
 
         return self.mlp(torch.cat([u1, u2], 1))
 
-class GraphMatchingv2NoMem(GraphModel):
+class GraphMatchingv2_NoMem(GraphModel):
     """
-    Change Edge Model.
+    Change Edge Model : the edges keep no memory of their previous state.
     """
     def __init__(self, 
                  mlp_layers,
@@ -1122,7 +1112,7 @@ class GraphMatchingv2NoMem(GraphModel):
                  f_dict):
         """
         """
-        super(GraphMatchingv2, self).__init__()
+        super(GraphMatchingv2_NoMem, self).__init__()
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
         f_e, f_x, f_u, f_out = self.get_features(f_dict)
@@ -1132,9 +1122,6 @@ class GraphMatchingv2NoMem(GraphModel):
             gn.EdgeModelConcatNoMem(f_e, f_x, f_u, model_fn, h),
             gn.NodeModel(h, f_x, f_u, model_fn, h),
             gn.GlobalModel(h, h, f_u, model_fn, h))
-
-        self.cg_ei = None # cross-graph edge index
-        self.b_size = 0 # init
 
         self.mlp = model_fn(2 * h, f_out)
 
@@ -1235,3 +1222,66 @@ class ConditionByGraphEmbedding(GraphModel):
             out_list.append(self.mlp(u2))
 
         return out_list
+
+### A try at universal GMs ###
+
+class GraphMatchingv2_U(GraphModel):
+    """
+    Universal version of the GraphMatchingv2 model.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 h,
+                 N,
+                 f_dict,
+                 task_type='scene'):
+        """
+        Description.
+
+        h has to have same dimension as the input features.
+        """
+        super(GraphMatchingv2_U, self).__init__()
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+        self.task_type = task_type
+
+        self.gnn = gn.CrossGraphAttentionLayer(
+            gn.LearnedCrossGraphAttention(f_x, model_fn),
+            gn.EdgeModelConcatNoMem(f_e, f_x, f_u, model_fn, h),
+            gn.NodeModel(h, f_x, f_u, model_fn, h),
+            gn.GlobalModel(h, h, f_u, model_fn, h))
+
+        if self.task_type == 'scene':
+            self.mlp = model_fn(2 * h, f_out)
+
+    def forward(self, graph1, graph2):
+        """
+        
+        """
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        cg_ei = self.cross_graph_ei(batch1, batch2)
+
+        x1_, e1_, u1 = self.gnn(x1,
+                                x2,
+                                edge_index1,
+                                torch.flip(cg_ei, (0,)),
+                                e1,
+                                u1,
+                                batch1,
+                                batch2)
+        # we use the original features to compute the cross-graph attentions
+        x2_, e2_, u2 = self.gnn(x2,
+                                x1,
+                                edge_index2,
+                                cg_ei,
+                                e2,
+                                u2,
+                                batch2,
+                                batch1)
+        if self.task_type == 'objects':
+            return x2_
+        if self.task_type == 'scene':
+            return self.mlp(torch.cat([u1, u2], 1))

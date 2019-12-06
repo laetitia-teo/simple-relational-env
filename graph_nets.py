@@ -137,11 +137,11 @@ class EdgeModelConcatNoMem(torch.nn.Module):
         super(EdgeModelConcatNoMem, self).__init__()
         if f_e_out is None:
             f_e_out = f_e
-        self.phi_e = model_fn(f_e + f_x + f_u, f_e_out)
+        self.phi_e = model_fn(2 * f_x + f_u, f_e_out)
 
     def forward(self, src, dest, edge_attr, u, batch):
          out = torch.cat([dest, src, u[batch]], 1)
-         return out
+         return self.phi_e(out)
 
 class CosineAttention():
     """
@@ -293,9 +293,13 @@ class NodeModel(torch.nn.Module):
     def forward(self, x, edge_index, edge_attr, u, batch):
         """
         """
+        if not len(edge_attr):
+            return 
         src, dest = edge_index
         # aggregate all edges which have the same destination
         e_agg_node = scatter_mean(edge_attr, dest, dim=0)
+        # print(src.shape)
+        # print()
         out = torch.cat([x, e_agg_node, u[batch]], 1)
         return self.phi_x(out)
 

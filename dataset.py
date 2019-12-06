@@ -51,10 +51,12 @@ def collate_fn(batch):
     elif isinstance(elem, tuple):
         transposed = list(zip(*batch)) # we lose memory here
         l = [collate_fn(samples) for samples in transposed]
+        # t_batch
         l.append(
             collate_fn(
                 [torch.ones(len(t), dtype=ITYPE) * i 
                     for i, t in enumerate(transposed[0])]))
+        # r_batch
         l.append(
             collate_fn(
                 [torch.ones(len(t), dtype=ITYPE) * i 
@@ -151,7 +153,8 @@ class PartsDataset(Dataset):
                  r_batch,
                  labels,
                  indices=None,
-                 task_type='scene'):
+                 task_type='scene',
+                 label_type='long'):
         """
         Initializes the Parts Dataset.
         The inputs are the outputs of the Parts generator, defined in the gen
@@ -161,12 +164,16 @@ class PartsDataset(Dataset):
         costly operation, we prefer to write them to a file.
         """
         self.task_type = task_type
+        if label_type == 'long':
+            LABELTYPE = torch.long
+        if label_type == 'float':
+            LABELTYPE = torch.float
 
         self.targets = torch.tensor(targets, dtype=DTYPE)
         self.t_batch = torch.tensor(t_batch, dtype=ITYPE)
         self.refs = torch.tensor(refs, dtype=DTYPE)
         self.r_batch = torch.tensor(r_batch, dtype=ITYPE)
-        self.labels = torch.tensor(labels, dtype=ITYPE)
+        self.labels = torch.tensor(labels, dtype=LABELTYPE)
 
         if indices is None:
             self.t_idx = []

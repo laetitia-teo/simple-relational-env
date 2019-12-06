@@ -12,6 +12,7 @@ import torch
 
 import baseline_models as bm
 import graph_models as gm
+import training_utils as ut
 
 from tqdm import tqdm
 from torch.utils.data import DataLoader
@@ -27,15 +28,6 @@ from graph_utils import data_to_graph_parts
 
 # training 
 
-from training_utils import one_step
-from training_utils import data_to_clss_parts, data_to_clss_simple
-from training_utils import batch_to_images
-from training_utils import load_dl_legacy
-from training_utils import data_fn_graphs_three
-from training_utils import load_dl_parts, load_dl
-from training_utils import save_model, load_model
-from training_utils import nparams
-
 # visualization/image generation
 
 from env import Env
@@ -46,6 +38,34 @@ from test_utils import ModelPlayground
 pretrain_path = op.join('data', 'simple_task', 'train.txt')
 train_path = op.join('data', 'parts_task', 'train1.txt')
 overfit_path = op.join('data', 'parts_task', 'overfit10000_32.txt')
+
+# task
+
+task_list = ['parts_task',
+             'similarity_objects',
+             'count',
+             'select']
+task = input('select a task :')
+if task == 'parts_task':
+    task_type = 'scene'
+    f_out = 2
+    criterion = torch.nn.CrossEntropyLoss()
+    directory = op.join('data', 'parts_task', 'idx')
+if task == 'similarity_objects':
+    task_type = 'objects'
+    f_out = 1
+    criterion = torch.nn.BCELoss()
+    directory = op.join('data', 'similarity_objects')
+if task == 'count':
+    task_type = 'scene'
+    f_out = 1
+    criterion = ut.count_loss()
+    directory = op.join('data', 'count')
+if task == 'select':
+    task_type = 'objects'
+    f_out = 1
+    criterion = torch.nn.BCELoss()
+    directory = op.join('data', 'select')
 
 # hparams
 
@@ -61,7 +81,7 @@ f_dict = {
         'f_x': F_OBJ,
         'f_e': F_OBJ,
         'f_u': F_OBJ,
-        'f_out': 2}
+        'f_out': f_out}
 
 # script arguments
 
@@ -75,11 +95,11 @@ args = parser.parse_args()
 # load data
 
 # print('loading pretraining data ...')
-# pretrain_dl = load_dl_legacy('trainobject1')
+# pretrain_dl = ut.load_dl_legacy('trainobject1')
 # print('done')
-# train_dl = load_dl_parts('train1.txt', bsize=B_SIZE)
+# train_dl = ut.load_dl_parts('train1.txt', bsize=B_SIZE)
 # print('loading overfitting data ...')
-# overfit_dl = load_dl_parts('overfit10000_32.txt', bsize=B_SIZE)
+# overfit_dl = ut.load_dl_parts('overfit10000_32.txt', bsize=B_SIZE)
 
 # model
 
@@ -88,18 +108,30 @@ args = parser.parse_args()
 # model = gm.GraphMatchingSimple([16, 16, 16], 10, 1, f_dict)
 model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
 opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
-criterion = torch.nn.CrossEntropyLoss()
+
+def several_steps(n, dl, model, opt, task, cuda=False):
+    losses, accs = [], []
+    for _ in range(n):
+        l, a = ut.one_step(model,
+                           dl,
+                           opt, 
+                           criterion,
+                           task,
+                           cuda=cuda)
+        losses += l
+        accs += a
+    return losses, accs
+
 
 def pre_train(n):
     losses, accs = [], []
     for i in range(n):
         print('Epoch %s' % i)
-        l, a = one_step(model,
-                        pretrain_dl,
-                        data_fn_graphs_three,
-                        data_to_clss_simple,
-                        opt, 
-                        criterion)
+        l, a = ut.one_step(model,
+                           pretrain_dl,
+                           opt, 
+                           criterion,
+                           task)
         losses += l
         accs += a
     plt.figure()
@@ -109,16 +141,15 @@ def pre_train(n):
     plt.show()
 
 def overfit(n):
-    overfit_dl = load_dl_parts('overfit10000_32.txt', bsize=B_SIZE)
+    overfit_dl = ut.load_dl_parts('overfit10000_32.txt', bsize=B_SIZE)
     losses, accs = [], []
     for i in range(n):
         print('Epoch %s' % i)
-        l, a = one_step(model,
-                        overfit_dl,
-                        data_to_graph_parts,
-                        data_to_clss_parts,
-                        opt, 
-                        criterion)
+        l, a = ut.one_step(model,
+                           overfit_dl,
+                           opt, 
+                           criterion,
+                           task)
         losses += l
         accs += a
     plt.figure()
@@ -132,12 +163,11 @@ def run(n=int(args.n)):
     losses, accs = [], []
     for i in range(n):
         print('Epoch %s' % i)
-        l, a = one_step(model,
-                        train_dl,
-                        data_to_graph_parts,
-                        data_to_clss_parts,
-                        opt, 
-                        criterion)
+        l, a = ut.one_step(model,
+                           train_dl,
+                           opt, 
+                           criterion,
+                           task)
         losses += l
         accs += a
     plt.figure()
@@ -145,20 +175,6 @@ def run(n=int(args.n)):
     plt.figure()
     plt.plot(accs)
     plt.show()
-
-def several_steps(n, dl, model, opt, cuda=False):
-    losses, accs = [], []
-    for _ in range(n):
-        l, a = one_step(model,
-                        dl,
-                        data_to_graph_parts,
-                        data_to_clss_parts,
-                        opt, 
-                        criterion,
-                        cuda=cuda)
-        losses += l
-        accs += a
-    return losses, accs
 
 def run_curriculum(retrain=True):
     """
@@ -188,51 +204,24 @@ def run_curriculum(retrain=True):
                 'curriculum4.txt',
                 'curriculum5.txt']
     model = None
+    path =  op.join('experimental_results',
+                    'parts_curriculum',
+                    'retrain')
     for name in ds_names:
         print('Training %s' % name)
         if retrain or (model is None):
             model = gm.ConditionByGraphEmbedding([16, 16], 10, 20, 3, f_dict)
             opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
-        c_dl = load_dl_parts(name, bsize=B_SIZE)
-        l, a = one_step(model,
+        c_dl = ut.load_dl_parts(name, bsize=B_SIZE)
+        l, a = ut.one_step(model,
                         c_dl,
-                        data_to_graph_parts,
-                        data_to_clss_parts,
                         opt, 
-                        criterion)
+                        criterion,
+                        task)
         # plot and save training metrics
-        fig, axs = plt.subplots(2, 1, constrained_layout=True)
-        axs[0].plot(l)
-        axs[0].set_title('loss')
-        axs[0].set_xlabel('steps (batch size %s)' % B_SIZE)
-        fig.suptitle('Training metrics for {}'.format(name[:-4]))
-
-        axs[1].plot(a)
-        axs[1].set_title('accuracy')
-        axs[1].set_ylabel('steps (batch size %s)' % B_SIZE)
-
-        filename = op.join(
-            'experimental_results',
-            'parts_curriculum',
-            'retrain',
-            name[:-4] + '.png')
-        plt.savefig(filename)
-        plt.clf()
-        # save losses and accuracies as numpy arrays
-        np.save(
-            op.join('experimental_results',
-                    'parts_curriculum',
-                    'retrain',
-                    name[:-4] + 'loss.npy'),
-            np.array(l))
-        np.save(
-            op.join('experimental_results',
-                    'parts_curriculum',
-                    'retrain',
-                    name[:-4] + 'acc.npy'),
-            np.array(a))
+        ut.plot_metrics(l, a, i, path)
         # checkpoint model
-        save_model(
+        ut.save_model(
             model,
             op.join(
                 'parts_curriculum',
@@ -245,60 +234,39 @@ def curriculum_diffseeds(s, n, cur_n=0, training=None, cuda=False):
     s : number of seeds;
     cur_n : number of distractors
     """
-    dl_train = load_dl_parts('curriculum%s.txt' % cur_n)
-    dl_test = load_dl_parts('curriculum%stest.txt' % cur_n)
+    dl_train = ut.load_dl(
+        op.join(directory, 'curriculum%s.txt' % cur_n),
+        task)
+    dl_test = ut.load_dl(
+        op.join(directory, 'curriculum%s.txt' % cur_n),
+        task)
     for i in range(s):
         if training is None:
-            model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
+            model = gm.GraphMatchingv2_U(
+                [16, 16], 10, 1, f_dict)
             if cuda:
                 model.cuda()
             opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
         else:
             model, opt = training
-        l, a = several_steps(n, dl_train, model, opt, cuda=cuda)
-        fig, axs = plt.subplots(2, 1, constrained_layout=True)
-        axs[0].plot(l)
-        axs[0].set_title('loss')
-        axs[0].set_xlabel('steps (batch size %s)' % B_SIZE)
-        fig.suptitle('Training metrics for seed {}'.format(i))
-
-        axs[1].plot(a)
-        axs[1].set_title('accuracy')
-        axs[1].set_ylabel('steps (batch size %s)' % B_SIZE)
-
-        filename = op.join(
-            'experimental_results',
-            'cur_run11',
-            'curriculum%s' % cur_n,
-            (str(i) + '.png'))
-        plt.savefig(filename)
-        plt.clf()
-        # save losses and accuracies as numpy arrays
-        np.save(
-            op.join('experimental_results',
-                    'cur_run11',
-                    'curriculum%s' % cur_n,
-                    (str(i) + 'loss.npy')),
-            np.array(l))
-        np.save(
-            op.join('experimental_results',
-                    'cur_run11',
-                    'curriculum%s' % cur_n,
-                    (str(i) + 'acc.npy')),
-            np.array(a))
+        l, a = several_steps(n, dl_train, model, opt, task, cuda=cuda)
+        path = 'experimental_results/count/cur_run1/curriculum%s' % cur_n
+        ut.plot_metrics(l, a, i, path)
         # checkpoint model
-        save_model(
+        ut.save_model(
             model,
             op.join(
-                'cur_run11',
+                'count',
+                'cur_run1',
                 'curriculum%s' % cur_n,
                 (str(i) + '.pt')))
+        ut.plot_metrics(l, a, i, path)
         # test 
         model.eval()
-        l_test, a_test = one_step(model,
+        l_test, a_test = ut.one_step(model,
                                   dl_test,
                                   data_to_graph_parts,
-                                  data_to_clss_parts,
+                                  ut.data_to_clss_parts,
                                   opt, 
                                   criterion,
                                   train=False,
@@ -310,53 +278,28 @@ def run_one_diffseeds(s, n, cuda=False):
     """
     Runs one experiment with s seeds for n epochs.
     """
-    dl_train = load_dl('data/parts_task/idx/mixed2-5_0-6_100000.txt')
-    dl_test = load_dl('data/parts_task/idx/test1.txt')
+    dl_train = ut.load_dl('data/parts_task/idx/mixed2-5_0-6_100000.txt')
+    dl_test = ut.load_dl('data/parts_task/idx/test1.txt')
+    path = 'experimental_results/run1'
     for i in range(s):
         model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
         if cuda:
             model.cuda()
         opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
-        l, a = several_steps(n, dl_train, model, opt, cuda=cuda)
-        fig, axs = plt.subplots(2, 1, constrained_layout=True)
-        axs[0].plot(l)
-        axs[0].set_title('loss')
-        axs[0].set_xlabel('steps (batch size %s)' % B_SIZE)
-        fig.suptitle('Training metrics for seed {}'.format(i))
-
-        axs[1].plot(a)
-        axs[1].set_title('accuracy')
-        axs[1].set_ylabel('steps (batch size %s)' % B_SIZE)
-
-        filename = op.join(
-            'experimental_results',
-            'run1',
-            (str(i) + '.png'))
-        plt.savefig(filename)
-        plt.clf()
-        # save losses and accuracies as numpy arrays
-        np.save(
-            op.join('experimental_results',
-                    'run1',
-                    (str(i) + 'loss.npy')),
-            np.array(l))
-        np.save(
-            op.join('experimental_results',
-                    'run1',
-                    (str(i) + 'acc.npy')),
-            np.array(a))
+        l, a = several_steps(n, dl_train, model, opt, task, cuda=cuda)
+        ut.plot_metrics(l, a, i, path)
         # checkpoint model
-        save_model(
+        ut.save_model(
             model,
             op.join(
                 'run1',
                 (str(i) + '.pt')))
         # test 
         model.eval()
-        l_test, a_test = one_step(model,
+        l_test, a_test = ut.one_step(model,
                                   dl_test,
                                   data_to_graph_parts,
-                                  data_to_clss_parts,
+                                  ut.data_to_clss_parts,
                                   opt, 
                                   criterion,
                                   train=False,
@@ -381,9 +324,10 @@ def try_full_cur(s, n):
     # try all seeds
     dl_train_list = []
     dl_test_list = []
+    path = 'experimental_results/curriculum_full'
     for cur_n in range(6):
-        dl_train_list.append(load_dl_parts('curriculum%s.txt' % cur_n))
-        dl_test_list.append(load_dl_parts('curriculum%stest.txt' % cur_n))
+        dl_train_list.append(ut.load_dl_parts('curriculum%s.txt' % cur_n))
+        dl_test_list.append(ut.load_dl_parts('curriculum%stest.txt' % cur_n))
     for i in range(s):
         model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
         opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
@@ -392,49 +336,23 @@ def try_full_cur(s, n):
         for cur_n in range(6):
             dl_train = dl_train_list[cur_n]
             # dl_test = dl_test_list[cur_n]
-            l, a = several_steps(n, dl_train, model, opt)
+            l, a = several_steps(n, dl_train, model, opt, task)
             losses += l
             accs += a
         # save data
-        fig, axs = plt.subplots(2, 1, constrained_layout=True)
-        axs[0].plot(losses)
-        axs[0].set_title('loss')
-        axs[0].set_xlabel('steps (batch size %s)' % B_SIZE)
-        fig.suptitle('Training metrics for seed {}'.format(i))
-
-        axs[1].plot(accs)
-        axs[1].set_title('accuracy')
-        axs[1].set_ylabel('steps (batch size %s)' % B_SIZE)
-
-        filename = op.join(
-            'experimental_results',
-            'curriculum_full',
-            (str(i) + '.png'))
-        plt.savefig(filename)
-        plt.clf()
-        # save losses and accuracies as numpy arrays
-        np.save(
-            op.join('experimental_results',
-                    'curriculum_full',
-                    (str(i) + 'loss.npy')),
-            np.array(losses))
-        np.save(
-            op.join('experimental_results',
-                    'curriculum_full',
-                    (str(i) + 'acc.npy')),
-            np.array(accs))
+        ut.plot_metrics(losses, accs, i, path)
         # checkpoint model
-        save_model(
+        ut.save_model(
             model,
             op.join(
                 'curriculum_full',
                 (str(i) + '.pt')))
 
         dl_test = dl_test_list[-1]
-        l_test, a_test = one_step(model,
+        l_test, a_test = ut.one_step(model,
                                   dl_test,
                                   data_to_graph_parts,
-                                  data_to_clss_parts,
+                                  ut.data_to_clss_parts,
                                   opt, 
                                   criterion,
                                   train=False)
@@ -453,7 +371,7 @@ def mix_all_cur(s, n):
     p = PartsGen()
     for name in names:
         p.load(op.join('data', 'parts_task', name), replace=False)
-    dl_test = load_dl_parts(test_name)
+    dl_test = ut.load_dl_parts(test_name)
     # load all the datasets
     dl = DataLoader(p.to_dataset(),
                     batch_size=B_SIZE,
@@ -462,46 +380,20 @@ def mix_all_cur(s, n):
     for i in range(s):
         model = gm.GraphMatchingv2([16, 16], 10, 1, f_dict)
         opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
-        losses, accs = several_steps(n, dl, model, opt)
+        losses, accs = several_steps(n, dl, model, opt, task)
         # plot
-        fig, axs = plt.subplots(2, 1, constrained_layout=True)
-        axs[0].plot(losses)
-        axs[0].set_title('loss')
-        axs[0].set_xlabel('steps (batch size %s)' % B_SIZE)
-        fig.suptitle('Training metrics for seed {}'.format(i))
-
-        axs[1].plot(accs)
-        axs[1].set_title('accuracy')
-        axs[1].set_ylabel('steps (batch size %s)' % B_SIZE)
-
-        filename = op.join(
-            'experimental_results',
-            'full',
-            (str(i) + '.png'))
-        plt.savefig(filename)
-        plt.clf()
-        # save losses and accuracies as numpy arrays
-        np.save(
-            op.join('experimental_results',
-                    'full',
-                    (str(i) + 'loss.npy')),
-            np.array(losses))
-        np.save(
-            op.join('experimental_results',
-                    'full',
-                    (str(i) + 'acc.npy')),
-            np.array(accs))
+        ut.plot_metrics(losses, accs, i, 'experimental_results/full')
         # checkpoint model
-        save_model(
+        ut.save_model(
             model,
             op.join(
                 'full',
                 (str(i) + '.pt')))
         # test 
-        l_test, a_test = one_step(model,
+        l_test, a_test = ut.one_step(model,
                                   dl_test,
                                   data_to_graph_parts,
-                                  data_to_clss_parts,
+                                  ut.data_to_clss_parts,
                                   opt, 
                                   criterion,
                                   train=False)

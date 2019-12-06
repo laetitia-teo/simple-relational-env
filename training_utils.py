@@ -6,8 +6,10 @@ import os.path as op
 import pickle
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
 import torch
 
+import gen
 import baseline_models as bm
 import graph_models as gm
 
@@ -16,9 +18,8 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch_geometric.data import Data
 
-from gen import PartsGen
 from dataset import collate_fn
-from graph_utils import tensor_to_graphs
+from graph_utils import tensor_to_graphs, data_to_graph_parts
 
 from env import Env
 
@@ -26,6 +27,15 @@ from env import Env
 
 # SEED = 42
 # torch.manual_seed(SEED)
+
+# task dict
+
+t_dict = {
+    'parts_task': gen.PartsGen,
+    'similarity_objects': gen.SimilarityObjectsGen,
+    'count': gen.CountGen,
+    'select': gen.SelectGen
+}
 
 # hparams
 
@@ -56,6 +66,9 @@ def data_to_clss_parts(data):
     Get the ground truth from the Parts task dataloader.
     """
     return data[2]
+
+def data_to_clss_count(data):
+    return data[2].unsqueeze(-1)
 
 def data_to_clss_simple(data):
     """
@@ -133,7 +146,7 @@ def load_dl_parts(name, bsize=128):
     """
     path = op.join('data', 'parts_task', 'old', name)
     print('loading data ...')
-    p = PartsGen()
+    p = gen.PartsGen()
     p.load(path)
     dataloader = DataLoader(p.to_dataset(),
                             batch_size=bsize,
@@ -142,9 +155,9 @@ def load_dl_parts(name, bsize=128):
     print('done')
     return dataloader
 
-def load_dl(path, bsize=128):
+def load_dl(path, task='parts_task', bsize=128):
     print('loading data...')
-    p = PartsGen()
+    p = t_dict[task]()
     p.load(path)
     dataloader = DataLoader(p.to_dataset(),
                             batch_size=bsize,
@@ -154,6 +167,8 @@ def load_dl(path, bsize=128):
     return dataloader
 
 ### Model evaluation utilities ###
+
+# binary classification metrics
 
 def compute_accuracy(pred_clss, clss):
     """
@@ -186,14 +201,28 @@ def compute_f1(precision, recall):
     """
     return 2 / ((1 / precision) + (1 / recall))
 
+# misc
+
+def compute_close_to_int(pred, true):
+    """
+    Computes the best metric I could find for the count task.
+    The function counts +1 if the predicted number is closest to the true
+    integer that to any other integer.
+    """
+    accurate = (torch.abs(pred - true) <= 0.5).long()
+    return torch.sum(accurate).item()/len(accurate)
+
 ### Training functions ###
+
+# loss for the counting task, this may be refined
+def count_loss():
+    return torch.nn.MSELoss()
 
 def one_step(model,
              dl,
-             data_fn,
-             clss_fn,
              optimizer,
              criterion,
+             task,
              train=True,
              cuda=False):
     accs = []
@@ -201,6 +230,21 @@ def one_step(model,
     n_passes = 0
     cum_loss = 0
     cum_acc = 0
+    if isinstance(model, gm.GraphModel):
+        data_fn = data_to_graph_parts
+        if task == 'parts_task':
+            clss_fn = data_to_clss_parts
+        elif task == 'count':
+            clss_fn = data_to_clss_count
+    if task == 'parts_task':
+        metric = compute_accuracy
+    elif task == 'similarity_objects':
+        metric = compute_accuracy
+    elif task == 'count':
+        metric = compute_close_to_int
+    else:
+        # handle baselines here
+        ...
     for data in tqdm(dl):
         optimizer.zero_grad()
         # ground truth, model prediction
@@ -224,9 +268,9 @@ def one_step(model,
         l = loss.detach().cpu().item()
         if type(pred_clss) is list:
             # we evaluate accuracy on the last prediction
-            a = compute_accuracy(pred_clss[-1].detach().cpu(), clss.cpu())
+            a = metric(pred_clss[-1].detach().cpu(), clss.cpu())
         else:
-            a = compute_accuracy(pred_clss.detach().cpu(), clss.cpu())
+            a = metric(pred_clss.detach().cpu(), clss.cpu())
         cum_loss += l
         cum_acc += a
         losses.append(l)
@@ -272,7 +316,7 @@ def load_model(m, name):
     m.load_state_dict(torch.load(op.join(prefix, name)))
     return m
 
-### Visualization/Image generation utilities ###
+### Visualization/Plotting/Image generation utilities ###
 
 def batch_to_images(data, path):
     """
@@ -295,3 +339,34 @@ def batch_to_images(data, path):
         img = np.concatenate((t_img, sep, r_img)) # concatenate on what dim ?
         img_name = str(hash(img.tostring())) + '.jpg'
         cv2.imwrite(op.join(path, img_name), img)
+
+def plot_metrics(losses, accs, i, path):
+    """
+    Utility for plotting training loss and accuracy in a run.
+    Also saves the numpy arrays corresponding to the training metrics in the
+    same folder. 
+    """
+    fig, axs = plt.subplots(2, 1, constrained_layout=True)
+    axs[0].plot(losses)
+    axs[0].set_title('loss')
+    axs[0].set_xlabel('steps (batch size %s)' % B_SIZE)
+    fig.suptitle('Training metrics for seed {}'.format(i))
+
+    axs[1].plot(accs)
+    axs[1].set_title('accuracy')
+    axs[1].set_ylabel('steps (batch size %s)' % B_SIZE)
+
+    filename = op.join(
+        path,
+        (str(i) + '.png'))
+    plt.savefig(filename)
+    plt.close()
+    # save losses and accuracies as numpy arrays
+    np.save(
+        op.join(path,
+                (str(i) + 'loss.npy')),
+        np.array(losses))
+    np.save(
+        op.join(path,
+                (str(i) + 'acc.npy')),
+        np.array(accs))
