@@ -846,3 +846,31 @@ class SelectGen(Gen):
             self.refs += world
             self.r_batch += n_w * [i]
             self.labels += label
+
+class AbstractRelationsGen(Gen):
+    """
+    Generator class for the Abstract Relations task.
+    The queries are pairs of objects linked by a relation of the type
+    'is left of'.
+
+    There are four possible relations, one for every cardinal direction in 2d
+    space.
+    """
+    def __init__(self, env=None, n_d=None):
+        super(AbstractRelationsGen, self).__init__()
+        self.task = 'abstract_relations'
+        self.task_type = 'scene'
+        self.label_type = 'long'
+
+    def gen_one(self):
+        """
+        Generates one example.
+        """
+        try:
+            self.env.reset()
+            # sample query abstract relation
+            rel = np.random.randint(0, 4)
+            flipped = self.env.add_random_object_relation(rel)
+        except SamplingTimeout:
+            print('Sampling timed out, {} and {} objects'.format(n_t, n_d))
+            raise Resample('Resample configuration')

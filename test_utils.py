@@ -15,26 +15,26 @@ import env
 from glob import glob
 from tqdm import tqdm
 
-from training_utils import load_dl_parts
+# from run import load_dl_parts
 from graph_utils import state_list_to_graph
 from graph_utils import merge_graphs
 
-def test_models(save_dir, test_list, taxon):
-    """
-    Tests all the models listed in save_dir on the datasets loaded from the
-    test list (that lists the names of the datasets to be loaded).
+# def test_models(save_dir, test_list, taxon):
+#     """
+#     Tests all the models listed in save_dir on the datasets loaded from the
+#     test list (that lists the names of the datasets to be loaded).
 
-    Returns the 
+#     Returns the 
 
-    taxon is the model used.
-    """
-    test_dls = []
-    for name in test_list:
-        print(name)
-        test_dls.append(load_dl_parts(name))
-    save_list = sorted(glob(op.join(save_dir, '*.pt')))
-    for model_path in save_list:
-         ...
+#     taxon is the model used.
+#     """
+#     test_dls = []
+#     for name in test_list:
+#         print(name)
+#         test_dls.append(load_dl_parts(name))
+#     save_list = sorted(glob(op.join(save_dir, '*.pt')))
+#     for model_path in save_list:
+#          ...
 
 # def play(taxon, save_path):
 #     """

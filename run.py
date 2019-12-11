@@ -15,7 +15,6 @@ import torch
 import gen
 import baseline_models as bm
 import graph_models as gm
-import training_utils as ut
 
 from tqdm import tqdm
 from torch.utils.data import DataLoader
@@ -421,19 +420,17 @@ def make_model():
     opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
     return model, opt
 
-def save_model(m, name):
+def save_model(m, path):
     """
-    Saves the model m with name name in the model save folder.
+    Saves the model m with path path in the model save folder.
     """
-    prefix = op.join('saves', 'models')
-    torch.save(m.state_dict(), op.join(prefix, name))
+    torch.save(m.state_dict(), path)
 
-def load_model(m, name):
+def load_model(m, path):
     """
-    Loads the model parameters with name name into model m.
+    Loads the model parameters with path path into model m.
     """
-    prefix = op.join('saves', 'models')
-    m.load_state_dict(torch.load(op.join(prefix, name)))
+    m.load_state_dict(torch.load(path))
     return m
 
 ### Visualization/Plotting/Image generation utilities ###
@@ -628,12 +625,12 @@ def curriculum_diffseeds(s, n, cur_n=0, training=None, cuda=False):
         else:
             model, opt = training
         l, a = several_steps(n, dl_train, model, opt, cuda=cuda)
-        path = 'experimental_results/count/cur_run1/curriculum%s' % cur_n
+        # path = 'experimental_results/count/cur_run1/curriculum%s' % cur_n
         path = op.join(
             'experimental_results',
             'all_tasks',
             task,
-            'run1',
+            'run2',
             'curriculum%s' % cur_n)
         plot_metrics(l, a, i, path)
         # checkpoint model

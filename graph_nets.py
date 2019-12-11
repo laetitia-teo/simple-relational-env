@@ -24,7 +24,7 @@ from utils import sim
 #                                                                             #
 ###############################################################################
 
-def mlp_fn(hidden_layer_sizes, normalize=True):
+def mlp_fn(hidden_layer_sizes, normalize=False):
     def mlp(f_in, f_out):
         """
         This function returns a Multi-Layer Perceptron with ReLU
