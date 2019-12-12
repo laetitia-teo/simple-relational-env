@@ -778,4 +778,5 @@ def load_model_playground():
 
 ############################ Running the script ###############################
 
-try_all_cur_n(s, n, cuda)
+if __name__ == '__main__':
+    try_all_cur_n(s, n, cuda)

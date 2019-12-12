@@ -572,7 +572,6 @@ class Env(AbstractEnv):
             elif shape == 2:
                 obj = Triangle(size, color, pos, ori)
             try:
-                print(pos)
                 self.add_object(obj)
                 return
             except Collision:
@@ -608,9 +607,13 @@ class Env(AbstractEnv):
         if rel == 0:
             # left of
             available = obj1.pos[0] - obj1.size
-            if available < 2 * minsize:
+            if available <= 2 * minsize:
                 flipped = True
-                return self.add_random_object_relation(1, flipped)[0]
+                return self.add_random_object_relation(
+                    1,
+                    flipped,
+                    color=color,
+                    shape=shape)
             size = np.random.random()
             size = minsize * (1 - size) + min(available / 2, maxsize) * size
             x = np.random.beta(4, 4) # maybe change this
@@ -622,13 +625,22 @@ class Env(AbstractEnv):
             miny = max(obj1.pos[1] - (obj1.pos[0] - x), size)
             maxy = min(obj1.pos[1] + (obj1.pos[0] - x), self.envsize - size)
             modey = obj1.pos[1]
+            # some extreme cases may happen
+            if modey < miny:
+                modey = miny
+            if modey > maxy:
+                modey = maxy
             y = np.random.triangular(miny, modey, maxy)
         elif rel == 1:
             # right of
             available = self.envsize - obj1.size - obj1.pos[0]
-            if available < 2 * minsize:
+            if available <= 2 * minsize:
                 flipped = True
-                return self.add_random_object_relation(0, flipped)[0]
+                return self.add_random_object_relation(
+                    0,
+                    flipped,
+                    color=color,
+                    shape=shape)
             size = np.random.random()
             size = minsize * (1 - size) + min(available / 2, maxsize) * size
             maxx = self.envsize - size
@@ -638,13 +650,21 @@ class Env(AbstractEnv):
             miny = max(obj1.pos[1] - (x - obj1.pos[0]), size)
             maxy = min(obj1.pos[1] + (x - obj1.pos[0]), self.envsize - size)
             modey = obj1.pos[1]
+            if modey < miny:
+                modey = miny
+            if modey > maxy:
+                modey = maxy
             y = np.random.triangular(miny, modey, maxy)
         elif rel == 2:
             # left of
             available = obj1.pos[1] - obj1.size
-            if available < 2 * minsize:
+            if available <= 2 * minsize:
                 flipped = True
-                return self.add_random_object_relation(3, flipped)[0]
+                return self.add_random_object_relation(
+                    3,
+                    flipped,
+                    color=color,
+                    shape=shape)
             size = np.random.random()
             size = minsize * (1 - size) + min(available / 2, maxsize) * size
             maxy = obj1.pos[1] - size - obj1.size
@@ -654,13 +674,21 @@ class Env(AbstractEnv):
             minx = max(obj1.pos[0] - (obj1.pos[1] - y), size)
             maxx = min(obj1.pos[0] + (obj1.pos[1] - y), self.envsize - size)
             modex = obj1.pos[0]
+            if modex < minx:
+                modex = minx
+            if modex > maxx:
+                modex = maxx
             x = np.random.triangular(minx, modex, maxx)
         elif rel == 3:
             # right of
             available = self.envsize - obj1.size - obj1.pos[1]
-            if available < 2 * minsize:
+            if available <= 2 * minsize:
                 flipped = True
-                return self.add_random_object_relation(2, flipped)[0]
+                return self.add_random_object_relation(
+                    2,
+                    flipped,
+                    color=color,
+                    shape=shape)
             size = np.random.random()
             size = minsize * (1 - size) + min(available / 2, maxsize) * size
             maxy = self.envsize - size
@@ -670,12 +698,16 @@ class Env(AbstractEnv):
             minx = max(obj1.pos[0] - (y - obj1.pos[1]), size)
             maxx = min(obj1.pos[0] + (y - obj1.pos[1]), self.envsize - size)
             modex = obj1.pos[0]
+            if modex < minx:
+                modex = minx
+            if modex > maxx:
+                modex = maxx
             x = np.random.triangular(minx, modex, maxx)
         pos = np.array([x, y])
         ori = np.random.random()
         ori = ori * 2 * np.pi
-        #self.add_object_from_specs(shape, size, color, pos, ori)
-        return flipped, x, y
+        self.add_object_from_specs(shape, size, color, pos, ori)
+        return flipped
 
     def random_config(self, n_objects, timeout=30):
         """

@@ -832,7 +832,7 @@ class SelectGen(Gen):
 
     def generate(self, N):
         """
-        Generate a dataset for the task Number.
+        Generate a dataset for the task Select.
         """
         for i in tqdm(range(N)):
             try:
@@ -869,8 +869,64 @@ class AbstractRelationsGen(Gen):
         try:
             self.env.reset()
             # sample query abstract relation
+            self.env.add_random_object()
             rel = np.random.randint(0, 4)
             flipped = self.env.add_random_object_relation(rel)
+            if flipped:
+                # if we sampled the reference object too close to the wall and
+                # had to flip the relation, change its number
+                rel = rel + 1 * (1 - rel % 2) - 1 * (rel % 2)
+            query = self.env.to_state_list(norm=True)
+            # keep the objects in memory so as to remember their shape/color
+            obj1 = self.env.objects[0]
+            obj2 = self.env.objects[1]
+            self.env.reset()
+            color1 = obj1.color
+            color2 = obj2.color
+            idx1 = obj1.shape_index
+            idx2 = obj2.shape_index
+            label = np.random.randint(0, 2) # same or different
+            # maybe slightly change the colors
+            # sample the world abstract relation
+            self.env.add_random_object(color=color1, shape=idx1)
+            if label:
+                rel2 = rel
+                flipped2 = self.env.add_random_object_relation(
+                    rel2,
+                    color=color2,
+                    shape=idx2)
+            else:
+                rel2 = (rel + np.random.randint(1, 4)) % 4 # different rel
+                flipped2 = self.env.add_random_object_relation(
+                    rel2,
+                    color=color2,
+                    shape=idx2)
+            if flipped2:
+                rel2 = rel2 + 1 * (1 - rel2 % 2) - 1 * (rel2 % 2)
+            if self.n_d is None:
+                n_d = np.random.randint(*self.range_d)
+            else:
+                n_d = self.n_d
+            # fill with other stuff
+            self.env.random_config(n_d)
+            world = self.env.to_state_list(norm=True)
+            label = int(rel == rel2)
+            return query, world, label
         except SamplingTimeout:
             print('Sampling timed out, {} and {} objects'.format(n_t, n_d))
             raise Resample('Resample configuration')
+
+    def generate(self, N):
+        for i in tqdm(range(N)):
+            try:
+                query, world, label = self.gen_one()
+            except Resample:
+                # shouldn't happen really often here, if n_d is reasonable
+                query, world, label = self.gen_one()
+            n_q = len(query)
+            n_w = len(world)
+            self.targets += query
+            self.t_batch += n_q * [i]
+            self.refs += world
+            self.r_batch += n_w * [i]
+            self.labels += [[label]]

@@ -1249,7 +1249,7 @@ class GraphMatchingv2_U(GraphModel):
         self.gnn = gn.CrossGraphAttentionLayer(
             gn.LearnedCrossGraphAttention(f_x, model_fn),
             gn.EdgeModelConcatNoMem(f_e, f_x, f_u, model_fn, h),
-            gn.NodeModel(h, f_x, f_u, model_fn, h),
+            gn.NodeModelAdd(h, f_x, f_u, model_fn, h),
             gn.GlobalModel(h, h, f_u, model_fn, h))
 
         if self.task_type == 'scene':

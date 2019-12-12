@@ -24,7 +24,7 @@ from utils import sim
 #                                                                             #
 ###############################################################################
 
-def mlp_fn(hidden_layer_sizes, normalize=False):
+def mlp_fn(hidden_layer_sizes, normalize=True):
     def mlp(f_in, f_out):
         """
         This function returns a Multi-Layer Perceptron with ReLU
@@ -298,6 +298,44 @@ class NodeModel(torch.nn.Module):
         src, dest = edge_index
         # aggregate all edges which have the same destination
         e_agg_node = scatter_mean(edge_attr, dest, dim=0)
+        # print(src.shape)
+        # print()
+        out = torch.cat([x, e_agg_node, u[batch]], 1)
+        return self.phi_x(out)
+
+class NodeModelAdd(torch.nn.Module):
+    def __init__(self,
+                 f_e,
+                 f_x,
+                 f_u,
+                 model_fn,
+                 f_x_out=None):
+        """
+        Node model : for each node, first computes the mean of every incoming
+        edge attibute tensor, then uses this, in addition to the node features
+        and the global features to compute the updated node attributes
+
+        Arguments :
+
+            - f_e (int): number of edge features
+            - f_x (int): number of vertex features
+            - f_u (int): number of global features
+            - model_fn : function that takes input and output features and
+                returns a model.
+        """
+        if f_x_out is None:
+            f_x_out = f_x
+        super(NodeModel, self).__init__()
+        self.phi_x = model_fn(f_e + f_x + f_u, f_x_out)
+
+    def forward(self, x, edge_index, edge_attr, u, batch):
+        """
+        """
+        if not len(edge_attr):
+            return 
+        src, dest = edge_index
+        # aggregate all edges which have the same destination
+        e_agg_node = scatter_add(edge_attr, dest, dim=0)
         # print(src.shape)
         # print()
         out = torch.cat([x, e_agg_node, u[batch]], 1)
