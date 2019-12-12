@@ -325,7 +325,7 @@ class NodeModelAdd(torch.nn.Module):
         """
         if f_x_out is None:
             f_x_out = f_x
-        super(NodeModel, self).__init__()
+        super(NodeModelAdd, self).__init__()
         self.phi_x = model_fn(f_e + f_x + f_u, f_x_out)
 
     def forward(self, x, edge_index, edge_attr, u, batch):
