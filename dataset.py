@@ -155,7 +155,7 @@ class PartsDataset(Dataset):
                  indices=None,
                  task_type='scene',
                  label_type='long',
-                 cuda=False):
+                 device=torch.device('cpu')):
         """
         Initializes the Parts Dataset.
         The inputs are the outputs of the Parts generator, defined in the gen
@@ -165,22 +165,18 @@ class PartsDataset(Dataset):
         costly operation, we prefer to write them to a file.
         """
         self.task_type = task_type
-        if cuda:
-            DTYPE = torch.cuda.FloatTensor
-            ITYPE = torch.cuda.LongTensor
-        else:
-            DTYPE = torch.float
-            ITYPE = torch.long
+        DTYPE = torch.float
+        ITYPE = torch.long
         if label_type == 'long':
             LABELTYPE = ITYPE
         if label_type == 'float':
             LABELTYPE = DTYPE
 
-        self.targets = torch.tensor(targets, dtype=DTYPE)
-        self.t_batch = torch.tensor(t_batch, dtype=ITYPE)
-        self.refs = torch.tensor(refs, dtype=DTYPE)
-        self.r_batch = torch.tensor(r_batch, dtype=ITYPE)
-        self.labels = torch.tensor(labels, dtype=LABELTYPE)
+        self.targets = torch.tensor(targets, dtype=DTYPE, device=device)
+        self.t_batch = torch.tensor(t_batch, dtype=ITYPE, device=device)
+        self.refs = torch.tensor(refs, dtype=DTYPE, device=device)
+        self.r_batch = torch.tensor(r_batch, dtype=ITYPE, device=device)
+        self.labels = torch.tensor(labels, dtype=LABELTYPE, device=device)
 
         if indices is None:
             self.t_idx = []
