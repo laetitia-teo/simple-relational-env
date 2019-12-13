@@ -51,16 +51,16 @@ def collate_fn(batch):
     elif isinstance(elem, tuple):
         transposed = list(zip(*batch)) # we lose memory here
         l = [collate_fn(samples) for samples in transposed]
-        # t_batch
-        l.append(
-            collate_fn(
-                [torch.ones(len(t), dtype=ITYPE) * i 
-                    for i, t in enumerate(transposed[0])]))
-        # r_batch
-        l.append(
-            collate_fn(
-                [torch.ones(len(t), dtype=ITYPE) * i 
-                    for i, t in enumerate(transposed[1])]))
+        # # t_batch
+        # l.append(
+        #     collate_fn(
+        #         [torch.ones(len(t), dtype=ITYPE) * i 
+        #             for i, t in enumerate(transposed[0])]))
+        # # r_batch
+        # l.append(
+        #     collate_fn(
+        #         [torch.ones(len(t), dtype=ITYPE) * i 
+        #             for i, t in enumerate(transposed[1])]))
         return l
 
 ### Dataset ###
@@ -203,13 +203,17 @@ class PartsDataset(Dataset):
                 target = self.targets[self.t_idx[idx]]
                 ref = self.refs[self.r_idx[idx]]
                 label = self.labels[idx]
-                return target, ref, label
+                t_batch = self.t_batch[self.t_idx[idx]]
+                r_batch = self.r_batch[self.r_idx[idx]]
+                return target, ref, label, t_batch, r_batch
         if self.task_type == 'object':
             def get(idx):
                 target = self.targets[self.t_idx[idx]]
                 ref = self.refs[self.r_idx[idx]]
                 label = self.labels[self.r_idx[idx]]
-                return target, ref, label
+                t_batch = self.t_batch[self.t_idx[idx]]
+                r_batch = self.r_batch[self.r_idx[idx]]
+                return target, ref, label, t_batch, r_batch
         return get
 
     def __len__(self):
