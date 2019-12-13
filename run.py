@@ -615,8 +615,12 @@ def curriculum_diffseeds(s, n, cur_n=0, training=None, cuda=False):
     s : number of seeds;
     cur_n : number of distractors
     """
-    dl_train = load_dl('curriculum%s.txt' % cur_n)
-    dl_test = load_dl('curriculum%stest.txt' % cur_n)
+    if cuda:
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+    dl_train = load_dl('curriculum%s.txt' % cur_n, device=device)
+    dl_test = load_dl('curriculum%stest.txt' % cur_n, device=device)
     for i in range(s):
         if training is None:
             model, opt = make_model()
