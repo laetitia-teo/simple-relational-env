@@ -250,13 +250,13 @@ def load_dl_parts(name, bsize=128):
     print('done')
     return dataloader
 
-def load_dl(name, bsize=128):
+def load_dl(name, bsize=128, cuda=False):
     print('loading data...')
     path = data_path_dict[task]
     path = op.join(path, name)
     p = t_dict[task]()
     p.load(path)
-    dataloader = DataLoader(p.to_dataset(),
+    dataloader = DataLoader(p.to_dataset(cuda=cuda),
                             batch_size=bsize,
                             shuffle=True,
                             collate_fn=collate_fn)

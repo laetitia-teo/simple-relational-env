@@ -436,7 +436,7 @@ class Gen():
             self.r_batch += r_batch
             self.labels += labels
 
-    def to_dataset(self, n=None, label_type='long'):
+    def to_dataset(self, n=None, label_type='long', cuda=False):
         """
         Creates a PartsDataset from the generated data and returns it.
 
@@ -454,7 +454,8 @@ class Gen():
                           self.labels[:n],
                           indices,
                           self.task_type,
-                          self.label_type)
+                          self.label_type
+                          cuda=cuda)
         return ds
 
 class PartsGen(Gen):
