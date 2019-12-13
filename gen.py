@@ -454,7 +454,7 @@ class Gen():
                           self.labels[:n],
                           indices,
                           self.task_type,
-                          self.label_type
+                          self.label_type,
                           cuda=cuda)
         return ds
 
