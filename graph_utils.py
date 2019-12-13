@@ -1,3 +1,8 @@
+"""
+This module defines a list of utilities to operate on graphs, to create
+graphs, etc.
+"""
+
 ###############################################################################
 #                                                                             #
 #                            Utility functions                                #
@@ -13,7 +18,7 @@ from torch_scatter import scatter_mean
 
 DTYPE = torch.float
 
-def complete_edge_index(n, self_edges=True):
+def _complete_edge_index(n, self_edges=True):
     """
     This function creates an edge_index tensor corresponding to the
     connectivity of a complete graph of n nodes, including self-edges.
@@ -30,6 +35,37 @@ def complete_edge_index(n, self_edges=True):
         ei = ei[:, ei[0] != ei[1]]
     return ei
 
+def complete_edge_index(n, self_edges=True):
+    """
+    This function creates an edge_index tensor corresponding to the
+    connectivity of a complete graph of n nodes, including self-edges.
+
+    Cuda version ? This is computation we may want to do on GPU.
+    """
+    a = torch.arange(n).unsqueeze(1)
+    b = torch.ones(n, dtype=torch.long).unsqueeze(0)
+    ei = torch.stack(
+        (torch.reshape(a * b, (-1,)),
+        torch.reshape((a * b).T, (-1,))))
+    if not self_edges and n > 1:
+        # we enforce self-edges with 1 object
+        ei = ei[:, ei[0] != ei[1]]
+    return ei
+
+def complete_edge_index_cuda(n, self_edges=True):
+    """
+    Cuda version of the above.
+    """
+    a = torch.arange(n, dtype=torch.cuda.LongTensor).unsqueeze(1)
+    b = torch.ones(n, dtype=torch.cuda.LongTensor).unsqueeze(0)
+    ei = torch.stack(
+        (torch.reshape(a * b, (-1,)),
+        torch.reshape((a * b).T, (-1,))))
+    if not self_edges and n > 1:
+        # we enforce self-edges with 1 object
+        ei = ei[:, ei[0] != ei[1]]
+    return ei
+
 def complete_ei(n, m=None):
     """
     This function creates a set of complete edges (via its edge_index tensor)
@@ -37,6 +73,8 @@ def complete_ei(n, m=None):
     If m is unspecified, the second graph is considered to have the same number
     of nodes as the first
     """
+    if m is None:
+        m = n
     en = torch.ones((n, m)).long() * torch.arange(n).unsqueeze(1)
     if m is None:
         em = en
@@ -174,6 +212,51 @@ def data_to_graph_parts(data):
         n_x = len(idx)
         # create edge index
         ei = complete_edge_index(n_x, self_edges=False)
+        ei += count
+        ei2 = torch.cat((ei2, ei), 1)
+        count += n_x
+    e2 = x2[ei2[1]] - x2[ei2[0]]
+    # create globals by averaging nodes in the same graph
+    u1 = scatter_mean(x1, batch1, dim=0)
+    u2 = scatter_mean(x2, batch2, dim=0)
+    # build graphs
+    graph1 = Data(x=x1, edge_index=ei1, edge_attr=e1, y=u1, batch=batch1)
+    graph2 = Data(x=x2, edge_index=ei2, edge_attr=e2, y=u2, batch=batch2)
+    return graph1, graph2
+
+def data_to_graph_cuda(data):
+    """
+    GPU version of the above.
+    """
+    x1, x2, labels, batch1, batch2 = data
+    f_x = x1.shape[-1]
+    x1 = x1.cuda()
+    x2 = x2.cuda()
+    labels = labels.cuda()
+    batch1 = batch1.cuda()
+    batch2 = batch2.cuda()
+    # create edges for graph1
+    ei1 = torch.zeros((2, 0), dtype=torch.cuda.LongTensor)
+    # note : cumputationally ineffective, is there another way to implement
+    # this ?
+    n = batch1[-1] + 1 # number of graphs, same as batch size
+    count = 0 # for counting node index offset
+    for i in range(n):
+        n_x = torch.sum(batch1 == i).item()
+        # create edge index
+        ei = complete_edge_index_cuda(n_x, self_edges=False)
+        ei += count
+        ei1 = torch.cat((ei1, ei), 1)
+        count += n_x
+    e1 = x1[ei1[1]] - x1[ei1[0]]
+    # create edges for graph2
+    ei2 = torch.zeros((2, 0), dtype=torch.cuda.LongTensor)
+    n = batch2[-1] + 1 # number of graphs, same as batch size
+    count = 0 # for counting node index offset
+    for i in range(n):
+        n_x = torch.sum(batch2 == i).item()
+        # create edge index
+        ei = complete_edge_index_cuda(n_x, self_edges=False)
         ei += count
         ei2 = torch.cat((ei2, ei), 1)
         count += n_x

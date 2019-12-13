@@ -154,7 +154,8 @@ class PartsDataset(Dataset):
                  labels,
                  indices=None,
                  task_type='scene',
-                 label_type='long'):
+                 label_type='long',
+                 cuda=False):
         """
         Initializes the Parts Dataset.
         The inputs are the outputs of the Parts generator, defined in the gen
@@ -164,10 +165,16 @@ class PartsDataset(Dataset):
         costly operation, we prefer to write them to a file.
         """
         self.task_type = task_type
+        if cuda:
+            DTYPE = torch.cuda.FloatTensor
+            ITYPE = torch.cuda.LongTensor
+        else:
+            DTYPE = torch.float
+            ITYPE = torch.long
         if label_type == 'long':
-            LABELTYPE = torch.long
+            LABELTYPE = ITYPE
         if label_type == 'float':
-            LABELTYPE = torch.float
+            LABELTYPE = DTYPE
 
         self.targets = torch.tensor(targets, dtype=DTYPE)
         self.t_batch = torch.tensor(t_batch, dtype=ITYPE)

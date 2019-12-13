@@ -333,6 +333,14 @@ def one_step(model,
     n_passes = 0
     cum_loss = 0
     cum_acc = 0
+    if task == 'parts_task':
+        metric = compute_accuracy
+    elif task == 'similarity_objects':
+        metric = compute_accuracy
+    elif task == 'count':
+        metric = compute_close_to_int
+    elif task == 'select':
+        metric = compute_accuracy
     if isinstance(model, gm.GraphModel):
         data_fn = data_to_graph_parts
         if task == 'parts_task':
@@ -343,14 +351,6 @@ def one_step(model,
             clss_fn = data_to_clss_count
         elif task == 'select':
             clss_fn = data_to_clss_obj
-    if task == 'parts_task':
-        metric = compute_accuracy
-    elif task == 'similarity_objects':
-        metric = compute_accuracy
-    elif task == 'count':
-        metric = compute_close_to_int
-    elif task == 'select':
-        metric = compute_accuracy
     else:
         # handle baselines here
         ...
@@ -630,7 +630,7 @@ def curriculum_diffseeds(s, n, cur_n=0, training=None, cuda=False):
             'experimental_results',
             'all_tasks',
             task,
-            'run2',
+            'run4',
             'curriculum%s' % cur_n)
         plot_metrics(l, a, i, path)
         # checkpoint model
