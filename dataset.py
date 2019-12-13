@@ -24,44 +24,52 @@ CUDA_ITYPE = torch.cuda.LongTensor
 
 ### Utils ###
 
-def collate_fn(batch):
+def make_collate_fn(device=torch.device('cpu')):
     """
-    Custom collate_fn, based on the default one in pytorch, for concatenating
-    data on the first dimension instead of adding a new dimension in which to
-    batch data.
-
-    Assumes the data is provided as a tuple of torch.Tensors, and concatenates
-    along the first dimension on each tensor.
-
-    When used in a pytorch DataLoader, returns batches that have the graph 
-    nodes as first and second elements for both scenes, labels as third element
-    and batches for the first and second graph as fourth and fifth element.
+    Makes the collate function, with different behavior if it's cpu or gpu.
     """
-    elem = batch[0]
-    elem_type = type(elem)
-    if isinstance(elem, torch.Tensor):
-        out = None
-        if torch.utils.data.get_worker_info() is not None:
-            # If we're in a background process, concatenate directly into a
-            # shared memory tensor to avoid an extra copy
-            numel = sum([x.numel() for x in batch])
-            storage = elem.storage()._new_shared(numel)
-            out = elem.new(storage)
-        return torch.cat(batch, 0, out=out)
-    elif isinstance(elem, tuple):
-        transposed = list(zip(*batch)) # we lose memory here
-        l = [collate_fn(samples) for samples in transposed]
-        # # t_batch
-        # l.append(
-        #     collate_fn(
-        #         [torch.ones(len(t), dtype=ITYPE) * i 
-        #             for i, t in enumerate(transposed[0])]))
-        # # r_batch
-        # l.append(
-        #     collate_fn(
-        #         [torch.ones(len(t), dtype=ITYPE) * i 
-        #             for i, t in enumerate(transposed[1])]))
-        return l
+    def collate_fn(batch):
+        """
+        Custom collate_fn, based on the default one in pytorch, for concatenating
+        data on the first dimension instead of adding a new dimension in which to
+        batch data.
+
+        Assumes the data is provided as a tuple of torch.Tensors, and concatenates
+        along the first dimension on each tensor.
+
+        When used in a pytorch DataLoader, returns batches that have the graph 
+        nodes as first and second elements for both scenes, labels as third element
+        and batches for the first and second graph as fourth and fifth element.
+        """
+        elem = batch[0]
+        elem_type = type(elem)
+        if isinstance(elem, torch.Tensor):
+            out = None
+            if torch.utils.data.get_worker_info() is not None:
+                # If we're in a background process, concatenate directly into a
+                # shared memory tensor to avoid an extra copy
+                numel = sum([x.numel() for x in batch])
+                storage = elem.storage()._new_shared(numel)
+                out = elem.new(storage)
+            return torch.cat(batch, 0, out=out)
+        elif isinstance(elem, tuple):
+            transposed = list(zip(*batch)) # we lose memory here
+            l = [collate_fn(samples) for samples in transposed]
+            # t_batch
+            l.append(
+                collate_fn(
+                    [torch.ones(len(t), dtype=ITYPE, device=device) * i 
+                        for i, t in enumerate(transposed[0])]))
+            # r_batch
+            l.append(
+                collate_fn(
+                    [torch.ones(len(t), dtype=ITYPE, device=device) * i 
+                        for i, t in enumerate(transposed[1])]))
+            return l
+    return collate_fn
+
+# default one is cpu
+collate_fn = make_collate_fn()
 
 ### Dataset ###
 
@@ -203,17 +211,13 @@ class PartsDataset(Dataset):
                 target = self.targets[self.t_idx[idx]]
                 ref = self.refs[self.r_idx[idx]]
                 label = self.labels[idx]
-                t_batch = self.t_batch[self.t_idx[idx]]
-                r_batch = self.r_batch[self.r_idx[idx]]
-                return target, ref, label, t_batch, r_batch
+                return target, ref, label
         if self.task_type == 'object':
             def get(idx):
                 target = self.targets[self.t_idx[idx]]
                 ref = self.refs[self.r_idx[idx]]
                 label = self.labels[self.r_idx[idx]]
-                t_batch = self.t_batch[self.t_idx[idx]]
-                r_batch = self.r_batch[self.r_idx[idx]]
-                return target, ref, label, t_batch, r_batch
+                return target, ref, label
         return get
 
     def __len__(self):

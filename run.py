@@ -23,7 +23,7 @@ from argparse import ArgumentParser
 
 # data utilities
 
-from dataset import collate_fn
+from dataset import collate_fn, make_collate_fn
 from baseline_utils import data_to_obj_seq_parts
 from graph_utils import tensor_to_graphs, data_to_graph_parts
 
@@ -251,6 +251,8 @@ def load_dl_parts(name, bsize=128):
     return dataloader
 
 def load_dl(name, bsize=128, device=torch.device('cpu')):
+    # preliminary stuff, create collate function based on device
+    collate_fn = make_collate_fn(device)
     print('loading data...')
     path = data_path_dict[task]
     path = op.join(path, name)
