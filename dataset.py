@@ -12,6 +12,7 @@ import numpy as np
 import torch
 
 import utils as ut
+import graph_utils as gu
 
 from tqdm import tqdm
 from torch.utils.data import Dataset
@@ -163,7 +164,8 @@ class PartsDataset(Dataset):
                  indices=None,
                  task_type='scene',
                  label_type='long',
-                 device=torch.device('cpu')):
+                 device=torch.device('cpu'),
+                 create_ei=True):
         """
         Initializes the Parts Dataset.
         The inputs are the outputs of the Parts generator, defined in the gen
@@ -192,7 +194,7 @@ class PartsDataset(Dataset):
             # build lists of all the indices corresponding to one set of
             # (target, reference, label) for efficient access
             # this is O(n^2) ! fix this
-            for idx in range(len(self.labels)):
+            for idx in range(t_batch[-1]):
                 t = (self.t_batch == idx).nonzero(as_tuple=True)[0]
                 r = (self.r_batch == idx).nonzero(as_tuple=True)[0]
                 self.t_idx.append(t)
@@ -201,6 +203,18 @@ class PartsDataset(Dataset):
             t_idx, r_idx = indices
             self.t_idx = t_idx
             self.r_idx = r_idx
+
+        # if create_ei:
+        #     print('create edge index')
+        #     self.t_ei = []
+        #     self.r_ei = []
+        #     for i in tqdm(range(t_batch[-1])):
+        #         nt = torch.sum(self.t_batch == i).item()
+        #         nr = torch.sum(self.r_batch == i).item()
+        #         self.t_ei.append(
+        #             gu.complete_edge_index_cuda(nt, device, self_edges=False))
+        #         self.r_ei.append(
+        #             gu.complete_edge_index_cuda(nr, device, self_edges=False))
 
         self.get = self._get_maker()
 
@@ -211,13 +225,19 @@ class PartsDataset(Dataset):
                 target = self.targets[self.t_idx[idx]]
                 ref = self.refs[self.r_idx[idx]]
                 label = self.labels[idx]
-                return target, ref, label
+                # t_ei = self.t_ei[idx]
+                # r_ei = self.r_ei[idx]
+                # transpose because of collate_fn concatenatin on 0 dim
+                # TODO : finish testing this
+                return target, ref, label#, t_ei.T, r_ei.T
         if self.task_type == 'object':
             def get(idx):
                 target = self.targets[self.t_idx[idx]]
                 ref = self.refs[self.r_idx[idx]]
                 label = self.labels[self.r_idx[idx]]
-                return target, ref, label
+                # t_ei = self.t_ei[idx]
+                # r_ei = self.r_ei[idx]
+                return target, ref, label#, t_ei.T, r_ei.T
         return get
 
     def __len__(self):

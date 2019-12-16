@@ -237,6 +237,8 @@ class Env(AbstractEnv):
 
             - gridsize : size of a unit in pixels.
             - envsize : size of the environment in units.
+
+        Keep default sizes.
         """
         super(Env, self).__init__()
         self.gridsize = gridsize
@@ -278,8 +280,8 @@ class Env(AbstractEnv):
             - idx (int) : the index where to insert the object. This is used to
                 keep the order of objects in actions.
 
-        Raises ValueError if the given object collides with any other object
-        or if it exceeds the environment range.
+        Raises the Collision exception if the given object collides with any
+        other object or if it exceeds the environment range.
         """
         mat = np.zeros((self.L, self.L, 4))
         obj_mat = obj.to_pixels(self.gridsize)
@@ -862,6 +864,112 @@ class Env(AbstractEnv):
         raise SamplingTimeout('Too many rejected samplings, check if the ' \
             + 'environment is not too full')
 
+    def perturb_one(self, obj, idx):
+        """
+        Perturbs one object by translating it randomly and changing its
+        orientation randomly.
+
+        We have to make sure the angle we select for the translation is a valid
+        one and doesn't send us out of the environment.
+
+        Arguments :
+            - obj : Object to perturb, has been removed from the env
+            - idx : index of the former position of the object in the object
+                list 
+        """
+        pos = np.array(obj.pos) # copy
+        size = obj.size
+        x, y = pos - size
+        X, Y = self.envsize - x - size, self.envsize - y - size
+        # sample translation length
+        R_min = 5 # minimum translation length
+        R_max = max(x, y, X, Y)
+        R = np.random.random()
+        R = R_min * (1 - R) + R_max * R
+        theta_mins = []
+        theta_maxs = []
+        # compute the possible ranges for sampling theta
+        if R > X:
+            tmin = np.arcsin(((R**2 - X**2)**.5)/R)
+            tmax = 2*np.pi - np.arcsin(((R**2 - X**2)**.5)/R)
+            theta_mins.append(tmin)
+            theta_maxs.append(tmax)
+        if R > Y:
+            tmin = np.pi/2 + np.arcsin(((R**2 - Y**2)**.5)/R)
+            tmax = np.pi/2 - np.arcsin(((R**2 - Y**2)**.5)/R)
+            theta_mins.append(tmin)
+            theta_maxs.append(tmax)
+        if R > x:
+            tmin = np.pi + np.arcsin(((R**2 - x**2)**.5)/R)
+            tmax = np.pi - np.arcsin(((R**2 - x**2)**.5)/R)
+            theta_mins.append(tmin)
+            theta_maxs.append(tmax)
+        if R > y:
+            tmin = 2*np.pi/3 + np.arcsin(((R**2 - y**2)**.5)/R)
+            tmax = 2*np.pi/3 - np.arcsin(((R**2 - y**2)**.5)/R)
+            theta_mins.append(tmin)
+            theta_maxs.append(tmax)
+        # transform this into all the intervals we can sample from
+        intervals = []
+        it = iter(zip(theta_maxs, theta_mins))
+        try:
+            tmax, tmin = next(it)
+            mem = tmax
+            prev = tmin
+            tot = 0
+            for tmax, tmin in it:
+                if prev < tmax: # no overlap
+                    intervals.append((prev, tmax, tmax - prev))
+                    tot += tmax - prev
+                prev = tmin
+            intervals.append((prev, mem, mem - prev))
+        except StopIteration: # only one interval, representing the whole range
+            intervals.append((0, 2*np.pi, 2*np.pi))
+            tot = 2*np.pi
+        # sample : this decides in which interval we fall, and at what place
+        r = np.random.random() * 2 * np.pi
+        cum = 0
+        for i, (m, M, l) in enumerate(intervals):
+            cum += l
+            if r < cum:
+                break
+        mi, Mi, li = intervals[i]
+        # rescale in sampled interval
+        r = (r - mi) / (Mi - mi)
+        # transform into angle
+        theta = mi * (1 - r) + Mi * r
+        # xy coords of all this
+        tvec = np.array([R * np.cos(theta), R * np.sin(theta)])
+        # finally perturb object
+        obj.pos += tvec
+        try:
+            self.add_object(obj, idx)
+        except Collision:
+            obj.pos = pos
+            self.add_object(obj, idx)
+            raise Collision('') # propagate exception
+
+    def perturb_objects(self, n_p, timeout=30):
+        """
+        Given the current state of the environment, perturbs n_p objects by
+        applying random translations and changing their orientation randomly.
+        """
+        n = len(self.objects)
+        n_p = min(n, n_p)
+        indices = np.random.choice(n, n_p, replace=False)
+        for idx in indices:
+            count = 0
+            # we retry timeout times at each object
+            while count < timeout:
+                try:
+                    obj = self.objects.pop(idx)
+                    self.perturb_one(obj, idx)
+                    break
+                except Collision:
+                    count += 1
+                    if count == timeout:
+                        raise SamplingTimeout('Too many failed samplings in' \
+                             + 'perturb_objects')
 
 class NActionSpace():
     """
@@ -1006,4 +1114,3 @@ class Playground():
                         done = True
             self._env.save_image(framename)
         pygame.quit()
-            

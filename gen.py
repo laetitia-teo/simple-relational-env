@@ -519,7 +519,6 @@ class PartsGen(Gen):
             self.env.random_transformation()
             self.env.random_config(n_d) # add random objects
             falseworld = self.env.to_state_list(norm=True)
-            query = query
             return query, trueworld, falseworld
         except SamplingTimeout:
             print('Sampling timed out, {} and {} objects'.format(n_t, n_d))
@@ -585,6 +584,93 @@ class PartsGen(Gen):
             self.r_batch += n_r1 * [2*i] + n_r2 * [2*i + 1]
             self.labels += [[1], [0]]
 
+class PartsGenv2(Gen):
+    """
+    A different version of the Parts Generator, to sample configurations that 
+    only differ slightly, in terms of configuration of the objects that
+    interests us. This is because in the previous generator, we only present
+    to the model examples of samples that differ either completely, either that
+    have the same configuration, up to similarity. This may make the task
+    harder to learn, and the model more brittle when it learns.
+
+    In this generator, we first sample the query, then for positive examples
+    we translate/shift a bit (maybe also jitter object positions/angles/colors
+    ?), and for negative examples we move one to all objects (number of objects
+    moved sampled uniformly).
+
+    Contrary to the previous generator, we generate one example per step.
+    """
+    def __init__(self, env=None, n_d=None):
+        """
+        Initialize the Parts task generator, version 2.
+        """
+        super(PartsGen, self).__init__(env, n_d)
+        self.task = 'parts_task'
+        self.task_type = 'scene'
+        self.label_type='long'
+
+    def gen_one(self):
+        """
+        Generates one training example.
+        """
+        try:
+            self.env.reset()
+            label = np.random.randint(0, 2)
+            n_t = np.random.randint(*self.range_t)
+            if self.n_d is None:
+                n_d = np.random.randint(*self.range_d)
+            else:
+                n_d = self.n_d
+            self.env.random_config(n_t)
+            query = self.env.to_state_list(norm=True)
+            if label:
+                self.env.random_transformation()
+                self.env.random_config(n_d)
+                world = self.env.to_state_list(norm=True)
+            else:
+                n_p = np.random.randint(1, n_t + 1) # number of perturbed objects
+                self.env.perturb_objects(n_p)
+                self.env.random_transformation()
+                self.env.random_config(n_d)
+                world = self.env.to_state_list(norm=True)
+            return query, world, label
+        except SamplingTimeout:
+            print('Sampling timed out, {} and {} objects'.format(n_t, n_d))
+            raise Resample('Resample configuration')
+
+    def generate(self, N):
+        """
+        Generates a dataset of N positive and N negative examples.
+
+        Arguments :
+            - N (int) : half of the dataset length
+
+        Generates:
+            - targets (list of vectors): list of all the query objets;
+            - t_batch (list of ints): list of indices linking the query
+                objects to their corresponding scene index;
+            - refs (list of object vectors): list of all the reference
+                objects;
+            - r_batch (list of ints): list of indices linking the reference
+                objects to their corresponding scene index;
+            - labels (list of ints): list of scene labels.
+        """
+        print('generating dataset of %s examples :' % (2 * N))
+        for i in tqdm(range(N)):
+            try:
+                query, world, label = self.gen_one()
+            except Resample:
+                # We resample the config once
+                # If there is a sampling timeout here, we let it pass
+                query, world, label = self.gen_one()
+            n_t = len(query)
+            n_r = len(world)
+            self.targets += query
+            self.t_batch += n_t * [i]
+            self.refs += world
+            self.r_batch += n_r * [i]
+            self.labels += [[label]]
+            
 class SimilarityObjectsGen(Gen):
     """
     A generator for the Similarity-Object task.

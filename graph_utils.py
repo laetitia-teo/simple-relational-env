@@ -52,12 +52,12 @@ def complete_edge_index(n, self_edges=True):
         ei = ei[:, ei[0] != ei[1]]
     return ei
 
-def complete_edge_index_cuda(n, self_edges=True):
+def complete_edge_index_cuda(n, device, self_edges=True):
     """
     Cuda version of the above.
     """
-    a = torch.arange(n, dtype=torch.cuda.LongTensor).unsqueeze(1)
-    b = torch.ones(n, dtype=torch.cuda.LongTensor).unsqueeze(0)
+    a = torch.arange(n, device=device).unsqueeze(1)
+    b = torch.ones(n, dtype=torch.long, device=device).unsqueeze(0)
     ei = torch.stack(
         (torch.reshape(a * b, (-1,)),
         torch.reshape((a * b).T, (-1,))))
