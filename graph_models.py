@@ -1223,6 +1223,24 @@ class ConditionByGraphEmbedding(GraphModel):
 
         return out_list
 
+class GMSimple(GraphModel):
+    """
+    A simple Graph model, one layer of a simple GNN.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 h,
+                 N,
+                 f_dict):
+        """
+        Init.
+        """
+        super(GMSimple, self).__init__()
+        model_fn = gn.mlp_fn(mlp_layers)
+        f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.gnn = gn.
+
 ### A try at universal GMs ###
 
 class GraphMatchingv2_U(GraphModel):

@@ -1017,3 +1017,59 @@ class AbstractRelationsGen(Gen):
             self.refs += world
             self.r_batch += n_w * [i]
             self.labels += [[label]]
+
+class SameConfigGen(Gen):
+    """
+    This generator generates a single configuration based on a reference
+    configuration. To generate something that can be considered the same 
+    configuration, we are allowed to perturb each element's attributes by a
+    small amount, and we are allowed to apply translations and scalings to 
+    the configurations.
+    """
+    def __init__(self, ref_state_list=None, env=None, n_d=None):
+        super(SameConfigGen, self).__init__(env, n_d)
+        self.task = 'same_config'
+        self.task_type = 'scene'
+        self.label_type = 'long'
+        self.eps = 0.05
+        if ref_state_list:
+            self.ref_state_list = ref_state_list
+        else:
+            n = np.random.randint(3, 7)
+            self.ref_state_list = self.env.random_config(n).to_state_list(
+                norm=True)
+            self.env.reset()
+
+    def gen_one(self):
+        """
+        Generates one example, by perturbing a bit each object of the reference
+        configuration. 
+        """
+        self.env.reset()
+        self.env.from_state_list(self.ref_state_list, norm=True)
+        label = np.random.randint(2) # positive or negative example
+        if label:
+            for i in range(len(self.env.objects)):
+                obj = self.env.objects.pop(i)
+                self.env.small_perturb_objects()
+            self.env.random_transformation()
+        else:
+            n_p = np.random.randint(len(self.env.objects))
+            self.env.perturb_objects(n_p)
+            self.env.random_transformation()
+        state = self.env.to_state_list(norm=True)
+        return state, label
+
+    def generate(self, N):
+        for i in tqdm(range(N)):
+            try:
+                state, label = self.gen_one()
+            except Resample:
+                # shouldn't happen really often here, if n_d is reasonable
+                state, label = self.gen_one()
+            n_s = len(state)
+            self.targets += state
+            self.t_batch += n_s * [i]
+            self.refs += []
+            self.r_batch += []
+            self.labels += [[label]]

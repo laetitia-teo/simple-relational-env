@@ -869,6 +869,45 @@ class Env(AbstractEnv):
         raise SamplingTimeout('Too many rejected samplings, check if the ' \
             + 'environment is not too full')
 
+    def small_perturbation(self, obj, idx, eps):
+        """
+        Applies a small gaussian perturbation with mean 0 and variance
+        proportional to eps, to the color, position and orientation of the 
+        object at position idx.
+        """
+        colorpert = np.random.normal(
+            obj.color, 255 * eps * np.ones(3)).astype(int)
+        pospert = np.random.normal(obj.pos, self.envsize * eps * np.ones(2))
+        oripert = np.random.normal(obj.ori, 2 * np.pi * np.ones(1))
+        sizepert = np.random.normal(obj.size, 1.5 * eps * np.ones(1))
+        obj.pos = pospert
+        obj.ori = oripert
+        obj.color = colorpert
+        obj.size = sizepert
+        try:
+            self.add_object(obj, idx)
+        except Collision:
+            obj.pos = pos
+            self.add_object(obj, idx)
+            raise Collision('') # propagate exception
+
+    def small_perturb_objects(self, eps, timeout=30):
+        """
+        Applies a small perturbation to all objects.
+        """
+        for i in range(len(self.objects)):
+            count = 0
+            while count < timeout:
+                try:
+                    obj = self.objects.pop(i)
+                    self.small_perturbation(obj, i, eps)
+                    break
+                except Collision:
+                    count += 1
+                    if count == timeout:
+                        raise SamplingTimeout('Too many failed samplings in' \
+                             + 'perturb_objects')
+
     def perturb_one(self, obj, idx):
         """
         Perturbs one object by translating it randomly and changing its
