@@ -140,8 +140,35 @@ class EdgeModelConcatNoMem(torch.nn.Module):
         self.phi_e = model_fn(2 * f_x + f_u, f_e_out)
 
     def forward(self, src, dest, edge_attr, u, batch):
-         out = torch.cat([dest, src, u[batch]], 1)
-         return self.phi_e(out)
+        out = torch.cat([dest, src, u[batch]], 1)
+        return self.phi_e(out)
+
+class TGNNEdge(torch.nn.Module):
+    """
+    Edge model of the TGNN model.
+    It computes the query and key vectors for each node, and then uses their
+    dot product across node pairs as edge attributes.
+
+    No learnable parameters.
+    """
+    def __init__(self,
+                 f_x,
+                 f_u,
+                 f_int):
+        """
+        Arguments: 
+            - f_x : number of node features;
+            - f_u : number of global features;
+            - f_int : number of features of the intermediate vectors. 
+        """
+        super(TGNNEdge, self).__init__()
+        if f_e_out is None:
+            f_e_out = f_e
+
+    def forward(self, src, dest, edge_attr, u, batch):
+        K, Q = src, dest
+        a = torch.bmm(K.view(-1, 1, f_int), Q.view(-1, 1, f_int)).squeeze()
+        return a # new edge_attr
 
 class CosineAttention():
     """
@@ -340,6 +367,28 @@ class NodeModelAdd(torch.nn.Module):
         # print()
         out = torch.cat([x, e_agg_node, u[batch]], 1)
         return self.phi_x(out)
+
+class TGNNNode(torch.nn.Module):
+    """
+    Node model for the TGNN.
+    """
+    def __init__(self,
+                 f_x,
+                 f_u,
+                 f_out):
+        if f_x_out is None:
+            f_x_out = f_x
+        super(TGNNNode, self).__init__()
+        self.phi_K = Linear(f_x + f_u, f_out)
+        self.phi_Q = Linear(f_x + f_u, f_out)
+
+    def forward(self, x, edge_index, edge_attr, u, batch):
+        a = edge_attr
+        src, dest = edge_index
+        # how to keep the information ?
+        x = scatter_add(a * x[src], dest, dim=0)
+        K = self.phi_K(torch.cat([x, u[batch]], 1))
+        Q = self.phi_Q(torch.cat([x, u[batch]], 1))
 
 class GlobalModel(torch.nn.Module):
     def __init__(self,
@@ -835,3 +884,10 @@ class CrossGraphAttentionLayer(torch.nn.Module):
         x = self.node_model(x, edge_index, edge_attr, u, batch)
         u = self.global_model(x, edge_index, edge_attr, u, batch)
         return x, edge_attr, u
+
+class TGNNLayer(torch.nn.Module):
+    """
+    TGNN Layer.
+    """
+    def __init__(self):
+        pass

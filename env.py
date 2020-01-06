@@ -730,6 +730,8 @@ class Env(AbstractEnv):
         between the environment size and the current object bounding box.
         """
         bboxmin, bboxmax = self.bounding_box()
+        print('bboxmin %s' % bboxmin)
+        print('bboxmax %s' % bboxmax)
         if bboxmin is None:
             return
         spacemin = np.array([0., 0.])
@@ -737,6 +739,9 @@ class Env(AbstractEnv):
         plusspace = spacemax - bboxmax
         minspace = spacemin - bboxmin
         # whether to sample in plusspace or minspace
+        print(plusspace)
+        print(minspace)
+        print(plusspace/(plusspace - minspace))
         b = np.random.binomial(1, plusspace/(plusspace - minspace))
         # how much to move in x and y
         u = np.random.random(2)
@@ -875,8 +880,14 @@ class Env(AbstractEnv):
         Arguments :
             - obj : Object to perturb, has been removed from the env
             - idx : index of the former position of the object in the object
-                list 
+                list
+
+        TODO : still buggy, fix this
+        The angles computed with the trigonometry may not be good
+        Are all the intervals computed in a valid fashion ?
+        Is the random number properly cast in the selected interval ?
         """
+        pi = np.pi
         pos = np.array(obj.pos) # copy
         size = obj.size
         x, y = pos - size
@@ -890,58 +901,71 @@ class Env(AbstractEnv):
         theta_maxs = []
         # compute the possible ranges for sampling theta
         if R > X:
+            print('X')
             tmin = np.arcsin(((R**2 - X**2)**.5)/R)
-            tmax = 2*np.pi - np.arcsin(((R**2 - X**2)**.5)/R)
+            tmax = 2*pi - np.arcsin(((R**2 - X**2)**.5)/R)
             theta_mins.append(tmin)
             theta_maxs.append(tmax)
         if R > Y:
-            tmin = np.pi/2 + np.arcsin(((R**2 - Y**2)**.5)/R)
-            tmax = np.pi/2 - np.arcsin(((R**2 - Y**2)**.5)/R)
+            print('Y')
+            tmin = pi/2 + np.arcsin(((R**2 - Y**2)**.5)/R)
+            tmax = pi/2 - np.arcsin(((R**2 - Y**2)**.5)/R)
             theta_mins.append(tmin)
             theta_maxs.append(tmax)
         if R > x:
-            tmin = np.pi + np.arcsin(((R**2 - x**2)**.5)/R)
-            tmax = np.pi - np.arcsin(((R**2 - x**2)**.5)/R)
+            print('x')
+            tmin = pi + np.arcsin(((R**2 - x**2)**.5)/R)
+            tmax = pi - np.arcsin(((R**2 - x**2)**.5)/R)
             theta_mins.append(tmin)
             theta_maxs.append(tmax)
         if R > y:
-            tmin = 2*np.pi/3 + np.arcsin(((R**2 - y**2)**.5)/R)
-            tmax = 2*np.pi/3 - np.arcsin(((R**2 - y**2)**.5)/R)
+            print('y')
+            tmin = 3*pi/2 + np.arcsin(((R**2 - y**2)**.5)/R)
+            tmax = 3*pi/2 - np.arcsin(((R**2 - y**2)**.5)/R)
             theta_mins.append(tmin)
             theta_maxs.append(tmax)
         # transform this into all the intervals we can sample from
         intervals = []
+        print('tmax %s' % theta_maxs)
+        print('tmin %s' % theta_mins)
         it = iter(zip(theta_maxs, theta_mins))
         try:
             tmax, tmin = next(it)
             mem = tmax
             prev = tmin
-            tot = 0
             for tmax, tmin in it:
                 if prev < tmax: # no overlap
                     intervals.append((prev, tmax, tmax - prev))
-                    tot += tmax - prev
                 prev = tmin
-            intervals.append((prev, mem, mem - prev))
+            if prev < mem:
+                intervals.append((prev, mem, mem - prev))
+            else:
+                intervals.append((prev, 2*pi, 2*pi - prev))
+                intervals.insert(0, (0, mem, mem))
         except StopIteration: # only one interval, representing the whole range
-            intervals.append((0, 2*np.pi, 2*np.pi))
-            tot = 2*np.pi
+            intervals.append((0, 2*pi, 2*pi))
+        tot = sum([l for m, M, l in intervals])
+        print(intervals)
         # sample : this decides in which interval we fall, and at what place
-        r = np.random.random() * 2 * np.pi
+        r = np.random.random() * tot
         cum = 0
         for i, (m, M, l) in enumerate(intervals):
             cum += l
             if r < cum:
                 break
         mi, Mi, li = intervals[i]
+        print('mi %s, Mi %s, li %s' % (mi, Mi, li))
+        print(r)
         # rescale in sampled interval
         r = (r - mi) / (Mi - mi)
         # transform into angle
         theta = mi * (1 - r) + Mi * r
+        print('theta %s' % theta)
         # xy coords of all this
         tvec = np.array([R * np.cos(theta), R * np.sin(theta)])
         # finally perturb object
         obj.pos += tvec
+        # return pos + tvec
         try:
             self.add_object(obj, idx)
         except Collision:

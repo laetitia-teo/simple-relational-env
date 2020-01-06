@@ -604,7 +604,7 @@ class PartsGenv2(Gen):
         """
         Initialize the Parts task generator, version 2.
         """
-        super(PartsGen, self).__init__(env, n_d)
+        super(PartsGenv2, self).__init__(env, n_d)
         self.task = 'parts_task'
         self.task_type = 'scene'
         self.label_type='long'
@@ -655,7 +655,7 @@ class PartsGenv2(Gen):
                 objects to their corresponding scene index;
             - labels (list of ints): list of scene labels.
         """
-        print('generating dataset of %s examples :' % (2 * N))
+        print('generating dataset of %s examples :' % N)
         for i in tqdm(range(N)):
             try:
                 query, world, label = self.gen_one()
