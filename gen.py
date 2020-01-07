@@ -16,7 +16,6 @@ import torch
 from glob import glob
 from tqdm import tqdm
 
-from env import SamplingTimeout
 from env import Env
 from dataset import Dataset, PartsDataset
 from utils import to_file, from_file
@@ -219,6 +218,9 @@ class Gen():
 
         self.n_d = n_d
 
+        # has metadata
+        self.has_metadata = False
+
         # data
         self.reset()
 
@@ -306,6 +308,9 @@ class Gen():
                 f.write(str(i.numpy()) + ' ')
             f.write('\n')
 
+    def write_metadata(self, path):
+        pass
+
     def read_targets(self, lineit):
         """
         Takes in an iterator of the lines read.
@@ -382,6 +387,9 @@ class Gen():
             pass
         return r_idx
 
+    def read_metadata(self, path):
+        pass
+
     def save(self, path, write_indices=True):
         """
         Saves the dataset as a file. 
@@ -397,6 +405,7 @@ class Gen():
             if write_indices:
                 self.write_t_idx(f)
                 self.write_r_idx(f)
+        self.write_metadata(path)
 
     def load(self, path, read_indices=True, replace=True):
         """
@@ -419,6 +428,7 @@ class Gen():
                     t_idx = []
                     r_idx = []
         # stores the data
+        self.read_metadata(path)
         if replace:
             self.targets = targets
             self.t_batch = t_batch
@@ -1026,24 +1036,75 @@ class SameConfigGen(Gen):
     small amount, and we are allowed to apply translations and scalings to 
     the configurations.
     """
-    def __init__(self, ref_state_list=None, env=None, n_d=None):
+    def __init__(self, ref_state_list=None, n=None):
         super(SameConfigGen, self).__init__()
         self.task = 'same_config'
         self.task_type = 'scene'
         self.label_type = 'long'
-        self.eps = 0.05
         if ref_state_list:
             self.ref_state_list = ref_state_list
         else:
-            n = np.random.randint(3, 7)
+            if n is None:
+                n = np.random.randint(3, 7)
             self.env.random_config(n)
             self.ref_state_list = self.env.to_state_list(norm=True)
             self.env.reset()
 
+        # metadata
+        self.has_metadata = True
+        self.translation_vectors = []
+        self.scalings = []
+        self.rotation_angles = []
+        self.n_objects = len(self.ref_state_list)
+        self.eps = 0.05 # amplitude factor of the perturbations
+        self.perturbations = []
+        # ranges we exclude from generation
+        self.t_ex_range = (np.array([0., 0.]), np.array([1., 1.])) # example
+        self.s_ex_range = (1., 1.2)
+        self.r_ex_range = (0., np.pi)
+
+    def write_metadata(self, path):
+        """
+        Writes the metadata in the file at path, with the scmd (same_config
+        metadata) extension.
+        """
+        with open(path + '.scmd', 'w'):
+            # write reference state list
+            t.write('ref_state_list')
+            for obj in self.ref_state_list:
+                for num in obj:
+                    f.write(str(num) + ' ')
+            f.write('\n')
+            # write epsilon
+            f.write('eps\n')
+            f.write(str(self.eps))
+            # write translation vectors
+            f.write('tvecs\n')
+            for tvec in self.translation_vectors:
+                for i in tvec:
+                    f.write(str(i) + ' ')
+                f.write('\n')
+            # write scalings
+            f.write('scalings\n')
+            for scal in self.scalings:
+                f.write(str(scal) + '\n')
+            # write rotation angles
+            f.write('phis\n')
+            for phi in self.rotation_angles:
+                f.write(str(phi) + '\n')
+            # write perturbation strengths
+            f.write('pert')
+            for pert in self.perturbations:
+                pass # we don't know yet how to encode this
+            # write the ranges we exclude
+            pass # TODO : not implemented yet
+
     def gen_one(self):
         """
         Generates one example, by perturbing a bit each object of the reference
-        configuration. 
+        configuration.
+
+        Also records metadata for the generation.
         """
         self.env.reset()
         self.env.from_state_list(self.ref_state_list, norm=True)
@@ -1053,6 +1114,7 @@ class SameConfigGen(Gen):
             self.env.random_transformation()
         else:
             n_p = np.random.randint(len(self.env.objects))
+            self.env.small_perturb_objects(self.eps)
             self.env.perturb_objects(n_p)
             self.env.random_transformation()
         state = self.env.to_state_list(norm=True)

@@ -13,21 +13,6 @@ from random import shuffle
 
 N_SH = 3 # number of shapes
 
-class Collision(Exception):
-    """
-    Raised when an action is performed that collides two shapes in the space.
-    """
-    def __init__(self, message):
-        self.message = message
-
-class SamplingTimeout(Exception):
-    """
-    Raised when a sampling process times out, possibly because of a too high
-    rejection rate.
-    """
-    def __init__(self, message):
-        self.message = message
-
 class AbstractEnv():
 
     def __init__(self):
@@ -75,12 +60,6 @@ class Shape():
         # concrete atributes
         self.cond = NotImplemented
         self.shape_index = NotImplemented
-
-    def collides(self, object):
-        raise NotImplementedError
-
-    def collides_with_objects(self, list_of_objects):
-        raise NotImplementedError
 
     def to_pixels(self, gridsize):
         """
@@ -274,36 +253,7 @@ class Env(AbstractEnv):
     def add_object(self, obj, idx=None):
         """
         Adds a Shape to the scene.
-
-        Arguments :
-            - obj (Shape) : the object to add
-            - idx (int) : the index where to insert the object. This is used to
-                keep the order of objects in actions.
-
-        Raises the Collision exception if the given object collides with any
-        other object or if it exceeds the environment range.
         """
-        mat = np.zeros((self.L, self.L, 4))
-        obj_mat = obj.to_pixels(self.gridsize)
-        obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
-        s = len(obj_mat)
-        ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
-        # first perform check on env boundaries
-        if (ox < 0 or oy < 0 or ox + s > self.L or oy + s > self.L):
-            raise Collision('New shape out of environment range')
-        mat[ox:ox + s, oy:oy + s] += obj_mat
-        # then collision checks with environment and shape masks
-        for obj2 in self.objects:
-            if self.l2_norm(obj.pos, obj2.pos) <= obj.size + obj2.size:
-                obj2_mat = obj2.to_pixels(self.gridsize)
-                s2 = len(obj2_mat)
-                ox2, oy2 = ((self.gridsize * obj2.pos) - int(s2/2)).astype(int)
-                env_mask = mat[ox2:ox2+s2, oy2:oy2+s2, -1]
-                obj2_mask = obj2_mat[:, :, -1]
-                collides = np.logical_and(obj2_mask, env_mask)
-                if collides.any():
-                    raise Collision(
-                        'New shape collides with existing shape')
         if idx is not None:
             self.objects.insert(idx, obj)
         else:
@@ -341,7 +291,19 @@ class Env(AbstractEnv):
         minpos = np.min(amin, 0)
         return minpos, maxpos
 
-    def translate(self, amount, raise_collision=False):
+    def get_center(self):
+        """
+        Returns the center of the configuration in 2d space.
+        """
+        if not self.objects:
+            return np.array([self.envsize, self.envsize])
+        s = np.zeros(2)
+        for obj in self.objects:
+            s += obj.pos
+        s /= len(self.objects)
+        return s
+
+    def translate(self, amount):
         """
         Translates all the objects in the scene by amount, if there is no
         collision with the edge of the environment.
@@ -358,16 +320,9 @@ class Env(AbstractEnv):
             tr_vec = np.array(vec)
             tr_vec[N_SH+4:N_SH+6] += amount
             tr_state_list.append(tr_vec)
-        try:
-            self.from_state_list(tr_state_list)
-        except Collision:
-            print('Collision : invalid translation')
-            self.reset()
-            self.from_state_list(state_list)
-            if raise_collision:
-                raise Collision('Failed translation')
+        self.from_state_list(tr_state_list)
 
-    def scale(self, amount, center=None, raise_collision=False):
+    def scale(self, amount, center=None):
         """
         Scales all the scene by amount. If no center is given, the scene center
         is used.
@@ -385,16 +340,9 @@ class Env(AbstractEnv):
             sc_vec[N_SH+4:N_SH+6] = amount * (sc_vec[N_SH+4:N_SH+6] - center) + center 
             sc_vec[N_SH] *= amount
             sc_state_list.append(sc_vec)
-        try:
-            self.from_state_list(sc_state_list)
-        except Collision:
-            print('Collision : invalid scaling')
-            self.reset()
-            self.from_state_list(state_list)
-            if raise_collision:
-                raise Collision('Failed scaling')
+        self.from_state_list(sc_state_list)
 
-    def rotate(self, theta, center=None, raise_collision=False):
+    def rotate(self, theta, center=None):
         """
         Applies a rotation of angle theta on a scene. If no center is given,
         the scene center is used.
@@ -421,14 +369,7 @@ class Env(AbstractEnv):
             rot_vec[N_SH+4:N_SH+6] = rot_mx.dot(pos) + center
             rot_vec[N_SH+6] += theta
             rot_state_list.append(rot_vec)
-        try:
-            self.from_state_list(rot_state_list)
-        except Collision:
-            print('Collision : invalid rotation')
-            self.reset()
-            self.from_state_list(state_list)
-            if raise_collision:
-                raise Collision('Failed rotation')
+        self.from_state_list(rot_state_list)
 
     def shuffle_objects(self):
         """
@@ -437,7 +378,7 @@ class Env(AbstractEnv):
         """
         shuffle(self.objects)
 
-    def act(self, i_obj, a_vec, raise_collision=False):
+    def act(self, i_obj, a_vec):
         """
         Performs the action encoded by the vector a_vec on object indexed by
         i_obj.
@@ -448,17 +389,13 @@ class Env(AbstractEnv):
         o_vec = obj.to_vector()
         o_vec[N_SH:] += a_vec
         obj2 = shape_from_vector(o_vec)
-        try:
-            self.add_object(obj2, i_obj)
-        except Collision:
-            # print('Collision : invalid action')
-            self.add_object(obj, i_obj)
-            if raise_collision:
-                raise Collision('')
+        self.add_object(obj2, i_obj)
         
     def render(self, show=True):
         """
         Renders the environment, returns a rasterized image as a numpy array.
+
+        TODO : change this to account for the collisions
         """
         mat = np.zeros((self.L, self.L, 4))
         for obj in self.objects:
@@ -502,34 +439,28 @@ class Env(AbstractEnv):
         """
         cv2.imwrite(path, self.render(False))
 
-    def random_mix(self, timeout=30):
+    def random_mix(self):
         """
         Creates a scene configuration where the objects are the same, but the
         spatial configuration is randomly re-sampled.
+
+        TODO : change this so we are sure the config is indeed different
         """
-        count = 0
-        while count < timeout:
-            new_objects = []
-            for obj in self.objects:
-                new_pos = np.random.random(2)
-                new_pos = (1 - new_pos) * obj.size + new_pos \
-                    * (self.envsize - obj.size)
-                new_obj = obj.copy()
-                new_obj.pos = new_pos
-                new_objects.append(new_obj)
-            try:
-                objects = self.objects
-                self.reset()
-                for obj in new_objects:
-                    self.add_object(obj)
-                return
-            except Collision:
-                self.objects = objects
-            count += 1
-        raise SamplingTimeout('Too many rejected samplings, try fewer objects')
+        new_objects = []
+        for obj in self.objects:
+            new_pos = np.random.random(2)
+            new_pos = (1 - new_pos) * obj.size + new_pos \
+                * (self.envsize - obj.size)
+            new_obj = obj.copy()
+            new_obj.pos = new_pos
+            new_objects.append(new_obj)
+        objects = self.objects
+        self.reset()
+        for obj in new_objects:
+            self.add_object(obj)
+        return
 
     def add_random_object(self,
-                          timeout=30,
                           color=None,
                           shape=None):
         """
@@ -555,165 +486,28 @@ class Env(AbstractEnv):
                 with equal probability if unspcified.
         """
         count = 0
-        minsize = 0.5
-        maxsize = 2
-        while count < timeout:
-            if shape is None:
-                shape = np.random.randint(N_SH)
-            if color is None:
-                color = np.random.random(3) # U(0, 1) in 3d
-                color = (255 * color).astype(int)
-            size = np.random.random()
-            size = (1 - size) * minsize + size * maxsize
-            ori = np.random.random()
-            ori = ori * 2 * np.pi # we allow up to 2pi rotations
-            pos = np.random.random(2)
-            pos = (1 - pos) * size + pos * (self.envsize - size)
-            if shape == 0:
-                obj = Square(size, color, pos, ori)
-            elif shape == 1:
-                obj = Circle(size, color, pos, ori)
-            elif shape == 2:
-                obj = Triangle(size, color, pos, ori)
-            try:
-                self.add_object(obj)
-                return
-            except Collision:
-                pass # re-sample
-            count += 1
-        raise SamplingTimeout('Too many rejected samplings, check if the ' \
-            + 'environment is not too full')
-
-    def add_random_object_relation(self,
-                                   rel,
-                                   flipped=False,
-                                   timeout=30,
-                                   color=None,
-                                   shape=None,
-                                   i=0):
-        """
-        This function samples a random object that is in the relation specified
-        by rel with object at index i (default is 0).
-        Because the first object is sampled randomly, there is a chance that
-        the provided relation may not be satisfiable, in this case we flip the
-        relation (left becomes right, etc) and we return whether we had to flip
-        or not.
-        """
-        obj1 = self.objects[0]
-        minsize = 0.5
-        maxsize = 2
+        minsize = self.envsize / 40
+        maxsize = self.envsize / 10
         if shape is None:
             shape = np.random.randint(N_SH)
         if color is None:
             color = np.random.random(3)
             color = (255 * color).astype(int)
-        # TODO : too much code, maybe write a function
-        if rel == 0:
-            # left of
-            available = obj1.pos[0] - obj1.size
-            if available <= 2 * minsize:
-                flipped = True
-                return self.add_random_object_relation(
-                    1,
-                    flipped,
-                    color=color,
-                    shape=shape)
-            size = np.random.random()
-            size = minsize * (1 - size) + min(available / 2, maxsize) * size
-            x = np.random.beta(4, 4) # maybe change this
-            x = size * (1 - x) + (obj1.pos[0] - size) * x
-            maxx = obj1.pos[0] - size - obj1.size
-            minx = size
-            modex = (maxx + minx) / 2
-            x = np.random.triangular(minx, modex, maxx)
-            miny = max(obj1.pos[1] - (obj1.pos[0] - x), size)
-            maxy = min(obj1.pos[1] + (obj1.pos[0] - x), self.envsize - size)
-            modey = obj1.pos[1]
-            # some extreme cases may happen
-            if modey < miny:
-                modey = miny
-            if modey > maxy:
-                modey = maxy
-            y = np.random.triangular(miny, modey, maxy)
-        elif rel == 1:
-            # right of
-            available = self.envsize - obj1.size - obj1.pos[0]
-            if available <= 2 * minsize:
-                flipped = True
-                return self.add_random_object_relation(
-                    0,
-                    flipped,
-                    color=color,
-                    shape=shape)
-            size = np.random.random()
-            size = minsize * (1 - size) + min(available / 2, maxsize) * size
-            maxx = self.envsize - size
-            minx = obj1.pos[0] + size + obj1.size
-            modex = (maxx + minx) / 2
-            x = np.random.triangular(minx, modex, maxx)
-            miny = max(obj1.pos[1] - (x - obj1.pos[0]), size)
-            maxy = min(obj1.pos[1] + (x - obj1.pos[0]), self.envsize - size)
-            modey = obj1.pos[1]
-            if modey < miny:
-                modey = miny
-            if modey > maxy:
-                modey = maxy
-            y = np.random.triangular(miny, modey, maxy)
-        elif rel == 2:
-            # left of
-            available = obj1.pos[1] - obj1.size
-            if available <= 2 * minsize:
-                flipped = True
-                return self.add_random_object_relation(
-                    3,
-                    flipped,
-                    color=color,
-                    shape=shape)
-            size = np.random.random()
-            size = minsize * (1 - size) + min(available / 2, maxsize) * size
-            maxy = obj1.pos[1] - size - obj1.size
-            miny = size
-            modey = (maxy + miny) / 2
-            y = np.random.triangular(miny, modey, maxy)
-            minx = max(obj1.pos[0] - (obj1.pos[1] - y), size)
-            maxx = min(obj1.pos[0] + (obj1.pos[1] - y), self.envsize - size)
-            modex = obj1.pos[0]
-            if modex < minx:
-                modex = minx
-            if modex > maxx:
-                modex = maxx
-            x = np.random.triangular(minx, modex, maxx)
-        elif rel == 3:
-            # right of
-            available = self.envsize - obj1.size - obj1.pos[1]
-            if available <= 2 * minsize:
-                flipped = True
-                return self.add_random_object_relation(
-                    2,
-                    flipped,
-                    color=color,
-                    shape=shape)
-            size = np.random.random()
-            size = minsize * (1 - size) + min(available / 2, maxsize) * size
-            maxy = self.envsize - size
-            miny = obj1.pos[1] + size + obj1.size
-            modey = (maxy + miny) / 2
-            y = np.random.triangular(miny, modey, maxy)
-            minx = max(obj1.pos[0] - (y - obj1.pos[1]), size)
-            maxx = min(obj1.pos[0] + (y - obj1.pos[1]), self.envsize - size)
-            modex = obj1.pos[0]
-            if modex < minx:
-                modex = minx
-            if modex > maxx:
-                modex = maxx
-            x = np.random.triangular(minx, modex, maxx)
-        pos = np.array([x, y])
+        size = np.random.random()
+        size = (1 - size) * minsize + size * maxsize
         ori = np.random.random()
-        ori = ori * 2 * np.pi
-        self.add_object_from_specs(shape, size, color, pos, ori)
-        return flipped
+        ori = ori * 2 * np.pi # we allow up to 2pi rotations
+        pos = np.random.random(2)
+        pos = (1 - pos) * size + pos * (self.envsize - size)
+        if shape == 0:
+            obj = Square(size, color, pos, ori)
+        elif shape == 1:
+            obj = Circle(size, color, pos, ori)
+        elif shape == 2:
+            obj = Triangle(size, color, pos, ori)
+        self.add_object(obj)
 
-    def random_config(self, n_objects, timeout=30):
+    def random_config(self, n_objects):
         """
         Returns a random configuration of the environment.
         Doesn't reset the environment to zero, this should be done manually
@@ -723,152 +517,62 @@ class Env(AbstractEnv):
         samplings on one of the random object generations.
         """
         for _ in range(n_objects):
-            self.add_random_object(timeout)
+            self.add_random_object()
 
-    def random_translation_vector(self):
+    def random_translation_vector(self, Rmin=None, Rmax=None):
         """
-        Performs a random translation, with the translation vector sampled
-        uniformly in the space available as computed with the difference 
-        between the environment size and the current object bounding box.
+        Samples a random translation vector, with norm between 0 and envsize.
         """
-        bboxmin, bboxmax = self.bounding_box()
-        if bboxmin is None:
-            return
-        bboxmin = np.clip(bboxmin, 0, self.envsize - 10e-5)
-        bboxmax = np.clip(bboxmax, 0, self.envsize - 10e-5)
-        # print(bboxmin)
-        # print(bboxmax)
-        spacemin = np.array([0., 0.])
-        spacemax = np.array([self.envsize, self.envsize])
-        plusspace = spacemax - bboxmax
-        minspace = spacemin - bboxmin
-        # whether to sample in plusspace or minspace
-        b = np.random.binomial(1, plusspace/(plusspace - minspace))
-        # how much to move in x and y
-        u = np.random.random(2)
-        umax = plusspace * u
-        umin = minspace * u
-        U = np.array([umin, umax])
-        tvec = U[b, np.arange(2)]
+        if Rmin is None:
+            Rmin = 0
+        if Rmax is None:
+            Rmax = self.envsize
+        R = np.random.random()
+        R = Rmin * (1 - R) + Rmax * R
+        t = np.random.random() * 2 * np.pi
+        tvec = np.array([R * np.cos(t), R * np.sin(t)])
         return tvec
 
-    def random_scaling(self, minscale=0.5):
+    def random_scaling(self, minscale=None, maxscale=None):
         """
-        Performs a random scaling, with the scaling vector sampled uniformly in
-        the available space, with an inferior limit on scaling (0.5 by default).
-        The scaling is centered on the bbox center.
-
-        Returns:
-            - the center (2d array)
-            - the scale (float)
+        Randomly cooses a center and a scale for a scaling transformation,
+        between authorized bounds.
         """
-        bboxmin, bboxmax = self.bounding_box()
-        if bboxmin is None:
-            return
-        center = (bboxmin + bboxmax) / 2
-        size = (bboxmax - bboxmin) / 2
-        envsize = np.array([self.envsize, self.envsize])
-        maxscale = np.min(np.array([
-            np.abs(envsize - center) / size,
-            center / size]))
-        u = np.random.random()
-        assert(maxscale > minscale)
-        scale = u * maxscale + (1 - u) * minscale
+        center = self.get_center()
+        if minscale is None:
+            minscale = 0.5
+        if maxscale is None:
+            maxscale = 2
+        scale = np.random.random()
+        scale = minscale * (1 - scale) + maxscale * scale
         return center, scale
 
     def random_rotation(self, phi0=np.pi/2):
         """
-        Performs a random rotation, with the random angle sampled uniformly in
-        the available range for angles, as computed with a conservative
-        estimation from the bounding box.
+        Samples a random rotation center and vector.
         """
-        bboxmin, bboxmax = self.bounding_box()
-        center = (bboxmin + bboxmax) / 2
-        size = (bboxmax - bboxmin) / 2
-        R = (size[0]**2 + size[1]**2)**0.5 # from the corners to the center
-        theta = np.arctan(-size[1]/size[0]) # minus because indirect order
-        e = self.envsize
-        xc = center[0]
-        yc = center[1]
-        thetas = np.array([theta, -theta])
-        phis = [phi0, -phi0]
-        # compute valid angles for rotation
-        # TODO : simplify this 
-        if abs((e - xc)/R) <= 1:
-            phis.append(np.arccos((e - xc)/R) - theta)
-            phis.append(np.arccos((e - xc)/R) + theta)
-            phis.append(np.arccos((e - xc)/-R) - theta)
-            phis.append(np.arccos((e - xc)/-R) + theta)
-            phis.append(-np.arccos((e - xc)/R) - theta)
-            phis.append(-np.arccos((e - xc)/R) + theta)
-            phis.append(-np.arccos((e - xc)/-R) - theta)
-            phis.append(-np.arccos((e - xc)/-R) + theta)
-        if abs((e - yc)/R) <= 1:
-            phis.append(np.arcsin((e - yc)/R) + theta)
-            phis.append(np.arcsin((e - yc)/-R) - theta)
-            phis.append(np.arcsin((e - yc)/-R) + theta)
-            phis.append(np.arcsin((e - yc)/R) - theta)
-            phis.append(-np.arcsin((e - yc)/R) + theta)
-            phis.append(-np.arcsin((e - yc)/-R) - theta)
-            phis.append(-np.arcsin((e - yc)/-R) + theta)
-            phis.append(-np.arcsin((e - yc)/R) - theta)
-        if abs((0 - xc)/R) <= 1:
-            phis.append(np.arccos((0 - xc)/-R) - theta)
-            phis.append(np.arccos((0 - xc)/-R) + theta)
-            phis.append(np.arccos((0 - xc)/R) - theta)
-            phis.append(np.arccos((0 - xc)/R) + theta)
-            phis.append(-np.arccos((0 - xc)/-R) - theta)
-            phis.append(-np.arccos((0 - xc)/-R) + theta)
-            phis.append(-np.arccos((0 - xc)/R) - theta)
-            phis.append(-np.arccos((0 - xc)/R) + theta)
-        if abs((0 - yc)/R) <= 1:
-            phis.append(np.arcsin((0 - yc)/R) - theta)
-            phis.append(np.arcsin((0 - yc)/-R) + theta)
-            phis.append(np.arcsin((0 - yc)/-R) - theta)
-            phis.append(np.arcsin((0 - yc)/R) + theta)
-            phis.append(-np.arcsin((0 - yc)/R) - theta)
-            phis.append(-np.arcsin((0 - yc)/-R) + theta)
-            phis.append(-np.arcsin((0 - yc)/-R) - theta)
-            phis.append(-np.arcsin((0 - yc)/R) + theta)
-        negphis = [phi for phi in phis if phi <= 0]
-        posphis = [phi for phi in phis if phi > 0]
-        maxphi = min(posphis)
-        minphi = max(negphis)
-        maxphi -= 0.01 * maxphi
-        minphi += 0.01 * maxphi
-        u = np.random.random()
-        phi = (1 - u) * minphi + u * maxphi
+        center = self.get_center()
+        phi = np.random.random()
+        phi = 2 * np.pi * phi
         return center, phi
 
-
-    def random_transformation(self, timeout=50, rotations=False):
+    def random_transformation(self, rotations=True):
         """
         Applies a random transformation on the state.
 
         This transformation can be a translation or a scaling of the current
         scene.
-
-        Raises SamplingTimeout if more than ::timeout:: position samplings have
-        been rejected.
         """
-        count = 0
-        while count < timeout:
-            try:
-                amount = self.random_translation_vector()
-                self.translate(amount, raise_collision=True)
-                center, scale = self.random_scaling()
-                self.scale(scale, raise_collision=True, center=center)
-                if rotations:
-                    center, phi = self.random_rotation()
-                    self.rotate(phi, center)
-                else:
-                    phi = 0
-                return amount, scale, phi
-            except Collision:
-                pass # re-sample
-            count += 1
-        raise SamplingTimeout('Too many rejected samplings, check if the ' \
-            + 'environment is not too full')
+        amount = self.random_translation_vector()
+        self.translate(amount)
+        center, scale = self.random_scaling()
+        self.scale(scale, center=center)
+        if rotations:
+            center, phi = self.random_rotation()
+            self.rotate(phi, center)
+        else:
+            phi = 0
+        return amount, scale, phi
 
     def small_perturbation(self, idx, eps):
         """
@@ -876,142 +580,25 @@ class Env(AbstractEnv):
         proportional to eps, to the color, position and orientation of the 
         object at position idx.
         """
-        val = self.objects[idx].to_vector()[N_SH:]
-        lim = np.array([2, 255, 255, 255, 20, 20, 2 * np.pi])
-        zero = np.array([0.5, 0, 0, 0, 0, 0, 0])
         means = np.zeros(7)
-        sigmas = lim * eps
+        sigmas = np.array([2, 255, 255, 255, 20, 20, 2 * np.pi]) * eps
         amount = np.random.normal(means, sigmas)
-        amount = np.clip(amount, zero - val, lim - val) # clip to valid range
-        self.act(idx, amount, raise_collision=True)
+        self.act(idx, amount)
 
-    def small_perturb_objects(self, eps, timeout=50):
+    def small_perturb_objects(self, eps):
         """
         Applies a small perturbation to all objects.
         """
         for i in range(len(self.objects)):
-            count = 0
-            while count < timeout:
-                try:
-                    self.small_perturbation(i, eps)
-                    break
-                except Collision:
-                    count += 1
-                    if count == timeout:
-                        raise SamplingTimeout('Too many failed samplings in' \
-                             + ' small perturb_objects')
+            self.small_perturbation(i, eps)
 
-    def perturb_one(self, obj, idx):
-        """
-        Perturbs one object by translating it randomly and changing its
-        orientation randomly.
-
-        We have to make sure the angle we select for the translation is a valid
-        one and doesn't send us out of the environment.
-
-        Arguments :
-            - obj : Object to perturb, has been removed from the env
-            - idx : index of the former position of the object in the object
-                list
-
-        TODO : still buggy, fix this
-        The angles computed with the trigonometry may not be good
-        Are all the intervals computed in a valid fashion ?
-        Is the random number properly cast in the selected interval ?
-        """
-        pi = np.pi
-        pos = np.array(obj.pos) # copy
-        size = obj.size
-        x, y = pos - size
-        X, Y = self.envsize - x - size, self.envsize - y - size
-        # sample translation length
-        R_min = 5 # minimum translation length
-        R_max = max(x, y, X, Y)
-        R = np.random.random()
-        R = R_min * (1 - R) + R_max * R
-        theta_mins = []
-        theta_maxs = []
-        # compute the possible ranges for sampling theta
-        if R > X:
-            print('X')
-            tmin = np.arcsin(((R**2 - X**2)**.5)/R)
-            tmax = 2*pi - np.arcsin(((R**2 - X**2)**.5)/R)
-            theta_mins.append(tmin)
-            theta_maxs.append(tmax)
-        if R > Y:
-            print('Y')
-            tmin = pi/2 + np.arcsin(((R**2 - Y**2)**.5)/R)
-            tmax = pi/2 - np.arcsin(((R**2 - Y**2)**.5)/R)
-            theta_mins.append(tmin)
-            theta_maxs.append(tmax)
-        if R > x:
-            print('x')
-            tmin = pi + np.arcsin(((R**2 - x**2)**.5)/R)
-            tmax = pi - np.arcsin(((R**2 - x**2)**.5)/R)
-            theta_mins.append(tmin)
-            theta_maxs.append(tmax)
-        if R > y:
-            print('y')
-            tmin = 3*pi/2 + np.arcsin(((R**2 - y**2)**.5)/R)
-            tmax = 3*pi/2 - np.arcsin(((R**2 - y**2)**.5)/R)
-            theta_mins.append(tmin)
-            theta_maxs.append(tmax)
-        # transform this into all the intervals we can sample from
-        intervals = []
-        print('tmax %s' % theta_maxs)
-        print('tmin %s' % theta_mins)
-        it = iter(zip(theta_maxs, theta_mins))
-        try:
-            tmax, tmin = next(it)
-            mem = tmax
-            prev = tmin
-            for tmax, tmin in it:
-                if prev < tmax: # no overlap
-                    intervals.append((prev, tmax, tmax - prev))
-                prev = tmin
-            if prev < mem:
-                intervals.append((prev, mem, mem - prev))
-            else:
-                intervals.append((prev, 2*pi, 2*pi - prev))
-                intervals.insert(0, (0, mem, mem))
-        except StopIteration: # only one interval, representing the whole range
-            intervals.append((0, 2*pi, 2*pi))
-        tot = sum([l for m, M, l in intervals])
-        print(intervals)
-        # sample : this decides in which interval we fall, and at what place
-        r = np.random.random() * tot
-        cum = 0
-        for i, (m, M, l) in enumerate(intervals):
-            cum += l
-            if r < cum:
-                break
-        mi, Mi, li = intervals[i]
-        print('mi %s, Mi %s, li %s' % (mi, Mi, li))
-        print(r)
-        # rescale in sampled interval
-        r = (r - mi) / (Mi - mi)
-        # transform into angle
-        theta = mi * (1 - r) + Mi * r
-        print('theta %s' % theta)
-        # xy coords of all this
-        tvec = np.array([R * np.cos(theta), R * np.sin(theta)])
-        # finally perturb object
-        obj.pos += tvec
-        # return pos + tvec
-        try:
-            self.add_object(obj, idx)
-        except Collision:
-            obj.pos = pos
-            self.add_object(obj, idx)
-            raise Collision('') # propagate exception
-
-    def perturb_one_v2(self, idx, r=5):
+    def perturb_one(self, idx, r=None):
         """
         Perturbs one object by sampling a radius and an angle at random, with 
-        the radius larger than r, and attempts to place an object there.
-        If the sampled radius and angle lead to a collision, a Collision
-        exception is raised.
+        the radius larger than r, and translates the object there.
         """
+        if r is None:
+            r = self.envsize / 4 
         R_min = r # minimum translation length
         R_max = self.envsize
         R = np.random.random()
@@ -1021,9 +608,9 @@ class Env(AbstractEnv):
         addpos = np.array([R * np.cos(theta), R * np.sin(theta)])
         amount = np.zeros(7)
         amount[4:6] = addpos
-        self.act(idx, amount, raise_collision=True)
+        self.act(idx, amount)
 
-    def perturb_objects(self, n_p, timeout=50):
+    def perturb_objects(self, n_p):
         """
         Given the current state of the environment, perturbs n_p objects by
         applying random translations and changing their orientation randomly.
@@ -1032,17 +619,7 @@ class Env(AbstractEnv):
         n_p = min(n, n_p)
         indices = np.random.choice(n, n_p, replace=False)
         for idx in indices:
-            count = 0
-            # we retry timeout times at each object
-            while count < timeout:
-                try:
-                    self.perturb_one_v2(idx)
-                    break
-                except Collision:
-                    count += 1
-                    if count == timeout:
-                        raise SamplingTimeout('Too many failed samplings in' \
-                             + ' perturb_objects')
+            self.perturb_one(idx)
 
 class NActionSpace():
     """
