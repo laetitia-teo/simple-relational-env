@@ -32,15 +32,15 @@ from graph_utils import cross_graph_ei_maker
 ###############################################################################
 
 
-class GraphModel(torch.nn.Module):
+class GraphModelDouble(torch.nn.Module):
     """
-    Base class for all models operating on graphs.
+    Base class for all models operating on two input graphs.
 
     Graph models are on CPU by default, call .cuda() to pass computation on
     GPU.
     """
     def __init__(self):
-        super(GraphModel, self).__init__()
+        super(GraphModelDouble, self).__init__()
         self.GPU = False
 
         self.data_from_graph = data_from_graph_maker()
@@ -60,14 +60,14 @@ class GraphModel(torch.nn.Module):
         return f_e, f_x, f_u, f_out
 
     def cuda(self):
-        super(GraphModel, self).cuda()
+        super(GraphModelDouble, self).cuda()
         self.GPU = True
 
         self.data_from_graph = data_from_graph_maker(cuda=True)
         self.cross_graph_ei = cross_graph_ei_maker(cuda=True)
 
     def cpu(self):
-        super(GraphModel, self).cpu()
+        super(GraphModelDouble, self).cpu()
         self.GPU = False
 
         self.data_from_graph = data_from_graph_maker(cuda=False)
@@ -80,7 +80,52 @@ class GraphModel(torch.nn.Module):
         # for keys in 
         pass
 
-class ObjectMean(GraphModel):
+class GraphModelSimple(torch.nn.Module):
+    """
+    Base class for all models operating on one input graph.
+
+    Graph models are on CPU by default, call .cuda() to pass computation on
+    GPU.
+    """
+    def __init__(self):
+        super(GraphModelSimple, self).__init__()
+        self.GPU = False
+
+        self.data_from_graph = data_from_graph_maker()
+        # not all models use this, maybe subclass into CrossGraphModel
+
+        self.task_type = 'parts_task' # by default
+
+    def get_features(self, f_dict):
+        """
+        Gets the input and output features for graph processing.
+        """
+        f_e = f_dict['f_e']
+        f_x = f_dict['f_x']
+        f_u = f_dict['f_u']
+        f_out = f_dict['f_out']
+        return f_e, f_x, f_u, f_out
+
+    def cuda(self):
+        super(GraphModelSimple, self).cuda()
+        self.GPU = True
+
+        self.data_from_graph = data_from_graph_maker(cuda=True)
+
+    def cpu(self):
+        super(GraphModelSimple, self).cpu()
+        self.GPU = False
+
+        self.data_from_graph = data_from_graph_maker(cuda=False)
+
+    def reset_parameters(self):
+        """
+        Resets all the parameters of the neural networks in the model.
+        """
+        # for keys in 
+        pass
+
+class ObjectMean(GraphModelDouble):
     """
     Simple object-based embedding model.
     """
@@ -118,7 +163,7 @@ class ObjectMean(GraphModel):
 
         return self.final_mlp(torch.cat([u1, u2], 1))
 
-class ObjectMeanDirectAttention(GraphModel):
+class ObjectMeanDirectAttention(GraphModelDouble):
     """
     Graph Embedding model, where aggregation is done by a weighted mean, and
     the attention vectors are computed on a separate basis for each node.
@@ -166,7 +211,7 @@ class ObjectMeanDirectAttention(GraphModel):
 
         return self.final_mlp(torch.cat([u1, u2], 1))
 
-class GraphEmbedding(GraphModel):
+class GraphEmbedding(GraphModelDouble):
     """
     GraphEmbedding model.
     """
@@ -263,7 +308,7 @@ class GraphEmbedding(GraphModel):
         return [self.final_mlp(torch.cat([u1, u2], 1))
             for u1, u2 in zip(l1, l2)]
 
-class Simplified_GraphEmbedding(GraphModel):
+class Simplified_GraphEmbedding(GraphModelDouble):
     """
     A variation on the original GraphEmbedding model.
     """
@@ -310,9 +355,9 @@ class Simplified_GraphEmbedding(GraphModel):
 
         return self.mlp(torch.cat([u1, u2], 1))
 
-class GraphDifference(GraphModel):
+class GraphDifference(GraphModelDouble):
     """
-    GraphModel.
+    GraphModelDouble.
     """
     def __init__(self,
                  mlp_layers,
@@ -341,7 +386,7 @@ class GraphDifference(GraphModel):
                 returns a tensor representing a permutation of the indices
                 to map the second graph on the first one.
         """
-        super(GraphModel, self).__init__()
+        super(GraphModelDouble, self).__init__()
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
         self.mapping_fn = mapping_fn
@@ -439,7 +484,7 @@ class GraphDifference(GraphModel):
 
         return self.final_mlp(u)
 
-class Alternating(GraphModel):
+class Alternating(GraphModelDouble):
     """
     Class for the alternating graph model (v1)
     """
@@ -571,7 +616,7 @@ class Alternating(GraphModel):
 
         return outputs
 
-class Alternatingv2(GraphModel):
+class Alternatingv2(GraphModelDouble):
     """
     Class for the alternating graph model (v2)
     """
@@ -683,7 +728,7 @@ class Alternatingv2(GraphModel):
 
         return outputs
 
-class AlternatingSimple(GraphModel):
+class AlternatingSimple(GraphModelDouble):
     """
     Simple version of the Altrenating model.
     """
@@ -740,7 +785,7 @@ class AlternatingSimple(GraphModel):
         return out_list
 
 
-class GraphMatchingNetwork(GraphModel):
+class GraphMatchingNetwork(GraphModelDouble):
     """
     Graph Merging network.
     """
@@ -840,7 +885,7 @@ class GraphMatchingNetwork(GraphModel):
 
         return self.final_mlp(torch.cat([u1, u2]))
 
-class GraphMatchingSimple(GraphModel):
+class GraphMatchingSimple(GraphModelDouble):
     """
     Simpler version of the Graph Matching Network.
     """
@@ -909,7 +954,7 @@ class GraphMatchingSimple(GraphModel):
 
         return self.mlp(torch.cat([u1, u2], 1))
 
-class GraphMatchingv2(GraphModel):
+class GraphMatchingv2(GraphModelDouble):
     """
     New version of the GMN, with learned cross-graph attentions.
     We use the nodes and edges for aggregation.
@@ -976,7 +1021,7 @@ class GraphMatchingv2(GraphModel):
 
         return self.mlp(torch.cat([u1, u2], 1))
 
-class GraphMatchingv2_EdgeConcat(GraphModel):
+class GraphMatchingv2_EdgeConcat(GraphModelDouble):
     """
     Upgraded version of the preceding model.
     Replaced EdgeModelDiff with EdgeModelConcat;
@@ -1037,7 +1082,7 @@ class GraphMatchingv2_EdgeConcat(GraphModel):
 
         return self.mlp(torch.cat([u1, u2], 1))
 
-class GraphMatchingv2_DiffGNNs(GraphModel):
+class GraphMatchingv2_DiffGNNs(GraphModelDouble):
     def __init__(self, 
                  mlp_layers,
                  h,
@@ -1101,7 +1146,7 @@ class GraphMatchingv2_DiffGNNs(GraphModel):
 
         return self.mlp(torch.cat([u1, u2], 1))
 
-class GraphMatchingv2_NoMem(GraphModel):
+class GraphMatchingv2_NoMem(GraphModelDouble):
     """
     Change Edge Model : the edges keep no memory of their previous state.
     """
@@ -1157,12 +1202,10 @@ class GraphMatchingv2_NoMem(GraphModel):
 
         return self.mlp(torch.cat([u1, u2], 1))
 
-class ConditionByGraphEmbedding(GraphModel):
+class ConditionByGraphEmbedding(GraphModelDouble):
     """
     In this model, there is no symmetry between the two graphs anymore; the 
     query graph is processed, and an embedding is made out of it.
-
-    I'm not sure this model 
     """
     def __init__(self, 
                  mlp_layers,
@@ -1223,7 +1266,7 @@ class ConditionByGraphEmbedding(GraphModel):
 
         return out_list
 
-class GMSimple(GraphModel):
+class GMSimple(GraphModelSimple):
     """
     A simple Graph model, one layer of a simple GNN.
     """
@@ -1239,11 +1282,22 @@ class GMSimple(GraphModel):
         model_fn = gn.mlp_fn(mlp_layers)
         f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
-        self.gnn = gn.
+        self.gnn = gn.MetaLayer(
+            gn.EdgeModelConcat(f_e, f_x, f_u, model_fn, h),
+            gn.NodeModelAdd(h, f_x, f_u, model_fn, h),
+            gn.GlobalModelAdd(h, h, f_u, model_fn, h))
+
+        self.mlp = model_fn(h, f_out)
+
+    def forward(self, graph):
+        x, edge_index, e, u, batch = self.data_from_graph(graph)
+        # one single round
+        x, e, u = self.gnn(x, edge_index, e, u, batch)
+        return self.mlp(u)
 
 ### A try at universal GMs ###
 
-class GraphMatchingv2_U(GraphModel):
+class GraphMatchingv2_U(GraphModelDouble):
     """
     Universal version of the GraphMatchingv2 model.
     """

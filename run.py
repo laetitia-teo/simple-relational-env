@@ -26,6 +26,7 @@ from argparse import ArgumentParser
 from dataset import collate_fn, make_collate_fn
 from baseline_utils import data_to_obj_seq_parts
 from graph_utils import tensor_to_graphs, data_to_graph_parts
+from graph_utils import data_to_graph_simple
 
 # training 
 
@@ -352,7 +353,9 @@ def one_step(model,
         metric = compute_accuracy
     elif task == 'abstract_relations':
         metric = compute_accuracy
-    if isinstance(model, gm.GraphModel):
+    else: # default
+        metric = compute_accuracy
+    if isinstance(model, gm.GraphModelDouble):
         data_fn = data_to_graph_parts
         if task == 'parts_task':
             clss_fn = data_to_clss_parts
@@ -364,6 +367,9 @@ def one_step(model,
             clss_fn = data_to_clss_obj
         elif task == 'abstract_relations':
             clss_fn = data_to_clss_parts
+    elif isinstance(model, gm.GraphModelSimple):
+        data_fn = data_to_graph_simple
+        clss_fn = data_to_clss_parts
     else:
         # handle baselines here
         ...

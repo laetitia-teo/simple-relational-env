@@ -437,7 +437,7 @@ class Env(AbstractEnv):
         """
         shuffle(self.objects)
 
-    def act(self, i_obj, a_vec):
+    def act(self, i_obj, a_vec, raise_collision=False):
         """
         Performs the action encoded by the vector a_vec on object indexed by
         i_obj.
@@ -451,8 +451,10 @@ class Env(AbstractEnv):
         try:
             self.add_object(obj2, i_obj)
         except Collision:
-            print('Collision : invalid action')
+            # print('Collision : invalid action')
             self.add_object(obj, i_obj)
+            if raise_collision:
+                raise Collision('')
         
     def render(self, show=True):
         """
@@ -730,18 +732,17 @@ class Env(AbstractEnv):
         between the environment size and the current object bounding box.
         """
         bboxmin, bboxmax = self.bounding_box()
-        print('bboxmin %s' % bboxmin)
-        print('bboxmax %s' % bboxmax)
         if bboxmin is None:
             return
+        bboxmin = np.clip(bboxmin, 0, self.envsize - 10e-5)
+        bboxmax = np.clip(bboxmax, 0, self.envsize - 10e-5)
+        # print(bboxmin)
+        # print(bboxmax)
         spacemin = np.array([0., 0.])
         spacemax = np.array([self.envsize, self.envsize])
         plusspace = spacemax - bboxmax
         minspace = spacemin - bboxmin
         # whether to sample in plusspace or minspace
-        print(plusspace)
-        print(minspace)
-        print(plusspace/(plusspace - minspace))
         b = np.random.binomial(1, plusspace/(plusspace - minspace))
         # how much to move in x and y
         u = np.random.random(2)
@@ -840,7 +841,7 @@ class Env(AbstractEnv):
         return center, phi
 
 
-    def random_transformation(self, timeout=30, rotations=False):
+    def random_transformation(self, timeout=50, rotations=False):
         """
         Applies a random transformation on the state.
 
@@ -869,29 +870,22 @@ class Env(AbstractEnv):
         raise SamplingTimeout('Too many rejected samplings, check if the ' \
             + 'environment is not too full')
 
-    def small_perturbation(self, obj, idx, eps):
+    def small_perturbation(self, idx, eps):
         """
         Applies a small gaussian perturbation with mean 0 and variance
         proportional to eps, to the color, position and orientation of the 
         object at position idx.
         """
-        colorpert = np.random.normal(
-            obj.color, 255 * eps * np.ones(3)).astype(int)
-        pospert = np.random.normal(obj.pos, self.envsize * eps * np.ones(2))
-        oripert = np.random.normal(obj.ori, 2 * np.pi * np.ones(1))
-        sizepert = np.random.normal(obj.size, 1.5 * eps * np.ones(1))
-        obj.pos = pospert
-        obj.ori = oripert
-        obj.color = colorpert
-        obj.size = sizepert
-        try:
-            self.add_object(obj, idx)
-        except Collision:
-            obj.pos = pos
-            self.add_object(obj, idx)
-            raise Collision('') # propagate exception
+        val = self.objects[idx].to_vector()[N_SH:]
+        lim = np.array([2, 255, 255, 255, 20, 20, 2 * np.pi])
+        zero = np.array([0.5, 0, 0, 0, 0, 0, 0])
+        means = np.zeros(7)
+        sigmas = lim * eps
+        amount = np.random.normal(means, sigmas)
+        amount = np.clip(amount, zero - val, lim - val) # clip to valid range
+        self.act(idx, amount, raise_collision=True)
 
-    def small_perturb_objects(self, eps, timeout=30):
+    def small_perturb_objects(self, eps, timeout=50):
         """
         Applies a small perturbation to all objects.
         """
@@ -899,14 +893,13 @@ class Env(AbstractEnv):
             count = 0
             while count < timeout:
                 try:
-                    obj = self.objects.pop(i)
-                    self.small_perturbation(obj, i, eps)
+                    self.small_perturbation(i, eps)
                     break
                 except Collision:
                     count += 1
                     if count == timeout:
                         raise SamplingTimeout('Too many failed samplings in' \
-                             + 'perturb_objects')
+                             + ' small perturb_objects')
 
     def perturb_one(self, obj, idx):
         """
@@ -1012,7 +1005,25 @@ class Env(AbstractEnv):
             self.add_object(obj, idx)
             raise Collision('') # propagate exception
 
-    def perturb_objects(self, n_p, timeout=30):
+    def perturb_one_v2(self, idx, r=5):
+        """
+        Perturbs one object by sampling a radius and an angle at random, with 
+        the radius larger than r, and attempts to place an object there.
+        If the sampled radius and angle lead to a collision, a Collision
+        exception is raised.
+        """
+        R_min = r # minimum translation length
+        R_max = self.envsize
+        R = np.random.random()
+        R = R_min * (1 - R) + R_max * R
+        theta = np.random.random()
+        theta = 2 * np.pi * theta
+        addpos = np.array([R * np.cos(theta), R * np.sin(theta)])
+        amount = np.zeros(7)
+        amount[4:6] = addpos
+        self.act(idx, amount, raise_collision=True)
+
+    def perturb_objects(self, n_p, timeout=50):
         """
         Given the current state of the environment, perturbs n_p objects by
         applying random translations and changing their orientation randomly.
@@ -1025,14 +1036,13 @@ class Env(AbstractEnv):
             # we retry timeout times at each object
             while count < timeout:
                 try:
-                    obj = self.objects.pop(idx)
-                    self.perturb_one(obj, idx)
+                    self.perturb_one_v2(idx)
                     break
                 except Collision:
                     count += 1
                     if count == timeout:
                         raise SamplingTimeout('Too many failed samplings in' \
-                             + 'perturb_objects')
+                             + ' perturb_objects')
 
 class NActionSpace():
     """

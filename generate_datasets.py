@@ -90,3 +90,6 @@ if args.task == 'curriculum':
         gen.generate(int(args.N))
         path = op.join(args.directory, (args.name + str(n_d) + 'test.txt'))
         gen.save(path)
+
+if args.task == 'same_config':
+    pass

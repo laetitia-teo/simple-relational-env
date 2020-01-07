@@ -1027,7 +1027,7 @@ class SameConfigGen(Gen):
     the configurations.
     """
     def __init__(self, ref_state_list=None, env=None, n_d=None):
-        super(SameConfigGen, self).__init__(env, n_d)
+        super(SameConfigGen, self).__init__()
         self.task = 'same_config'
         self.task_type = 'scene'
         self.label_type = 'long'
@@ -1036,8 +1036,8 @@ class SameConfigGen(Gen):
             self.ref_state_list = ref_state_list
         else:
             n = np.random.randint(3, 7)
-            self.ref_state_list = self.env.random_config(n).to_state_list(
-                norm=True)
+            self.env.random_config(n)
+            self.ref_state_list = self.env.to_state_list(norm=True)
             self.env.reset()
 
     def gen_one(self):
@@ -1049,9 +1049,7 @@ class SameConfigGen(Gen):
         self.env.from_state_list(self.ref_state_list, norm=True)
         label = np.random.randint(2) # positive or negative example
         if label:
-            for i in range(len(self.env.objects)):
-                obj = self.env.objects.pop(i)
-                self.env.small_perturb_objects()
+            self.env.small_perturb_objects(self.eps)
             self.env.random_transformation()
         else:
             n_p = np.random.randint(len(self.env.objects))
@@ -1065,7 +1063,6 @@ class SameConfigGen(Gen):
             try:
                 state, label = self.gen_one()
             except Resample:
-                # shouldn't happen really often here, if n_d is reasonable
                 state, label = self.gen_one()
             n_s = len(state)
             self.targets += state
