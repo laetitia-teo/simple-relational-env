@@ -1189,18 +1189,72 @@ class SameConfigGen(Gen):
         state = self.env.to_state_list(norm=True)
         return state, label, vec, scale, phi, spert, pert
 
+    # generate controlled test examples
+    # custom positive examples
+    def gen_pure_translation(self, vec=None):
+        self.env.reset()
+        self.env.from_state_list(self.ref_state_list, norm=True)
+        if vec is None:
+            vec = self.env.random_translation_vector()
+        spert = self.env.small_perturb_objects(self.eps)
+        scale = 0
+        phi = 0
+        pert = [np.zeros(2)] * len(self.ref_state_list)
+        self.env.translate(vec)
+
+    def gen_pure_scaling(self, scale=None):
+        self.env.reset()
+        self.env.from_state_list(self.ref_state_list, norm=True)
+        if scale is None:
+            _, scale = self.env.random_scaling()
+        spert = self.env.small_perturb_objects(self.eps)
+        vec = np.zeros(2)
+        phi = 0
+        pert = [np.zeros(2)] * len(self.ref_state_list)
+        self.env.translate(scale)
+        return state, label, vec, scale, phi, spert, pert
+
+    def gen_pure_rotation(self, phi=None):
+        self.env.reset()
+        self.env.from_state_list(self.ref_state_list, norm=True)
+        if phi is None:
+            phi = self.env.random_rotation()
+        spert = self.env.small_perturb_objects(self.eps)
+        scale = 0
+        vec = np.zeros(2)
+        self.env.translate(vec)
+        return state, label, vec, scale, phi, spert, pert
+
+    # contolled epsilon
+    def gen_controlled_eps(self, eps):
+        self.env.reset()
+        self.env.from_state_list(self.ref_state_list, norm=True)
+        spert = self.env.small_perturb_objects(self.eps)
+        phi = 0
+        scale = 0
+        vec = np.zeros(2)
+        pert = [np.zeros(2)] * len(self.ref_state_list)
+
+    def generate_one(self, gen_fn):
+        """
+        Wrapper for the different generation functions.
+        Generates a config according to the provided generation function,
+        and records the generation trace in all the good member variables.
+        """
+        state, label, vec, scale, phi, spert, pert = self.gen_fn()
+        n_s = len(state)
+        self.targets += state
+        self.t_batch += n_s * [i]
+        self.refs += []
+        self.r_batch += []
+        self.labels += [[label]]
+        # metadata
+        self.translation_vectors += [vec]
+        self.scalings += [scale]
+        self.rotation_angles += [phi]
+        self.small_perturbations += spert
+        self.perturbations += pert
+
     def generate(self, N):
         for i in tqdm(range(N)):
-            state, label, vec, scale, phi, spert, pert = self.gen_one()
-            n_s = len(state)
-            self.targets += state
-            self.t_batch += n_s * [i]
-            self.refs += []
-            self.r_batch += []
-            self.labels += [[label]]
-            # metadata
-            self.translation_vectors += [vec]
-            self.scalings += [scale]
-            self.rotation_angles += [phi]
-            self.small_perturbations += spert
-            self.perturbations += pert
+            self.generate_one(self.gen_one)

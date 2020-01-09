@@ -378,6 +378,18 @@ class Env(AbstractEnv):
         """
         shuffle(self.objects)
 
+    def change_shape(self, i_obj, shape_index):
+        """
+        Changes the shape of the object at index i_obj to the shape specified
+        by shape_index.
+        """
+        obj = self.objects.pop(i_obj)
+        o_vec = obj.to_vector()
+        o_vec[:N_SH] = np.array(
+            [0. if i != shape_index else 1. for i in range(N_SH)])
+        obj2 = shape_from_vector(o_vec)
+        self.add_object(obj2, i_obj)
+
     def act(self, i_obj, a_vec):
         """
         Performs the action encoded by the vector a_vec on object indexed by
@@ -389,26 +401,54 @@ class Env(AbstractEnv):
         o_vec = obj.to_vector()
         o_vec[N_SH:] += a_vec
         obj2 = shape_from_vector(o_vec)
-        self.add_object(obj2, i_obj)
         
-    def render(self, show=True):
+    def render(self, show=True, mode='fixed'):
         """
         Renders the environment, returns a rasterized image as a numpy array.
 
-        TODO : change this to account for the collisions
+        There are two modes for rendering : 
+
+        First mode ('fixed') : we render the scene in a fixed size image
+        (3 times the original environment size to account for all the possible
+        translations and scalings that may have sent our objects outside the
+        range in which they were created), this mode allows us to take the
+        translation into account, since the coordinate-pixel mapping stays
+        constant in this rendering mode.
+
+        The second mode ('bbox') renders the scene as given by the bounding-box of the
+        objects : this allows us to see the scalings, rotations and non-linear
+        transformations, but we lose representation of translation.
         """
-        mat = np.zeros((self.L, self.L, 4))
-        for obj in self.objects:
-            obj_mat = obj.to_pixels(self.gridsize)
-            s = len(obj_mat)
-            ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
-            obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
-            mat[ox:ox + s, oy:oy + s] += obj_mat
-        mat = np.flip(mat, axis=0)
-        mat = mat.astype(int)
-        if show:
-            plt.imshow(mat[..., :-1])
-            plt.show()
+        if mode == 'fixed':
+            mat = np.zeros((3 * self.L, 3 * self.L, 3))
+            a = self.L
+            for obj in self.objects:
+                obj_mat = obj.to_pixels(self.gridsize)
+                s = len(obj_mat)
+                ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
+                obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
+                mat[l + ox:ox + s, l + oy:oy + s] = obj_mat
+            mat = np.flip(mat, axis=0)
+            mat = mat.astype(int)
+            if show:
+                plt.imshow(mat[..., :-1])
+                plt.show()
+        if mode == 'bbox':
+            bboxmin, bboxmax = self.bounding_box()
+            Lx = bboxmax[0] - bboxmin[0]
+            Ly = bboxmax[1] - bboxmin[1]
+            mat = np.zeros((Lx, Ly, 3))
+            for obj in self.objects:
+                obj_mat = obj.to_pixels(self.gridsize)
+                s = len(obj_mat)
+                ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
+                obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
+                mat[ox:ox + s, oy:oy + s] = obj_mat
+            mat = np.flip(mat, axis=0)
+            mat = mat.astype(int)
+            if show:
+                plt.imshow(mat[..., :-1])
+                plt.show()
         return mat[..., :-1]
 
     def to_state_list(self, norm=False):
@@ -616,6 +656,24 @@ class Env(AbstractEnv):
         amount[4:6] = addpos
         self.act(idx, amount)
         return R, theta
+
+    def non_spatial_perturb_one(self, idx):
+        """
+        Perturbs one object by changing everything except its spatial position.
+        """
+        minsize = self.envsize / 40
+        maxsize = self.envsize / 10
+        pos = obj.pos
+        si = self.objects[idx].shape_index
+        shapelist = list(range(len(N_SH))).pop(si)
+        si = np.random.choice(shapelist)
+        color = (np.random.random(3) * 255).astype(int)
+        size = np.random.random()
+        size = (1 - size) * minsize + size * maxsize
+        ori = np.random.random() * 2 * np.pi
+        amount = np.concatenate([np.array([size]), color, pos, ori], 0)
+        self.change_shape(idx, si)
+        self.act(idx, amount)
 
     def perturb_objects(self, n_p):
         """
