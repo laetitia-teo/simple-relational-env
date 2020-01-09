@@ -387,6 +387,40 @@ class Gen():
             pass
         return r_idx
 
+    def read_vectors(self, lineit, start_token, stop_token):
+        """
+        Takes in an iterator of the lines read.
+        Reads the vectors from lines and returns a list of the read vectors.
+        """
+        vectors = []
+        line = next(lineit)
+        try:
+            while stop_token not in line:
+                if start_token in line:
+                    pass # first line
+                else:
+                    linelist = line.split(' ')
+                    vectors.append(np.array(linelist, dtype=float))
+                line = next(lineit)
+        except StopIteration:
+            pass
+        return vectors
+
+    def read_scalars(self, lineit, start_token, stop_token):
+        """
+        Reads the scalars (one per line) and returns them as a list.
+        """
+        scalars = []
+        line = next(lineit)
+        try:
+            while stop_token not in line:
+                linelist = line.split(' ')
+                scalars.append(float(linelist[0]))
+                line = next(lineit)
+        except StopIteration:
+            pass
+        return scalars
+
     def read_metadata(self, path):
         pass
 
@@ -427,8 +461,8 @@ class Gen():
                         + 'asked to read them. Index lists are empty.')
                     t_idx = []
                     r_idx = []
-        # stores the data
         self.read_metadata(path)
+        # stores the data
         if replace:
             self.targets = targets
             self.t_batch = t_batch
@@ -1057,6 +1091,7 @@ class SameConfigGen(Gen):
         self.rotation_angles = []
         self.n_objects = len(self.ref_state_list)
         self.eps = 0.05 # amplitude factor of the perturbations
+        self.small_perturbations = []
         self.perturbations = []
         # ranges we exclude from generation
         self.t_ex_range = (np.array([0., 0.]), np.array([1., 1.])) # example
@@ -1068,7 +1103,7 @@ class SameConfigGen(Gen):
         Writes the metadata in the file at path, with the scmd (same_config
         metadata) extension.
         """
-        with open(path + '.scmd', 'w'):
+        with open(path + '.scmd', 'w') as f:
             # write reference state list
             t.write('ref_state_list')
             for obj in self.ref_state_list:
@@ -1092,12 +1127,43 @@ class SameConfigGen(Gen):
             f.write('phis\n')
             for phi in self.rotation_angles:
                 f.write(str(phi) + '\n')
-            # write perturbation strengths
-            f.write('pert')
+            # write small perturbations
+            f.write('spert')
+            for spert in self.small_perturbations:
+                for i in spert:
+                    f.write(str(i) + ' ')
+                f.write('\n')
+            # write perturbations
             for pert in self.perturbations:
-                pass # we don't know yet how to encode this
+                for i in pert:
+                    f.write(str(i) + ' ')
+                f.write('\n')
             # write the ranges we exclude
             pass # TODO : not implemented yet
+
+    def read_metadata(self, path):
+        """
+        Reads the metadata witten in the file specified at path with the scmd 
+        extension.
+        """
+        with open(path + '.scmd', 'r') as f:
+            lines = f.readlines()
+            l = iter(lines)
+            # read ref state list
+            self.ref_state_list = self.read_vectors(l, 'ref_state_list', 'eps')
+            # read epsilon
+            self.eps = self.read_scalars(l, 'eps', 'tvecs')
+            # read translation vectors
+            self.translation_vectors = self.read_vectors(
+                l, 'tvecs', 'scalings')
+            # read scalings
+            self.scalings = self.read_scalars(f, 'scalings', 'phis')
+            # read rotation angles
+            self.phis = self.read_scalars(f, 'phis', 'pert')
+            # read perturbations
+            self.small_perturbations = self.read_vectors(f, 'spert', 'pert')
+            # read small perturbations
+            self.perturbations = self.read_vectors(f, 'pert', None)
 
     def gen_one(self):
         """
@@ -1110,25 +1176,29 @@ class SameConfigGen(Gen):
         self.env.from_state_list(self.ref_state_list, norm=True)
         label = np.random.randint(2) # positive or negative example
         if label:
-            self.env.small_perturb_objects(self.eps)
-            self.env.random_transformation()
+            spert = self.env.small_perturb_objects(self.eps)
+            vec, scale, phi = self.env.random_transformation()
+            pert = [np.zeros(2)] * len(self.ref_state_list)
         else:
             n_p = np.random.randint(len(self.env.objects))
-            self.env.small_perturb_objects(self.eps)
-            self.env.perturb_objects(n_p)
-            self.env.random_transformation()
+            spert = self.env.small_perturb_objects(self.eps)
+            pert = self.env.perturb_objects(n_p)
+            vec, scale, phi = self.env.random_transformation()
         state = self.env.to_state_list(norm=True)
-        return state, label
+        return state, label, vec, scale, phi, spert, pert
 
     def generate(self, N):
         for i in tqdm(range(N)):
-            try:
-                state, label = self.gen_one()
-            except Resample:
-                state, label = self.gen_one()
+            state, label, vec, scale, phi, spert, pert = self.gen_one()
             n_s = len(state)
             self.targets += state
             self.t_batch += n_s * [i]
             self.refs += []
             self.r_batch += []
             self.labels += [[label]]
+            # metadata
+            self.translation_vectors += [vec]
+            self.scalings += [scale]
+            self.phis += [phi]
+            self.small_perturbations += [spert]
+            self.perturbations += [pert]

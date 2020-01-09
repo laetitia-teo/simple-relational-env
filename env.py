@@ -486,6 +486,7 @@ class Env(AbstractEnv):
                 with equal probability if unspcified.
         """
         count = 0
+        # maybe change this
         minsize = self.envsize / 40
         maxsize = self.envsize / 10
         if shape is None:
@@ -579,18 +580,23 @@ class Env(AbstractEnv):
         Applies a small gaussian perturbation with mean 0 and variance
         proportional to eps, to the color, position and orientation of the 
         object at position idx.
+
+        Returns the perturbation vector.
         """
         means = np.zeros(7)
         sigmas = np.array([2, 255, 255, 255, 20, 20, 2 * np.pi]) * eps
         amount = np.random.normal(means, sigmas)
         self.act(idx, amount)
+        return amount
 
     def small_perturb_objects(self, eps):
         """
         Applies a small perturbation to all objects.
         """
+        amounts = []
         for i in range(len(self.objects)):
-            self.small_perturbation(i, eps)
+            amounts.append(self.small_perturbation(i, eps))
+        return amounts
 
     def perturb_one(self, idx, r=None):
         """
@@ -609,6 +615,7 @@ class Env(AbstractEnv):
         amount = np.zeros(7)
         amount[4:6] = addpos
         self.act(idx, amount)
+        return idx, R, theta
 
     def perturb_objects(self, n_p):
         """
@@ -618,8 +625,14 @@ class Env(AbstractEnv):
         n = len(self.objects)
         n_p = min(n, n_p)
         indices = np.random.choice(n, n_p, replace=False)
-        for idx in indices:
-            self.perturb_one(idx)
+        data = []
+        for idx in range(n):
+            if idx in indices:
+                R, theta = self.perturb_one(idx)
+                data.append(np.array([R, theta]))
+            else:
+                data.append(np.zeros(2))
+        return data
 
 class NActionSpace():
     """
