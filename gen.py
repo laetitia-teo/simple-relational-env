@@ -392,15 +392,16 @@ class Gen():
         Takes in an iterator of the lines read.
         Reads the vectors from lines and returns a list of the read vectors.
         """
-        vectors = []
-        line = next(lineit)
         try:
+            vectors = []
+            line = next(lineit)
             while stop_token not in line:
                 if start_token in line:
                     pass # first line
                 else:
                     linelist = line.split(' ')
-                    vectors.append(np.array(linelist, dtype=float))
+                    print(linelist)
+                    vectors.append(np.array(linelist[:-1], dtype=float))
                 line = next(lineit)
         except StopIteration:
             pass
@@ -410,9 +411,9 @@ class Gen():
         """
         Reads the scalars (one per line) and returns them as a list.
         """
-        scalars = []
-        line = next(lineit)
         try:
+            scalars = []
+            line = next(lineit)
             while stop_token not in line:
                 linelist = line.split(' ')
                 scalars.append(float(linelist[0]))
@@ -1105,14 +1106,14 @@ class SameConfigGen(Gen):
         """
         with open(path + '.scmd', 'w') as f:
             # write reference state list
-            t.write('ref_state_list')
+            f.write('ref_state_list\n')
             for obj in self.ref_state_list:
                 for num in obj:
                     f.write(str(num) + ' ')
-            f.write('\n')
+                f.write('\n')
             # write epsilon
             f.write('eps\n')
-            f.write(str(self.eps))
+            f.write(str(self.eps) + '\n')
             # write translation vectors
             f.write('tvecs\n')
             for tvec in self.translation_vectors:
@@ -1128,12 +1129,13 @@ class SameConfigGen(Gen):
             for phi in self.rotation_angles:
                 f.write(str(phi) + '\n')
             # write small perturbations
-            f.write('spert')
+            f.write('spert\n')
             for spert in self.small_perturbations:
                 for i in spert:
                     f.write(str(i) + ' ')
                 f.write('\n')
             # write perturbations
+            f.write('pert\n')
             for pert in self.perturbations:
                 for i in pert:
                     f.write(str(i) + ' ')
@@ -1157,13 +1159,13 @@ class SameConfigGen(Gen):
             self.translation_vectors = self.read_vectors(
                 l, 'tvecs', 'scalings')
             # read scalings
-            self.scalings = self.read_scalars(f, 'scalings', 'phis')
+            self.scalings = self.read_scalars(l, 'scalings', 'phis')
             # read rotation angles
-            self.phis = self.read_scalars(f, 'phis', 'pert')
+            self.rotation_angles = self.read_scalars(l, 'phis', 'spert')
             # read perturbations
-            self.small_perturbations = self.read_vectors(f, 'spert', 'pert')
+            self.small_perturbations = self.read_vectors(l, 'spert', 'pert')
             # read small perturbations
-            self.perturbations = self.read_vectors(f, 'pert', None)
+            self.perturbations = self.read_vectors(l, 'pert', 'end')
 
     def gen_one(self):
         """
@@ -1199,6 +1201,6 @@ class SameConfigGen(Gen):
             # metadata
             self.translation_vectors += [vec]
             self.scalings += [scale]
-            self.phis += [phi]
-            self.small_perturbations += [spert]
-            self.perturbations += [pert]
+            self.rotation_angles += [phi]
+            self.small_perturbations += spert
+            self.perturbations += pert

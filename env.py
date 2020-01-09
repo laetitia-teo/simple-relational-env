@@ -615,7 +615,7 @@ class Env(AbstractEnv):
         amount = np.zeros(7)
         amount[4:6] = addpos
         self.act(idx, amount)
-        return idx, R, theta
+        return R, theta
 
     def perturb_objects(self, n_p):
         """
