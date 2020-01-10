@@ -205,6 +205,18 @@ def shape_from_vector(vec, norm=False):
     if shape[2]:
         return Triangle(size, color, pos, ori)
 
+def overlay(mat1, mat2):
+    """
+    Overalays mat2 (last channel of last dimension is considered alpha channel)
+    over mat1.
+    Retruns the resulting matrix, with no alpha channel.
+    """
+    alphas = np.expand_dims(mat2[..., -1], -1)
+    print(mat1.shape)
+    print(alphas.shape)
+    print(mat2.shape)
+    return mat1 * (1 - alphas) \
+        + mat2[..., :-1] * alphas
 
 class Env(AbstractEnv):
     """
@@ -290,6 +302,17 @@ class Env(AbstractEnv):
         maxpos = np.max(aplus, 0)
         minpos = np.min(amin, 0)
         return minpos, maxpos
+
+    # def pbbox(self):
+    #     """
+    #     Computes bounding box of objects in pixel coordinates.
+    #     """
+    #     if not self.objects:
+    #         return None, None
+    #     obj_mat = obj.to_pixels(self.gridsize)
+    #     s = len(obj_mat)
+    #     ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
+    #     aplus.append()
 
     def get_center(self):
         """
@@ -401,6 +424,7 @@ class Env(AbstractEnv):
         o_vec = obj.to_vector()
         o_vec[N_SH:] += a_vec
         obj2 = shape_from_vector(o_vec)
+        self.add_object(obj2, i_obj)
         
     def render(self, show=True, mode='fixed'):
         """
@@ -420,36 +444,53 @@ class Env(AbstractEnv):
         transformations, but we lose representation of translation.
         """
         if mode == 'fixed':
-            mat = np.zeros((3 * self.L, 3 * self.L, 3))
-            a = self.L
+            L = self.L * 3
+            mat = np.zeros((L, L, 3))
+            l = self.L
             for obj in self.objects:
                 obj_mat = obj.to_pixels(self.gridsize)
-                s = len(obj_mat)
+                s = len(obj_mat) # size of object in pixel space
                 ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
                 obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
-                mat[l + ox:ox + s, l + oy:oy + s] = obj_mat
-            mat = np.flip(mat, axis=0)
-            mat = mat.astype(int)
-            if show:
-                plt.imshow(mat[..., :-1])
-                plt.show()
+                # indices
+                xmin = max(l + ox, 0)
+                xmax = max(l + ox + s, 0)
+                ymin = max(l + oy, 0)
+                ymax = max(l + oy + s, 0)
+                xminobj = max(-(l + ox), 0)
+                xmaxobj = max(L - (l + ox), 0)
+                yminobj = max(-(l + oy), 0)
+                ymaxobj = max(L - (l + oy), 0)
+                mat[xmin:xmax, ymin:ymax] = overlay(
+                    mat[xmin:xmax, ymin:ymax],
+                    obj_mat[xminobj:xmaxobj, yminobj:ymaxobj])
         if mode == 'bbox':
             bboxmin, bboxmax = self.bounding_box()
-            Lx = bboxmax[0] - bboxmin[0]
-            Ly = bboxmax[1] - bboxmin[1]
+            Lx = int((bboxmax[0] - bboxmin[0]) * self.gridsize) + 1
+            Ly = int((bboxmax[1] - bboxmin[1]) * self.gridsize) + 1
+            # origin
+            lx = int(bboxmin[0] * self.gridsize)
+            ly = int(bboxmin[1] * self.gridsize)
+            print('Ly %s, Lx %s' % (Lx, Ly))
             mat = np.zeros((Lx, Ly, 3))
             for obj in self.objects:
                 obj_mat = obj.to_pixels(self.gridsize)
                 s = len(obj_mat)
                 ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
                 obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
-                mat[ox:ox + s, oy:oy + s] = obj_mat
-            mat = np.flip(mat, axis=0)
-            mat = mat.astype(int)
-            if show:
-                plt.imshow(mat[..., :-1])
-                plt.show()
-        return mat[..., :-1]
+                xmin = ox - lx
+                xmax = ox + s - lx
+                ymin = oy - ly
+                ymax = oy + s - ly
+                mat[xmin:xmax, ymin:ymax] = overlay(
+                    mat[xmin:xmax, ymin:ymax],
+                    obj_mat)
+        mat = np.flip(mat, axis=0)
+        mat = mat.astype(int)
+        if show:
+            plt.imshow(mat)
+            plt.show()
+        return mat
 
     def to_state_list(self, norm=False):
         """

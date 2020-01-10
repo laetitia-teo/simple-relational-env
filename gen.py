@@ -10,6 +10,7 @@ import os.path as op
 import random
 import pickle
 import numpy as np
+import cv2
 
 import torch
 
@@ -1087,11 +1088,12 @@ class SameConfigGen(Gen):
 
         # metadata
         self.has_metadata = True
+        self.N = 0 # number of generated samples
         self.translation_vectors = []
         self.scalings = []
         self.rotation_angles = []
         self.n_objects = len(self.ref_state_list)
-        self.eps = 0.05 # amplitude factor of the perturbations
+        self.eps = 0.01 # amplitude factor of the perturbations
         self.small_perturbations = []
         self.perturbations = []
         # ranges we exclude from generation
@@ -1105,6 +1107,9 @@ class SameConfigGen(Gen):
         metadata) extension.
         """
         with open(path + '.scmd', 'w') as f:
+            # write number of generated samples
+            f.write('N\n')
+            f.write(str(self.N) + '\n')
             # write reference state list
             f.write('ref_state_list\n')
             for obj in self.ref_state_list:
@@ -1234,14 +1239,15 @@ class SameConfigGen(Gen):
         scale = 0
         vec = np.zeros(2)
         pert = [np.zeros(2)] * len(self.ref_state_list)
+        return state, label, vec, scale, phi, spert, pert
 
-    def generate_one(self, gen_fn):
+    def generate_one(self, gen_fn, i):
         """
         Wrapper for the different generation functions.
         Generates a config according to the provided generation function,
         and records the generation trace in all the good member variables.
         """
-        state, label, vec, scale, phi, spert, pert = self.gen_fn()
+        state, label, vec, scale, phi, spert, pert = gen_fn()
         n_s = len(state)
         self.targets += state
         self.t_batch += n_s * [i]
@@ -1256,5 +1262,26 @@ class SameConfigGen(Gen):
         self.perturbations += pert
 
     def generate(self, N):
+        I = len(self.labels)
         for i in tqdm(range(N)):
-            self.generate_one(self.gen_one)
+            self.generate_one(self.gen_one, i + I)
+        self.N += N
+
+    # utils
+    def render(self, path, mode='fixed'):
+        """
+        Renders the generated configurations at the desired path.
+        For testing purposes, do not try with too big a dataset (not optimized)
+
+        pqth : string to the directory of save.
+        """
+        self.compute_access_indices()
+        vecs = np.array(self.targets)
+        for i in range(self.t_batch[-1]):
+            print('batch %s' % i)
+            print('label %s' % self.labels[i])
+            self.env.reset()
+            state_list = list(vecs[self.t_idx[i].numpy()])
+            self.env.from_state_list(state_list, norm=True)
+            img = self.env.render(mode=mode)
+            cv2.imwrite(op.join(path, 'img_%s.jpg' % i), img)
