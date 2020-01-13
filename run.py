@@ -136,10 +136,10 @@ F_OBJ = 10
 H = 16
 
 f_dict = {
-        'f_x': F_OBJ,
-        'f_e': F_OBJ,
-        'f_u': F_OBJ,
-        'f_out': f_out}
+    'f_x': F_OBJ,
+    'f_e': F_OBJ,
+    'f_u': F_OBJ,
+    'f_out': f_out}
 
 image_viz_path = op.join('data')
 

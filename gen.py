@@ -401,7 +401,6 @@ class Gen():
                     pass # first line
                 else:
                     linelist = line.split(' ')
-                    print(linelist)
                     vectors.append(np.array(linelist[:-1], dtype=float))
                 line = next(lineit)
         except StopIteration:

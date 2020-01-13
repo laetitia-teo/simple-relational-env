@@ -55,7 +55,7 @@ class DS_NodeModel(torch.nn.Module):
         self.phi_x = model_fn(f_x + f_u, f_x_out)
 
     def forward(self, x, u, batch):
-        return self.phi_x(torch.cat([x, u], 1))
+        return self.phi_x(torch.cat([x, u[batch]], 1))
 
 class DS_GlobalModel(torch.nn.Module):
     def  __init__(self,
@@ -66,7 +66,7 @@ class DS_GlobalModel(torch.nn.Module):
         super(DS_GlobalModel, self).__init__()
         if f_u_out is None:
             f_u_out = f_u
-        self.phi_u = model_fn(f_u, f_u_out)
+        self.phi_u = model_fn(f_x + f_u, f_u_out)
 
     def forward(self, x, u, batch):
         x_agg = scatter_add(x, batch, dim=0)
@@ -79,34 +79,61 @@ class DS_GlobalModel_A(torch.nn.Module):
     def  __init__(self,
                   f_x,
                   f_u,
+                  h,
                   model_fn,
                   f_u_out=None):
         super(DS_GlobalModel_A, self).__init__()
         if f_u_out is None:
             f_u_out = f_u
+        self.h = h
         self.phi_u = model_fn(f_x + f_u, f_u_out)
+        self.phi_k = model_fn(f_x, h)
+        self.phi_q = model_fn(f_u, h)
 
     def forward(self, x, u, batch):
-        a = ... # TODO : define attention function
+        k = self.phi_k(x)
+        q = self.phi_q(u)[batch]
+        a = torch.bmm(k.view(-1, 1, self.h), q.view(-1, self.h, 1)).squeeze(1)
         x_agg = scatter_add(a * x, batch, dim=0)
         return self.phi_u(torch.cat([x_agg, u], 1))
 
 # Edge, Node and Global models for GNNs
 
-class EdgeModelConcat(torch.nn.Module):
+class EdgeModel(torch.nn.Module):
+    """
+    Concat. Try also Diff ?
+    """
     def __init__(self,
                  f_e,
                  f_x,
                  f_u,
                  model_fn,
                  f_e_out=None):
-        super(EdgeModelConcat, self).__init__()
+        super(EdgeModel, self).__init__()
         if f_e_out is None:
             f_e_out = f_e
         self.phi_e = model_fn(f_e + 2*f_x + f_u, f_e_out)
 
     def forward(self, src, dest, e, u, batch):
         out = torch.cat([src, dest, e, u[batch]], 1)
+        return self.phi_e(out)
+
+class EdgeModel_NoMem(torch.nn.Module):
+    """
+    Concat. Try also Diff ?
+    """
+    def __init__(self,
+                 f_x,
+                 f_u,
+                 model_fn,
+                 f_e_out=None):
+        super(EdgeModel_NoMem, self).__init__()
+        if f_e_out is None:
+            f_e_out = f_e
+        self.phi_e = model_fn(2*f_x + f_u, f_e_out)
+
+    def forward(self, src, dest, u, batch):
+        out = torch.cat([src, dest, u[batch]], 1)
         return self.phi_e(out)
 
 class NodeModel(torch.nn.Module):
@@ -135,19 +162,26 @@ class NodeModel_A(torch.nn.Module):
                  f_e,
                  f_x,
                  f_u,
+                 h,
                  model_fn,
                  f_x_out=None):
         if f_x_out is None:
             f_x_out = f_x
+        self.h = h
         super(NodeModel_A, self).__init__()
+        self.phi_k = model_fn(f_x, h)
+        self.phi_q = model_fn(f_x, h)
         self.phi_x = model_fn(f_e + f_x + f_u, f_x_out)
 
     def forward(self, x, edge_index, e, u, batch):
         if not len(e):
             return 
         src, dest = edge_index
-        # TODO : attention on edges
-        a = ...
+        # attention on edges
+        k = self.phi_k(x)[src]
+        q = self.phi_q(x)[dest]
+        # batch-wise dot product
+        a = torch.bmm(k.view(-1, 1, self.h), q.view(-1, self.h, 1)).squeeze(1)
         # add nodes with the same dest
         e_agg_node = scatter_add(a * e, dest, dim=0)
         out = torch.cat([x, e_agg_node, u[batch]], 1)
@@ -181,23 +215,33 @@ class GlobalModel_A(torch.nn.Module):
                  f_e,
                  f_x,
                  f_u,
+                 h,
                  model_fn,
                  f_u_out=None):
         super(GlobalModel_A, self).__init__()
         if f_u_out is None:
             f_u_out = f_u
+        self.h = h
         self.phi_u = model_fn(f_e + f_x + f_u, f_u_out)
+        self.phi_k_e = model_fn(f_e, h)
+        self.phi_q_e = model_fn(f_u, h)
+        self.phi_k_x = model_fn(f_x, h)
+        self.phi_q_x = model_fn(f_u, h)
 
     def forward(self, x, edge_index, e, u, batch):
         src, dest = edge_index
         # compute the batch index for all edges
         e_batch = batch[src]
         # TODO : edge attention
-        e_a = ...
+        k = self.phi_k_e(e)
+        q = self.phi_q_e(u)[e_batch]
+        a_e = torch.bmm(k.view(-1, 1, self.h), q.view(-1, self.h, 1)).squeeze(1)
         # aggregate all edges in the graph
         e_agg = scatter_add(a_e * e, e_batch, dim=0)
         # TODO : node attention
-        x_a = ...
+        k = self.phi_k_x(x)
+        q = self.phi_q_x(u)[batch]
+        x_a = torch.bmm(k.view(-1, 1, self.h), q.view(-1, self.h, 1)).squeeze(1)
         # aggregate all nodes in the graph
         x_agg = scatter_add(x_a * x, batch, dim=0)
         out = torch.cat([x_agg, e_agg, u], 1)
@@ -214,7 +258,7 @@ class GlobalModel_NodeOnly(torch.nn.Module):
             f_u_out = f_u
         self.phi_u = model_fn(f_x + f_u, f_u_out)
 
-    def forward(self, x, edge_index, e, u, batch)
+    def forward(self, x, edge_index, e, u, batch):
         src, dest = edge_index
         # aggregate all nodes in the graph
         x_agg = scatter_add(x, batch, dim=0)
@@ -223,20 +267,25 @@ class GlobalModel_NodeOnly(torch.nn.Module):
 
 class GlobalModel_NodeOnly_A(torch.nn.Module):
     def __init__(self,
-                 f_e,
                  f_x,
                  f_u,
+                 h,
                  model_fn,
                  f_u_out=None):
         super(GlobalModel_NodeOnly_A, self).__init__()
         if f_u_out is None:
             f_u_out = f_u
+        self.h = h
         self.phi_u = model_fn(f_x + f_u, f_u_out)
+        self.phi_k = model_fn(f_x, h) 
+        self.phi_q = model_fn(f_u, h) 
 
     def forward(self, x, edge_index, e, u, batch):
         src, dest = edge_index
-        # TODO : node attention
-        a = ...
+        # node attention
+        k = self.phi_k(x)
+        q = self.phi_q(u)[batch]
+        a = torch.bmm(k.view(-1, 1, self.h), q.view(-1, self.h, 1)).squeeze(1)
         # aggregate all nodes in the graph
         x_agg = scatter_add(a * x, batch, dim=0)
         out = torch.cat([x_agg, u], 1)
@@ -281,8 +330,8 @@ class N_GNN(torch.nn.Module):
                 item.reset_parameters()
 
     def forward(self, x, edge_index, u, batch):
-        row, col = edge_index
-        e = self.edge_model(x[row], x[col], u, batch)
+        src, dest = edge_index
+        e = self.edge_model(x[src], x[dest], u, batch[src])
         x = self.node_model(x, edge_index, e, u, batch)
         u = self.global_model(x, edge_index, e, u, batch)
         return x, u
@@ -310,8 +359,8 @@ class GNN(torch.nn.Module):
                 item.reset_parameters()
 
     def forward(self, x, edge_index, e, u, batch):
-        row, col = edge_index
-        e = self.edge_model(x[row], x[col], e, u, batch)
+        src, dest = edge_index
+        e = self.edge_model(x[src], x[dest], e, u, batch[src])
         x = self.node_model(x, edge_index, e, u, batch)
         u = self.global_model(x, edge_index, e, u, batch)
         return x, e, u
