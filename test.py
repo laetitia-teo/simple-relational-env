@@ -6,14 +6,14 @@ import torch
 
 import graph_models_v2 as gm
 
+from glob import glob
+
 from torch.utils.data import DataLoader
 
 from gen import SameConfigGen
 from dataset import collate_fn
 from graph_utils import data_to_graph_simple
 
-N_SH = 3
-N_OBJ = 3
 B_SIZE = 128
 L_RATE = 1e-3
 N_EPOCHS = 1

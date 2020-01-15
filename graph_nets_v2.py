@@ -87,8 +87,8 @@ class DS_GlobalModel_A(torch.nn.Module):
             f_u_out = f_u
         self.h = h
         self.phi_u = model_fn(f_x + f_u, f_u_out)
-        self.phi_k = model_fn(f_x, h)
-        self.phi_q = model_fn(f_u, h)
+        self.phi_k = Linear(f_x, h)
+        self.phi_q = Linear(f_u, h)
 
     def forward(self, x, u, batch):
         k = self.phi_k(x)
@@ -169,8 +169,8 @@ class NodeModel_A(torch.nn.Module):
             f_x_out = f_x
         self.h = h
         super(NodeModel_A, self).__init__()
-        self.phi_k = model_fn(f_x, h)
-        self.phi_q = model_fn(f_x, h)
+        self.phi_k = Linear(f_x, h)
+        self.phi_q = Linear(f_x, h)
         self.phi_x = model_fn(f_e + f_x + f_u, f_x_out)
 
     def forward(self, x, edge_index, e, u, batch):
@@ -223,10 +223,10 @@ class GlobalModel_A(torch.nn.Module):
             f_u_out = f_u
         self.h = h
         self.phi_u = model_fn(f_e + f_x + f_u, f_u_out)
-        self.phi_k_e = model_fn(f_e, h)
-        self.phi_q_e = model_fn(f_u, h)
-        self.phi_k_x = model_fn(f_x, h)
-        self.phi_q_x = model_fn(f_u, h)
+        self.phi_k_e = Linear(f_e, h)
+        self.phi_q_e = Linear(f_u, h)
+        self.phi_k_x = Linear(f_x, h)
+        self.phi_q_x = Linear(f_u, h)
 
     def forward(self, x, edge_index, e, u, batch):
         src, dest = edge_index
@@ -277,8 +277,8 @@ class GlobalModel_NodeOnly_A(torch.nn.Module):
             f_u_out = f_u
         self.h = h
         self.phi_u = model_fn(f_x + f_u, f_u_out)
-        self.phi_k = model_fn(f_x, h) 
-        self.phi_q = model_fn(f_u, h) 
+        self.phi_k = Linear(f_x, h) 
+        self.phi_q = Linear(f_u, h) 
 
     def forward(self, x, edge_index, e, u, batch):
         src, dest = edge_index

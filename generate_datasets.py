@@ -24,7 +24,7 @@ parser.add_argument('-Ns', '--number-samples',
 parser.add_argument('-No', '--number-objects',
                      dest='No',
                      help='number of objects in config',
-                     default='5')
+                     default='20')
 parser.add_argument('-Nt', '--number-test',
                      dest='Nt',
                      help='number of samples in test dataset',
@@ -39,6 +39,13 @@ for i in range(int(args.Nc)):
     path = op.join(
         args.directory,
         '%s_%s_%s' % (int(args.No), i, int(args.Ns)))
+    g.save(path)
+    # generate validation dataset
+    g = gen.SameConfigGen(ref_state_list=ref)
+    g.generate(int(args.Nt))
+    path = op.join(
+        args.directory,
+        '%s_%s_%s_val' % (int(args.No), i, int(args.Nt)))
     g.save(path)
     # generate test dataset
     g = gen.SameConfigGen(ref_state_list=ref)
