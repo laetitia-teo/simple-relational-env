@@ -232,7 +232,7 @@ def data_to_graph_simple(data):
     It is the same function as above, but it only returns a single graph as 
     output.
     """
-    x1, x2, labels, batch1, batch2 = data
+    x1, x2, labels, indices, batch1, batch2 = data
     f_x = x1.shape[-1]
     # create edges for graph1
     ei1 = torch.zeros((2, 0), dtype=torch.long)

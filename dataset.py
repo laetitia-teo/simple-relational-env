@@ -204,18 +204,6 @@ class PartsDataset(Dataset):
             self.t_idx = t_idx
             self.r_idx = r_idx
 
-        # if create_ei:
-        #     print('create edge index')
-        #     self.t_ei = []
-        #     self.r_ei = []
-        #     for i in tqdm(range(t_batch[-1])):
-        #         nt = torch.sum(self.t_batch == i).item()
-        #         nr = torch.sum(self.r_batch == i).item()
-        #         self.t_ei.append(
-        #             gu.complete_edge_index_cuda(nt, device, self_edges=False))
-        #         self.r_ei.append(
-        #             gu.complete_edge_index_cuda(nr, device, self_edges=False))
-
         self.get = self._get_maker()
 
     def _get_maker(self):
@@ -225,19 +213,13 @@ class PartsDataset(Dataset):
                 target = self.targets[self.t_idx[idx]]
                 ref = self.refs[self.r_idx[idx]]
                 label = self.labels[idx]
-                # t_ei = self.t_ei[idx]
-                # r_ei = self.r_ei[idx]
-                # transpose because of collate_fn concatenatin on 0 dim
-                # TODO : finish testing this
-                return target, ref, label#, t_ei.T, r_ei.T
+                return target, ref, label, torch.tensor([idx])
         if self.task_type == 'object':
             def get(idx):
                 target = self.targets[self.t_idx[idx]]
                 ref = self.refs[self.r_idx[idx]]
                 label = self.labels[self.r_idx[idx]]
-                # t_ei = self.t_ei[idx]
-                # r_ei = self.r_ei[idx]
-                return target, ref, label#, t_ei.T, r_ei.T
+                return target, ref, label, torch.tensor([idx])
         return get
 
     def __len__(self):

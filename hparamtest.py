@@ -1,14 +1,37 @@
 """
 This module performs hyperparameter testing, and validation of our models.
 """
-import os.path as op
+import time
+import re
+import os
+import pathlib
+import numpy as np
 import torch
 
-import graph_model_v2 as gm
+import graph_models_v2 as gm
+
+from argparse import ArgumentParser
 
 from run import several_steps
+from gen import SameConfigGen
+from dataset import collate_fn
+from graph_utils import data_to_graph_simple
 
-from glob import glob
+from run_utils import load_dl, one_run
+
+# script arguments
+
+parser = ArgumentParser()
+parser.add_argument('-m', '--model',
+                    dest='model_idx',
+                    help='index of the model',
+                    default='0')
+parser.add_argument('-d', '--directory',
+                    dest='directory',
+                    help='path of the save and log directory',
+                    default='experimental_results/same_config')
+
+args = parser.parse_args()
 
 # global params
 
@@ -19,6 +42,7 @@ F_OBJ = 10
 # H = 16
 # N = 1
 F_OUT = 2
+
 
 # dict of hparams and their possible values
 
@@ -31,10 +55,50 @@ hparams = {
 
 # default hparams
 
-hparams_def = {
-    'n_layers': 2,
-    'h':  16,
-    'lr': 10e-3,
-    'N': [1]
-}
+n_layers = 2
+h = 16
+lr = 10e-3
+N = 1
+seeds = [0, 1, 2, 3, 4]
+n_epochs = 2
+H = 16
 
+f_dict = {
+    'f_x': F_OBJ,
+    'f_e': F_OBJ,
+    'f_u': F_OBJ,
+    'h': H,
+    'f_out': F_OUT}
+
+# data paths
+
+d_path = os.listdir('data/same_config')
+train_5 = sorted([p for p in d_path if re.search(r'^5_.+_10{4}$', p)])[:5]
+val_5 = sorted([p for p in d_path if re.search(r'^5_.+_val$', p)])[:5]
+train_10 = sorted([p for p in d_path if re.search(r'^10_.+_10{4}$', p)])[:5]
+val_10 = sorted([p for p in d_path if re.search(r'^10_.+_val$', p)])[:5]
+train_20 = sorted([p for p in d_path if re.search(r'^20_.+_10{4}$', p)])[:5]
+val_20 = sorted([p for p in d_path if re.search(r'^20_.+_val$', p)])[:5]
+
+# 5 objects
+
+params = ([h] * n_layers, N, f_dict)
+
+dset = 0
+
+for dpath_train, dpath_val in zip(train_5, val_5):
+    t0 = time.time()
+    dl_train = load_dl(os.path.join('data/same_config', dpath_train))
+    dl_val = load_dl(os.path.join('data/same_config', dpath_val))
+    path = os.path.join(args.directory, 'test', 'model1')
+    pathlib.Path(os.path.join(path, 'data')).mkdir(parents=True, exist_ok=True)
+    pathlib.Path(os.path.join(path, 'models')).mkdir(parents=True, exist_ok=True)
+    for seed in seeds:
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        model = gm.model_list[int(args.model_idx)](*params)
+        opt = torch.optim.Adam(model.parameters(), lr=lr)
+        one_run(dset, seed, n_epochs, model, opt, dl_train, dl_val, path)
+    t = time.time()
+    print('total running time for one ds %s seconds' % str(t - t0))
+    dset += 1
