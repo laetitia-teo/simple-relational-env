@@ -60,7 +60,7 @@ h = 16
 lr = 10e-3
 N = 1
 seeds = [0, 1, 2, 3, 4]
-n_epochs = 2
+n_epochs = 20
 H = 16
 
 f_dict = {
@@ -73,12 +73,12 @@ f_dict = {
 # data paths
 
 d_path = os.listdir('data/same_config')
-train_5 = sorted([p for p in d_path if re.search(r'^5_.+_10{4}$', p)])[:5]
-val_5 = sorted([p for p in d_path if re.search(r'^5_.+_val$', p)])[:5]
-train_10 = sorted([p for p in d_path if re.search(r'^10_.+_10{4}$', p)])[:5]
-val_10 = sorted([p for p in d_path if re.search(r'^10_.+_val$', p)])[:5]
-train_20 = sorted([p for p in d_path if re.search(r'^20_.+_10{4}$', p)])[:5]
-val_20 = sorted([p for p in d_path if re.search(r'^20_.+_val$', p)])[:5]
+train_5 = sorted([p for p in d_path if re.search(r'^5_.+_10{4}$', p)])[:10]
+val_5 = sorted([p for p in d_path if re.search(r'^5_.+_val$', p)])[:10]
+train_10 = sorted([p for p in d_path if re.search(r'^10_.+_10{4}$', p)])[:10]
+val_10 = sorted([p for p in d_path if re.search(r'^10_.+_val$', p)])[:10]
+train_20 = sorted([p for p in d_path if re.search(r'^20_.+_10{4}$', p)])[:10]
+val_20 = sorted([p for p in d_path if re.search(r'^20_.+_val$', p)])[:10]
 
 # 5 objects
 
@@ -86,19 +86,22 @@ params = ([h] * n_layers, N, f_dict)
 
 dset = 0
 
-for dpath_train, dpath_val in zip(train_5, val_5):
-    t0 = time.time()
-    dl_train = load_dl(os.path.join('data/same_config', dpath_train))
-    dl_val = load_dl(os.path.join('data/same_config', dpath_val))
-    path = os.path.join(args.directory, 'test', 'model1')
-    pathlib.Path(os.path.join(path, 'data')).mkdir(parents=True, exist_ok=True)
-    pathlib.Path(os.path.join(path, 'models')).mkdir(parents=True, exist_ok=True)
-    for seed in seeds:
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        model = gm.model_list[int(args.model_idx)](*params)
-        opt = torch.optim.Adam(model.parameters(), lr=lr)
-        one_run(dset, seed, n_epochs, model, opt, dl_train, dl_val, path)
-    t = time.time()
-    print('total running time for one ds %s seconds' % str(t - t0))
-    dset += 1
+for m_idx in range(len(gm.model_list)):
+    print('model number %s' % m_idx)
+    for dpath_train, dpath_val in zip(train_5, val_5):
+        print('daset %s;' % dset)
+        t0 = time.time()
+        dl_train = load_dl(os.path.join('data/same_config', dpath_train))
+        dl_val = load_dl(os.path.join('data/same_config', dpath_val))
+        path = os.path.join(args.directory, 'run1', 'model' + m_idx)
+        pathlib.Path(os.path.join(path, 'data')).mkdir(parents=True, exist_ok=True)
+        pathlib.Path(os.path.join(path, 'models')).mkdir(parents=True, exist_ok=True)
+        for seed in seeds:
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            model = gm.model_list[m_idx](*params)
+            opt = torch.optim.Adam(model.parameters(), lr=lr)
+            one_run(dset, seed, n_epochs, model, opt, dl_train, dl_val, path)
+        t = time.time()
+        print('total running time for one ds %s seconds' % str(t - t0))
+        dset += 1

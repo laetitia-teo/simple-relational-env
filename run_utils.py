@@ -1,3 +1,5 @@
+import os
+import re
 import os.path as op
 import time
 import numpy as np
@@ -132,7 +134,7 @@ def one_step(model,
     cum_acc = 0
     data_fn = data_to_graph_simple
     clss_fn = data_to_clss_parts
-    for data in tqdm(dl):
+    for data in dl:
         indices.append(list(data[3].numpy()))
         optimizer.zero_grad()
         # ground truth, model prediction
@@ -188,7 +190,6 @@ def one_run(dset,
     test_accuracies = []
     test_indices = []
     # train model
-    print('train')
     for _ in range(n):
         l, a = one_step(
             model,
@@ -206,7 +207,6 @@ def one_run(dset,
         training_accuracies,
         op.join(prefix, 'data', '{0}_{1}_train_acc.npy'.format(dset, seed)))
     # test
-    print('test')
     l, a, i = one_step(
         model,
         opt,
@@ -230,3 +230,29 @@ def one_run(dset,
         op.join(prefix, 'models', 'ds{0}_seed{1}.pt'.format(dset, seed)))
     t = time.time()
     print('running time %s seconds' % str(t - t0))
+
+# result navigation
+
+def get_plot(model_idx, path):
+    done = False
+    directory = op.join(
+        'experimental_results',
+        'same_config',
+        'test',
+        'model%s' % model_idx,
+        'data')
+    d_path = os.listdir(directory)
+    datalist = sorted([p for p in d_path if re.search(r'^((?!indices).)*$', p)])
+    dit = iter(datalist)
+    while True:
+        try:
+            filename = next(dit)
+            path = op.join(directory, filename)
+            data = np.load(path)
+            plt.plot(data)
+            plt.title(filename)
+            plt.show()
+        except StopIteration:
+            break
+
+# agregate metrics
