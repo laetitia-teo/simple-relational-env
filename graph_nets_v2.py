@@ -381,3 +381,20 @@ class GNN(torch.nn.Module):
                 '    global_model={}\n'
                 ')').format(self.__class__.__name__, self.edge_model,
                             self.node_model, self.global_model)
+
+class T_GNN(torch.nn.Module):
+    """
+    Transformer-GNN.
+
+    Test version, not reimplemented, this is all-to-all only.
+    """
+    def __init__(self, f_in, n_head, dim_ff):
+        super(T_GNN, self).__init__()
+        self.trans = torch.nn.TransformerEncoderLayer(
+            2 * f_in,
+            h_head,
+            dim_ff)
+
+    def forward(self, x, edge_index, u, batch):
+        x = self.trans(x)
+

@@ -255,6 +255,49 @@ class Gen():
     def generate_overfit(self, N, n):
         raise NotImplementedError()
 
+    # def add_one(self, targets, refs, labels):
+    #     self.targets += targets
+    #     self.refs += refs
+    #     self.labels += labels
+    def cut(self, n):
+        """
+        Cuts the data to the n first examples.
+        """
+        if not self.t_idx:
+            self.compute_access_indices()
+        t_stop_index = self.t_idx[n-1][-1] + 1
+        if self.refs:
+            r_stop_index = self.r_idx[n-1][-1] + 1
+        self.targets = self.targets[:t_stop_index]
+        self.t_batch = self.t_batch[:t_stop_index]
+        if self.refs:
+            self.refs = self.refs[:r_stop_index]
+            self.r_batch = self.r_batch[:r_stop_index]
+        self.labels = self.labels[:n]
+        self.t_idx = self.t_idx[:n]
+        self.r_idx = self.r_idx[:n]
+
+    def multiply(self, n):
+        """
+        Duplicates the existing examples n times.
+        """
+        # if not self.t_idx:
+        #     self.compute_access_indices()
+        self.targets *= n
+        self.refs *= n
+        self.labels *= n
+        self.t_batch
+        self.r_batch *= n
+        mem = list(self.t_batch)
+        for i in range(n - 1):
+            mem += [elem + mem[-1] + 1 for elem in self.t_batch]
+        self.t_batch = mem
+        mem = list(self.r_batch)
+        for i in range(n - 1):
+            mem += [elem + mem[-1] + 1 for elem in self.r_batch]
+        self.r_batch = mem
+        self.compute_access_indices()
+
     def write_targets(self, f):
         """
         Writes the targets, and the t_batch to file f. Every object vector
@@ -1080,7 +1123,7 @@ class SameConfigGen(Gen):
             self.ref_state_list = ref_state_list
         else:
             if n is None:
-                n = np.random.randint(3, 7)
+                n = 5
             self.env.random_config(n)
             self.ref_state_list = self.env.to_state_list(norm=True)
             self.env.reset()
@@ -1099,6 +1142,13 @@ class SameConfigGen(Gen):
         self.t_ex_range = (np.array([0., 0.]), np.array([1., 1.])) # example
         self.s_ex_range = (1., 1.2)
         self.r_ex_range = (0., np.pi)
+
+    def equal_cut(self, n):
+        """
+        Similar to the cut function, but ensures n positive and n negative
+        samples are selected.
+        """
+        pass
 
     def write_metadata(self, path):
         """
@@ -1193,6 +1243,27 @@ class SameConfigGen(Gen):
         state = self.env.to_state_list(norm=True)
         return state, label, vec, scale, phi, spert, pert
 
+    def alternative_gen_one(self):
+        """
+        Alternative, legacy way to generate dataset.
+        """
+        self.env.reset()
+        self.env.from_state_list(self.ref_state_list, norm=True)
+        label = np.random.randint(2) # positive or negative example
+        if label:
+            spert = self.env.small_perturb_objects(self.eps)
+            vec, scale, phi = self.env.random_transformation()
+            pert = [np.zeros(2)] * len(self.ref_state_list)
+        else:
+            n_p = np.random.randint(len(self.env.objects))
+            spert = self.env.small_perturb_objects(self.eps)
+            pert = [np.zeros(2)] * len(self.ref_state_list)
+            self.env.random_mix()
+            # pert = self.env.perturb_objects(n_p)
+            vec, scale, phi = self.env.random_transformation()
+        state = self.env.to_state_list(norm=True)
+        return state, label, vec, scale, phi, spert, pert
+
     # generate controlled test examples
     # custom positive examples
     def gen_pure_translation(self, vec=None):
@@ -1264,6 +1335,12 @@ class SameConfigGen(Gen):
         I = len(self.labels)
         for i in tqdm(range(N)):
             self.generate_one(self.gen_one, i + I)
+        self.N += N
+
+    def generate_alternative(self, N):
+        I = len(self.labels)
+        for i in tqdm(range(N)):
+            self.generate_one(self.alternative_gen_one, i + I)
         self.N += N
 
     # utils

@@ -78,6 +78,18 @@ def load_dl(dpath):
             collate_fn=collate_fn)
     return dl
 
+def load_dl_overfit(dpath, n):
+    gen = SameConfigGen()
+    gen.load(dpath)
+    ds = gen.to_dataset()
+    gen.reset()
+    # select n positive examples
+    pos = []
+    i = 0
+    while len(pos) > n:
+        if gen.labels[i]:
+            pos.append()
+
 # model saving and loading
 
 def save_model(m, path):
@@ -265,7 +277,7 @@ def get_plot(model_idx, path):
 
 # aggregate metrics
 
-def model_metrics(path):
+def model_metrics(dir_name):
     """
     Plots a histogram of accuracies, accuracies and stds for each dataset, for
     each model in the considered directory.
@@ -273,13 +285,14 @@ def model_metrics(path):
     directory = op.join(
         'experimental_results',
         'same_config',
-        'run1')
+        dir_name)
     m_paths = sorted(os.listdir(directory))
     # fig, axs = plt.subplots(2, 4, constrained_layout=True)
     # fig = plt.figure()
     # outer = gridspec.GridSpec(2, 4, wspace=0.2, hspace=0.2)
     for i, mod_path in enumerate(m_paths):
         mod_idx = int(re.search(r'^model([0-9]+)$', mod_path)[1])
+        print('mod idx %s' % mod_idx)
         path = op.join(directory, mod_path, 'data')
         d_paths = os.listdir(path)
         mdata = []
