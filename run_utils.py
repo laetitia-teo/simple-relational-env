@@ -5,15 +5,19 @@ import time
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import torch
 
 import gen
 import baseline_models as bm
-import graph_models as gm
+import graph_models_v2 as gm
 
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from torch_geometric.data import Data
+try:
+    from torch_geometric.data import Data
+except ModuleNotFoundError:
+    from utils import Data
 
 # data utilities
 
@@ -65,7 +69,6 @@ def data_to_clss_parts(data):
     return data[2]
 
 def load_dl(dpath):
-    print('loading dl %s' % dpath)
     gen = SameConfigGen()
     gen.load(dpath)
     dl = DataLoader(
@@ -73,7 +76,6 @@ def load_dl(dpath):
             shuffle=True,
             batch_size=B_SIZE,
             collate_fn=collate_fn)
-    print('done')
     return dl
 
 # model saving and loading
@@ -128,12 +130,14 @@ def one_step(model,
              report_indices=False):
     accs = []
     losses = []
-    indices = [] #
+    indices = []
     n_passes = 0
     cum_loss = 0
     cum_acc = 0
     data_fn = data_to_graph_simple
     clss_fn = data_to_clss_parts
+    if cuda:
+        model.cuda()
     for data in dl:
         indices.append(list(data[3].numpy()))
         optimizer.zero_grad()
@@ -234,15 +238,19 @@ def one_run(dset,
 # result navigation
 
 def get_plot(model_idx, path):
+    """
+    Plots, one by one, the curves of the different models.
+    """
     done = False
     directory = op.join(
         'experimental_results',
         'same_config',
-        'test',
+        'run2',
         'model%s' % model_idx,
         'data')
-    d_path = os.listdir(directory)
-    datalist = sorted([p for p in d_path if re.search(r'^((?!indices).)*$', p)])
+    d_paths = os.listdir(directory)
+    datalist = sorted(
+        [p for p in d_paths if re.search(r'^((?!indices).)*$', p)])
     dit = iter(datalist)
     while True:
         try:
@@ -255,4 +263,51 @@ def get_plot(model_idx, path):
         except StopIteration:
             break
 
-# agregate metrics
+# aggregate metrics
+
+def model_metrics(path):
+    """
+    Plots a histogram of accuracies, accuracies and stds for each dataset, for
+    each model in the considered directory.
+    """
+    directory = op.join(
+        'experimental_results',
+        'same_config',
+        'run1')
+    m_paths = sorted(os.listdir(directory))
+    # fig, axs = plt.subplots(2, 4, constrained_layout=True)
+    # fig = plt.figure()
+    # outer = gridspec.GridSpec(2, 4, wspace=0.2, hspace=0.2)
+    for i, mod_path in enumerate(m_paths):
+        mod_idx = int(re.search(r'^model([0-9]+)$', mod_path)[1])
+        path = op.join(directory, mod_path, 'data')
+        d_paths = os.listdir(path)
+        mdata = []
+        for p in d_paths:
+            s = re.search(r'^([0-9]+)_([0-9]+)_val_acc.npy$', p)
+            if s:
+                # file name, dataset number, seed number
+                mdata.append((s[0], int(s[1]), int(s[2])))
+        aa = [np.mean(np.load(op.join(path, m[0]))) for m in mdata]
+        # inner = gridspec.GridSpecFromSubplotSpec(
+        #     2, 1, subplot_spec=outer[i], wspace=0.1, hspace=0.1)
+        fig, axs = plt.subplots(2, 1, constrained_layout=True)
+        # all accuracies
+        # ax = plt.Subplot(fig, inner[0])
+        # ax.hist(aa, bins=10)
+        axs[0].hist(aa, bins=10)
+        # accuracies for each dataset
+        # ax = plt.Subplot(fig, inner[1])
+        # get indices of the dataset
+        d_indices = sorted([*{*[m[1] for m in mdata]}])
+        means = np.array([np.mean(np.array(
+            [np.mean(np.load(op.join(path, m[0]))) for m in mdata if m[1] == j])) \
+                for j in d_indices])
+        x = np.arange(len(d_indices)) * 2
+        # ax.bar(means, x)
+        axs[1].bar(means, x)
+        # ax.set_xticklabels(d_indices)
+        axs[1].set_xticklabels(d_indices)
+        # ax.set_title(gm.model_names[mod_idx])
+        axs[1].set_title(gm.model_names[mod_idx])
+    plt.show()

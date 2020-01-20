@@ -10,13 +10,13 @@ from torch.nn import Sigmoid, LayerNorm, Dropout
 from torch.nn import BatchNorm1d
 
 from torch_geometric.data import Data
-from torch_scatter import scatter_mean
-from torch_scatter import scatter_add
+try:
+    from torch_scatter import scatter_mean
+    from torch_scatter import scatter_add
+except ModuleNotFoundError:
+    from scatter import scatter_mean
+    from scatter import scatter_add
 from torch_geometric.nn import MetaLayer
-
-from utils import cosine_similarity
-from utils import cos_sim
-from utils import sim
 
 # mlp function
 
@@ -93,7 +93,9 @@ class DS_GlobalModel_A(torch.nn.Module):
     def forward(self, x, u, batch):
         k = self.phi_k(x)
         q = self.phi_q(u)[batch]
-        a = torch.bmm(k.view(-1, 1, self.h), q.view(-1, self.h, 1)).squeeze(1)
+        a = torch.sigmoid(
+            torch.bmm(k.view(-1, 1, self.h),
+                      q.view(-1, self.h, 1)).squeeze(1))
         x_agg = scatter_add(a * x, batch, dim=0)
         return self.phi_u(torch.cat([x_agg, u], 1))
 
@@ -181,7 +183,9 @@ class NodeModel_A(torch.nn.Module):
         k = self.phi_k(x)[src]
         q = self.phi_q(x)[dest]
         # batch-wise dot product
-        a = torch.bmm(k.view(-1, 1, self.h), q.view(-1, self.h, 1)).squeeze(1)
+        a = torch.sigmoid(
+            torch.bmm(k.view(-1, 1, self.h),
+                      q.view(-1, self.h, 1)).squeeze(1))
         # add nodes with the same dest
         e_agg_node = scatter_add(a * e, dest, dim=0)
         out = torch.cat([x, e_agg_node, u[batch]], 1)
@@ -235,13 +239,17 @@ class GlobalModel_A(torch.nn.Module):
         # TODO : edge attention
         k = self.phi_k_e(e)
         q = self.phi_q_e(u)[e_batch]
-        a_e = torch.bmm(k.view(-1, 1, self.h), q.view(-1, self.h, 1)).squeeze(1)
+        a_e = torch.sigmoid(
+            torch.bmm(k.view(-1, 1, self.h),
+                      q.view(-1, self.h, 1)).squeeze(1))
         # aggregate all edges in the graph
         e_agg = scatter_add(a_e * e, e_batch, dim=0)
         # TODO : node attention
         k = self.phi_k_x(x)
         q = self.phi_q_x(u)[batch]
-        x_a = torch.bmm(k.view(-1, 1, self.h), q.view(-1, self.h, 1)).squeeze(1)
+        x_a = torch.sigmoid(
+            torch.bmm(k.view(-1, 1, self.h),
+                      q.view(-1, self.h, 1)).squeeze(1))
         # aggregate all nodes in the graph
         x_agg = scatter_add(x_a * x, batch, dim=0)
         out = torch.cat([x_agg, e_agg, u], 1)
@@ -285,7 +293,9 @@ class GlobalModel_NodeOnly_A(torch.nn.Module):
         # node attention
         k = self.phi_k(x)
         q = self.phi_q(u)[batch]
-        a = torch.bmm(k.view(-1, 1, self.h), q.view(-1, self.h, 1)).squeeze(1)
+        a = torch.sigmoid(
+            torch.bmm(k.view(-1, 1, self.h),
+                      q.view(-1, self.h, 1)).squeeze(1))
         # aggregate all nodes in the graph
         x_agg = scatter_add(a * x, batch, dim=0)
         out = torch.cat([x_agg, u], 1)
@@ -335,7 +345,6 @@ class N_GNN(torch.nn.Module):
         x = self.node_model(x, edge_index, e, u, batch)
         u = self.global_model(x, edge_index, e, u, batch)
         return x, u
-
 
 class GNN(torch.nn.Module):
     """

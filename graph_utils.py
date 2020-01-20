@@ -12,9 +12,13 @@ graphs, etc.
 import numpy as np
 import torch
 
-from torch_geometric.data import Data
 
-from torch_scatter import scatter_mean
+try:
+    from torch_geometric.data import Data
+    from torch_scatter import scatter_mean
+except ModuleNotFoundError:
+    from utils import Data
+    from scatter import scatter_mean
 
 DTYPE = torch.float
 

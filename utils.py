@@ -82,3 +82,13 @@ def cosine_similarity(t, v):
     s = torch.sum(t * v, -1)
     n = norm2(t, -1) * norm2(v, -1)
     return s / n
+
+# data
+
+class Data():
+    def __init__(self, x, y, edge_attr, edge_index, batch):
+        self.x = x
+        self.y = y
+        self.edge_attr = edge_attr
+        self.edge_index = edge_index
+        self.batch = batch

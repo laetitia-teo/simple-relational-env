@@ -18,7 +18,6 @@ import graph_models as gm
 
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from torch_geometric.data import Data
 from argparse import ArgumentParser
 
 # data utilities

@@ -4,13 +4,8 @@ New module for GNN models.
 import time
 import numpy as np
 import torch
-import torch_geometric
 
 import graph_nets_v2 as gn
-
-from torch_scatter import scatter_mean
-from torch_geometric.nn import MetaLayer
-from torch_geometric.data import Data
 
 from graph_utils import data_from_graph_maker
 from graph_utils import cross_graph_ei_maker
@@ -42,12 +37,12 @@ class GraphModel(torch.nn.Module):
         return f_e, f_x, f_u, h, f_out
 
     def cuda(self):
-        super(GraphModelDouble, self).cuda()
+        super(GraphModel, self).cuda()
         self.GPU = True
         self.data_from_graph = data_from_graph_maker(cuda=True)
 
     def cpu(self):
-        super(GraphModelDouble, self).cpu()
+        super(GraphModel, self).cpu()
         self.GPU = False
         self.data_from_graph = data_from_graph_maker(cuda=False)
 
@@ -272,3 +267,14 @@ model_list = [
     GNN_NAgg_A,
     GNN_NEAgg,
     GNN_NEAgg_A]
+
+model_names = [
+    'Deep Set (0)',
+    'Deep Set, attention (1)',
+    'Node GNN (2)',
+    'Node GNN, attention (3)',
+    'GNN, node aggreg (4)',
+    'GNN, node aggreg, attention (5)',
+    'GNN, node-edge aggreg (6)',
+    'GNN, node-edge aggreg, attention (7)'
+]
