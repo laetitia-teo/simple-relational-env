@@ -222,7 +222,7 @@ class Env(AbstractEnv):
     """
     Class for the implementation of the environment.
     """
-    def __init__(self, gridsize=16, envsize=20):
+    def __init__(self, gridsize=16, envsize=1):
         """
         Arguments :
 
@@ -615,7 +615,60 @@ class Env(AbstractEnv):
         tvec = np.array([R * np.cos(t), R * np.sin(t)])
         return tvec
 
-    def random_scaling(self, minscale=None, maxscale=None):
+    def random_translation_vector_cartesian(self, ex_range=None):
+        """
+        Samples a random translation vector, the max for a single coordinate is
+        th environment size. Is ex_range is provided, specifies the range from
+        which to exclude sampling (normalized to ((0, 0), (1, 1))).
+        """
+        minvec = 0
+        maxvec = self.envsize
+        if ex_range is not None:
+            # sample x
+            x = np.random.random()
+            if ex_range[0][0] == minvec:
+                if ex_range[0][1] == maxvec:
+                    x = 0.
+                else:
+                    # extrapolation
+                    x = ex_range[0][1] * (1 - x) + maxvec * x
+            elif ex_range[0][1] == maxvec:
+                # extrapolation
+                x = minvec * (1 - x) + ex_range[0][0] * x
+            else:
+                # interpolation
+                L = ex_range[0][1] - ex_range[0][0]
+                maxvec -= L
+                x = minvec * (1 - x) + maxvec * x
+                l = ex_range[0][0]
+                if x > l:
+                    x += L
+            # sample y
+            y = np.random.random()
+            if ex_range[1][0] == minvec:
+                if ex_range[1][1] == maxvec:
+                    y = 1
+                else:
+                    # extrapolation
+                    y = ex_range[1][1] * (1 - y) + maxvec * y
+            elif ex_range[1][1] == maxvec:
+                # extrapolation
+                y = minvec * (1 - y) + ex_range[1][0] * y
+            else:
+                # interpolation
+                L = ex_range[1][1] - ex_range[1][0]
+                maxvec -= L
+                y = minvec * (1 - y) + maxvec * y
+                l = ex_range[1][0]
+                if y > l:
+                    y += L
+            vec = np.array([x, y])
+        else:
+            vec = np.random.random(2)
+            vec *= self.envsize
+        return vec
+
+    def random_scaling(self, minscale=None, maxscale=None, ex_range=None):
         """
         Randomly cooses a center and a scale for a scaling transformation,
         between authorized bounds.
@@ -624,18 +677,59 @@ class Env(AbstractEnv):
         if minscale is None:
             minscale = 0.5
         if maxscale is None:
-            maxscale = 2
+            maxscale = 2.
         scale = np.random.random()
-        scale = minscale * (1 - scale) + maxscale * scale
+        if ex_range is not None:
+            if ex_range[0] == minscale:
+                if ex_range[1] == maxscale:
+                    scale = 1
+                else:
+                    # extrapolation
+                    scale = ex_range[1] * (1 - scale) + maxscale * scale
+            elif ex_range[1] == maxscale:
+                # extrapolation
+                scale = minscale * (1 - scale) + ex_range[0] * scale
+            else:
+                # interpolation
+                L = ex_range[1] - ex_range[0]
+                maxscale -= L
+                scale = minscale * (1 - scale) + maxscale * scale
+                l = ex_range[0]
+                if scale > l:
+                    scale += L
+        else:
+            scale = minscale * (1 - scale) + maxscale * scale
         return center, scale
 
-    def random_rotation(self, phi0=np.pi/2):
+    def random_rotation(self, phi0=np.pi/2, ex_range=None):
         """
         Samples a random rotation center and vector.
         """
         center = self.get_center()
+        minphi = 0
+        maxphi = 2 * np.pi
         phi = np.random.random()
-        phi = 2 * np.pi * phi
+        if ex_range is not None:
+            if ex_range[0] == minphi:
+                if ex_range[1] == maxphi:
+                    phi = 0.
+                else:
+                    # extrapolation
+                    phi = ex_range[1] * (1 - phi) + maxphi * phi
+            elif ex_range[1] == maxphi:
+                # extrapolation
+                phi = minphi * (1 - phi) + ex_range[0] * phi
+            else:
+                # interpolation
+                L = ex_range[1] - ex_range[0]
+                maxphi -= L
+                phi = minphi * (1 - phi) + maxphi * phi
+                l = ex_range[0]
+                if phi > l:
+                    phi += L
+        else:
+            phi = minphi * (1 - phi) + maxphi * phi
+        # phi = 2 * np.pi * phi
         return center, phi
 
     def random_transformation(self, rotations=True):

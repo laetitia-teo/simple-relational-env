@@ -213,7 +213,7 @@ class Gen():
         according to the specific, concrete task at hand.
         """
         if env is None:
-            self.env = Env(16, 20)
+            self.env = Env(16, 1)
         self.range_t = [2, 5]
         self.range_d = [0, 6]
 

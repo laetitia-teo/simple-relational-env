@@ -12,11 +12,11 @@ parser = ArgumentParser()
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='directory for the generated datasets',
-                    default='data/same_config')
+                    default='data/same_config_alt_norm')
 parser.add_argument('-Nc', '--number-configs',
                      dest='Nc',
                      help='number of different generated datasets',
-                     default='20')
+                     default='10')
 parser.add_argument('-Ns', '--number-samples',
                      dest='Ns',
                      help='number of samples in each dataset',
@@ -35,21 +35,21 @@ args = parser.parse_args()
 for i in range(int(args.Nc)):
     g = gen.SameConfigGen(n=int(args.No))
     ref = g.ref_state_list
-    g.generate(int(args.Ns))
+    g.generate_alternative(int(args.Ns))
     path = op.join(
         args.directory,
         '%s_%s_%s' % (int(args.No), i, int(args.Ns)))
     g.save(path)
     # generate validation dataset
     g = gen.SameConfigGen(ref_state_list=ref)
-    g.generate(int(args.Nt))
+    g.generate_alternative(int(args.Nt))
     path = op.join(
         args.directory,
         '%s_%s_%s_val' % (int(args.No), i, int(args.Nt)))
     g.save(path)
     # generate test dataset
     g = gen.SameConfigGen(ref_state_list=ref)
-    g.generate(int(args.Nt))
+    g.generate_alternative(int(args.Nt))
     path = op.join(
         args.directory,
         '%s_%s_%s_test' % (int(args.No), i, int(args.Nt)))
