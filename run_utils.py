@@ -78,17 +78,17 @@ def load_dl(dpath):
             collate_fn=collate_fn)
     return dl
 
-def load_dl_overfit(dpath, n):
-    gen = SameConfigGen()
-    gen.load(dpath)
-    ds = gen.to_dataset()
-    gen.reset()
-    # select n positive examples
-    pos = []
-    i = 0
-    while len(pos) > n:
-        if gen.labels[i]:
-            pos.append()
+# def load_dl_overfit(dpath, n):
+#     gen = SameConfigGen()
+#     gen.load(dpath)
+#     ds = gen.to_dataset()
+#     gen.reset()
+#     # select n positive examples
+#     pos = []
+#     i = 0
+#     while len(pos) > n:
+#         if gen.labels[i]:
+#             pos.append()
 
 # model saving and loading
 
@@ -256,8 +256,8 @@ def get_plot(model_idx, path):
     done = False
     directory = op.join(
         'experimental_results',
-        'same_config',
-        'run2',
+        'same_config_alt_norm',
+        'run3',
         'model%s' % model_idx,
         'data')
     d_paths = os.listdir(directory)
@@ -284,7 +284,7 @@ def model_metrics(dir_name):
     """
     directory = op.join(
         'experimental_results',
-        'same_config',
+        'same_config_alt_norm',
         dir_name)
     m_paths = sorted(os.listdir(directory))
     # fig, axs = plt.subplots(2, 4, constrained_layout=True)
@@ -308,7 +308,7 @@ def model_metrics(dir_name):
         # all accuracies
         # ax = plt.Subplot(fig, inner[0])
         # ax.hist(aa, bins=10)
-        axs[0].hist(aa, bins=10)
+        axs[0].hist(aa, bins=20)
         # accuracies for each dataset
         # ax = plt.Subplot(fig, inner[1])
         # get indices of the dataset

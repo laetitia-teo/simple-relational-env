@@ -212,7 +212,7 @@ def data_to_state_lists(data):
     There is one state list per graph in the batch, and there are two scenes
     per batch (the target, smaller scene, and the reference scene).
     """
-    targets, refs, labels, t_batch, r_batch = data
+    targets, refs, labels, _, t_batch, r_batch = data
     f_x = targets.shape[-1]
     t_state_lists = []
     r_state_lists = []

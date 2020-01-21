@@ -1,7 +1,7 @@
 """
 Cleaner version of the graph_nets module.
 """
-
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -16,7 +16,6 @@ try:
 except ModuleNotFoundError:
     from scatter import scatter_mean
     from scatter import scatter_add
-from torch_geometric.nn import MetaLayer
 
 # mlp function
 
@@ -40,6 +39,15 @@ def mlp_fn(hidden_layer_sizes, normalize=False):
         # layers.append(LayerNorm(f_out))
         return Sequential(*layers)
     return mlp
+
+# base aggregation (sum)
+
+class SumAggreg():
+    def __init__(self):
+        pass
+
+    def __call__(self, x, batch):
+        return scatter_add(x, batch, dim=0)
 
 # Node and Global models for Deep Sets
 
@@ -382,19 +390,54 @@ class GNN(torch.nn.Module):
                 ')').format(self.__class__.__name__, self.edge_model,
                             self.node_model, self.global_model)
 
-class T_GNN(torch.nn.Module):
+class SelfAttention(torch.nn.Module):
     """
-    Transformer-GNN.
-
-    Test version, not reimplemented, this is all-to-all only.
     """
-    def __init__(self, f_in, n_head, dim_ff):
-        super(T_GNN, self).__init__()
-        self.trans = torch.nn.TransformerEncoderLayer(
-            2 * f_in,
-            h_head,
-            dim_ff)
+    def __init__(self, f_in, h_dim):
+        super(SelfAttention, self).__init__()
+        self.h = h_dim
+        self.phi_q = Linear(f_in, h_dim)
+        self.phi_k = Linear(f_in, h_dim)
+        self.phi_v = Linear(f_in, h_dim)
+        # self.phi_x = Linear(h_dim, f_in) # to map back on x's n_dims
+        # no normalization ?
 
-    def forward(self, x, edge_index, u, batch):
-        x = self.trans(x)
+    def forward(self, x, edge_index, batch):
+        # e_i makes sure all that what happens in a batch stays in a batch
+        # we need self loops for this model
+        src, dest = edge_index
+        q = self.phi_q(x)[dest]
+        k = self.phi_k(x)[src]
+        v = self.phi_v(x)[src]
+        prod = torch.bmm(k.view(-1, 1, self.h), q.view(-1, self.h, 1))
+        prod = prod.squeeze(1)
+        prod /= np.sqrt(self.h)
+        # softmax
+        exp = torch.exp(prod)
+        a = exp / (scatter_add(exp, batch[src], dim=0)[batch[src]] + 10e-7)
+        # a = torch.sigmoid(prod) # softmax here !!!
+        v = v * a # attention weighting
+        x = scatter_add(v, dest, dim=0)
+        return x
 
+class MultiHeadAttention(torch.nn.Module):
+    """
+    Multi-head attention layer.
+    Not an optimal implem, the heads don't run in parallel, fix this one day.
+    """
+    def __init__(self, f_in, n_heads, h_dim):
+        super(MultiHeadAttention, self).__init__()
+        self.modlist = torch.nn.ModuleList() # to hold the heads
+        for _ in range(n_heads):
+            self.modlist.append(SelfAttention(f_in, h_dim))
+        self.phi_x = Linear(n_heads * h_dim, f_in)
+        # maybe add a normalization layer, and a residual connexion
+
+    def forward(self, x, edge_index, batch):
+        tlist = []
+        for mod in self.modlist:
+            tlist.append(mod(x, edge_index, batch))
+        for t in tlist:
+            print(t.shape)
+        x = torch.cat(tlist, 1) # residual connexion
+        return self.phi_x(x)

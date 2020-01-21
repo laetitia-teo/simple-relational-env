@@ -12,7 +12,7 @@ parser = ArgumentParser()
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='directory for the generated datasets',
-                    default='data/same_config_alt_norm')
+                    default='data/same_config_alt')
 parser.add_argument('-Nc', '--number-configs',
                      dest='Nc',
                      help='number of different generated datasets',
@@ -24,7 +24,7 @@ parser.add_argument('-Ns', '--number-samples',
 parser.add_argument('-No', '--number-objects',
                      dest='No',
                      help='number of objects in config',
-                     default='20')
+                     default='5')
 parser.add_argument('-Nt', '--number-test',
                      dest='Nt',
                      help='number of samples in test dataset',

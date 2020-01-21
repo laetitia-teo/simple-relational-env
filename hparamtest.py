@@ -17,7 +17,7 @@ from gen import SameConfigGen
 from dataset import collate_fn
 from graph_utils import data_to_graph_simple
 
-from run_utils import load_dl, one_run
+from run_utils import load_dl, one_run, data_to_graph_simple
 
 # script arguments
 
@@ -55,10 +55,10 @@ hparams = {
 
 # default hparams
 
-n_layers = 2
+n_layers = 1
 h = 16
 lr = 10e-3
-N = 1
+N = 2
 seeds = [0, 1, 2, 3, 4]
 n_epochs = 20
 H = 16
@@ -80,9 +80,17 @@ val_10 = sorted([p for p in d_path if re.search(r'^10_.+_val$', p)])[:10]
 train_20 = sorted([p for p in d_path if re.search(r'^20_.+_10{4}$', p)])[:10]
 val_20 = sorted([p for p in d_path if re.search(r'^20_.+_val$', p)])[:10]
 
-# 5 objects
-
 params = ([h] * n_layers, N, f_dict)
+
+# for quick testing purposes
+
+data_fn = data_to_graph_simple
+dl = load_dl('data/same_config/alt_train')
+data = next(iter(dl))
+g = data_fn(data)
+m = gm.TGNN(*params)
+
+# 5 objects
 
 if __name__ == '__main__':
     for m_idx in range(len(gm.model_list)):
@@ -94,7 +102,7 @@ if __name__ == '__main__':
             t0 = time.time()
             dl_train = load_dl(os.path.join('data/same_config_alt_norm', dpath_train))
             dl_val = load_dl(os.path.join('data/same_config_alt_norm', dpath_val))
-            path = os.path.join(args.directory, 'run1', 'model' + str(m_idx))
+            path = os.path.join(args.directory, 'run3', 'model' + str(m_idx))
             pathlib.Path(os.path.join(path, 'data')).mkdir(parents=True, exist_ok=True)
             pathlib.Path(os.path.join(path, 'models')).mkdir(parents=True, exist_ok=True)
             for seed in seeds:

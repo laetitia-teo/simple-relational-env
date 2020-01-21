@@ -13,6 +13,11 @@ from random import shuffle
 
 N_SH = 3 # number of shapes
 
+class SamplingTimeout(Exception):
+    def __init__(self, message):
+        super(SamplingTimeout, self).__init__()
+        print(message)
+
 class AbstractEnv():
 
     def __init__(self):
@@ -620,8 +625,11 @@ class Env(AbstractEnv):
         Samples a random translation vector, the max for a single coordinate is
         th environment size. Is ex_range is provided, specifies the range from
         which to exclude sampling (normalized to ((0, 0), (1, 1))).
+
+        Independent version, where the excluded ranges are excluded on the x
+        and y dimension separately.
         """
-        minvec = 0
+        minvec = - self.envsize
         maxvec = self.envsize
         if ex_range is not None:
             # sample x
@@ -638,8 +646,8 @@ class Env(AbstractEnv):
             else:
                 # interpolation
                 L = ex_range[0][1] - ex_range[0][0]
-                maxvec -= L
-                x = minvec * (1 - x) + maxvec * x
+                maxvecmodx = maxvec - L
+                x = minvec * (1 - x) + maxvecmodx * x
                 l = ex_range[0][0]
                 if x > l:
                     x += L
@@ -663,6 +671,47 @@ class Env(AbstractEnv):
                 if y > l:
                     y += L
             vec = np.array([x, y])
+        else:
+            vec = np.random.random(2)
+            vec *= self.envsize
+        return vec
+
+    def random_translation_vector_cartesian_v2(
+        self,
+        ex_range=None,
+        count=0, 
+        timeout=30):
+        """
+        Samples a random translation vector, the max for a single coordinate is
+        th environment size. Is ex_range is provided, specifies the range from
+        which to exclude sampling (normalized to ((0, 0), (1, 1))).
+
+        Dependent version, where the range is excluded in the x and y
+        dimensions at the same time.
+        """
+        if count > timeout:
+            raise SamplingTimeout('Sampling timed out in translation vector'\
+                + ' generation')
+        minvec = - self.envsize
+        maxvec = self.envsize
+        if ex_range is not None:
+            # sample x and y
+            x = np.random.random()
+            y = np.random.random()
+            xtest = minvec * (1 - x) + maxvec * x
+            ytest = minvec * (1 - y) + maxvec * y
+            if ytest <= ex_range[1][0] or ytest >= ex_range[1][1]:
+                x = xtest
+                y = ytest
+                vec = np.array([x, y])
+            elif xtest <= ex_range[0][0] or xtest >= ex_range[0][1]:
+                x = xtest
+                y = ytest
+                vec = np.array([x, y])
+            else:
+                vec = self.random_translation_vector_cartesian_v2(
+                    ex_range,
+                    count+1)
         else:
             vec = np.random.random(2)
             vec *= self.envsize

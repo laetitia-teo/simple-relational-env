@@ -254,6 +254,30 @@ class GNN_NEAgg_A(GraphModel):
             out_list.append(self.mlp(u))
         return out_list
 
+# other models
+
+class TGNN(GraphModel):
+    """
+    Transformer-GNN, the nodes do a transformer-style aggregation on their
+    neighbours.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(TGNN, self).__init__(f_dict)
+        self.N  = N
+        mlp_fn = gn.mlp_fn(mlp_layers)
+        self.tgnn = gn.MultiHeadAttention(self.fx, 8, self.h)        
+        self.agg = gn.SumAggreg()
+
+    def forward(self, graph):
+        x, edge_index, e, u, batch = self.data_from_graph(graph)
+        # out list ?
+        for _ in range(self.N):
+            x = self.tgnn(x, edge_index, batch)
+        return self.agg(x, batch)
+
 # edge aggregation ? does it make sense ?
 
 # Graph model utilities
