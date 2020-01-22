@@ -9,13 +9,14 @@ from torch.nn import Sequential, Linear, ReLU
 from torch.nn import Sigmoid, LayerNorm, Dropout
 from torch.nn import BatchNorm1d
 
-from torch_geometric.data import Data
 try:
+    from torch_geometric.data import Data
     from torch_scatter import scatter_mean
     from torch_scatter import scatter_add
-except ModuleNotFoundError:
+except:
     from scatter import scatter_mean
     from scatter import scatter_add
+    from utils import Data
 
 # mlp function
 

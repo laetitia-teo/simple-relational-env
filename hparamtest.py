@@ -29,7 +29,7 @@ parser.add_argument('-m', '--model',
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='path of the save and log directory',
-                    default='experimental_results/same_config_alt_norm')
+                    default='experimental_results/same_config_alt')
 
 args = parser.parse_args()
 
@@ -72,7 +72,7 @@ f_dict = {
 
 # data paths
 
-d_path = os.listdir('data/same_config_alt_norm')
+d_path = os.listdir('data/same_config_alt')
 train_5 = sorted([p for p in d_path if re.search(r'^5_.+_10{4}$', p)])[:10]
 val_5 = sorted([p for p in d_path if re.search(r'^5_.+_val$', p)])[:10]
 train_10 = sorted([p for p in d_path if re.search(r'^10_.+_10{4}$', p)])[:10]
@@ -100,9 +100,9 @@ if __name__ == '__main__':
         for dpath_train, dpath_val in zip(train_5, val_5):
             print('dset %s;' % dset)
             t0 = time.time()
-            dl_train = load_dl(os.path.join('data/same_config_alt_norm', dpath_train))
-            dl_val = load_dl(os.path.join('data/same_config_alt_norm', dpath_val))
-            path = os.path.join(args.directory, 'run3', 'model' + str(m_idx))
+            dl_train = load_dl(os.path.join('data/same_config_alt', dpath_train))
+            dl_val = load_dl(os.path.join('data/same_config_alt', dpath_val))
+            path = os.path.join(args.directory, 'run2', 'model' + str(m_idx))
             pathlib.Path(os.path.join(path, 'data')).mkdir(parents=True, exist_ok=True)
             pathlib.Path(os.path.join(path, 'models')).mkdir(parents=True, exist_ok=True)
             for seed in seeds:

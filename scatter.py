@@ -1,3 +1,7 @@
+"""
+from rusty1s' torch_scatter implementation.
+"""
+
 import torch
 
 from itertools import repeat
@@ -55,3 +59,8 @@ def scatter_add(src, index, dim=-1, out=None, dim_size=None, fill_value=0):
     
     src, out, index, dim = gen(src, index, dim, out, dim_size, fill_value)
     return out.scatter_add_(dim, index, src)
+
+def scatter_mean(src, index, dim=-1, out=None, dim_size=None, fill_value=0):
+    out = scatter_add(src, index, dim, out, dim_size, fill_value)
+    count = scatter_add(torch.ones_like(src), index, dim, None, out.size(dim))
+    return out / count.clamp(min=1)

@@ -290,7 +290,8 @@ model_list = [
     GNN_NAgg,
     GNN_NAgg_A,
     GNN_NEAgg,
-    GNN_NEAgg_A]
+    GNN_NEAgg_A,
+    TGNN]
 
 model_names = [
     'Deep Set (0)',
@@ -300,5 +301,6 @@ model_names = [
     'GNN, node aggreg (4)',
     'GNN, node aggreg, attention (5)',
     'GNN, node-edge aggreg (6)',
-    'GNN, node-edge aggreg, attention (7)'
+    'GNN, node-edge aggreg, attention (7)',
+    'TGNN (8)'
 ]

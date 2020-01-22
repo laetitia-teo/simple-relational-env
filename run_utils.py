@@ -16,7 +16,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 try:
     from torch_geometric.data import Data
-except ModuleNotFoundError:
+except:
     from utils import Data
 
 # data utilities
@@ -256,8 +256,8 @@ def get_plot(model_idx, path):
     done = False
     directory = op.join(
         'experimental_results',
-        'same_config_alt_norm',
-        'run3',
+        'same_config_alt',
+        'run1',
         'model%s' % model_idx,
         'data')
     d_paths = os.listdir(directory)

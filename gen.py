@@ -1139,9 +1139,9 @@ class SameConfigGen(Gen):
         self.small_perturbations = []
         self.perturbations = []
         # ranges we exclude from generation
-        self.t_ex_range = (np.array([0., 0.]), np.array([1., 1.])) # example
-        self.s_ex_range = (1., 1.2)
-        self.r_ex_range = (0., np.pi)
+        self.t_ex_range = None # example
+        self.s_ex_range = None
+        self.r_ex_range = None
 
     def equal_cut(self, n):
         """
@@ -1246,13 +1246,53 @@ class SameConfigGen(Gen):
     def alternative_gen_one(self):
         """
         Alternative, legacy way to generate dataset.
+
+        Negative examples are complete re_shufflings of the reference config.
         """
         self.env.reset()
         self.env.from_state_list(self.ref_state_list, norm=True)
         label = np.random.randint(2) # positive or negative example
         if label:
             spert = self.env.small_perturb_objects(self.eps)
+            vec, scale, phi = self.env.random_transformation(
+                rotations=True,
+                s_ex_range=self.s_ex_range,
+                t_ex_range=self.t_ex_range,
+                r_ex_range=self.r_ex_range)
+            pert = [np.zeros(2)] * len(self.ref_state_list)
+        else:
+            n_p = np.random.randint(len(self.env.objects))
+            spert = self.env.small_perturb_objects(self.eps)
+            pert = [np.zeros(2)] * len(self.ref_state_list)
+            self.env.random_mix()
+            # pert = self.env.perturb_objects(n_p)
             vec, scale, phi = self.env.random_transformation()
+        state = self.env.to_state_list(norm=True)
+        return state, label, vec, scale, phi, spert, pert
+
+    def controlled_gen_one(self, scale=None, vec=None, phi=None):
+        """
+        Allows to have a semi-random transformation, where some of the
+        transformation parameters are randomly sampled and others are fixed
+        in advance.
+        """
+        self.env.reset()
+        self.env.from_state_list(self.ref_state_list, norm=True)
+        label = np.random.randint(2) # positive or negative example
+        if label:
+            spert = self.env.small_perturb_objects(self.eps)
+            if vec is None:
+                tvec = self.env.random_translation_vector_cartesian_v2(
+                    ex_range=self.t_ex_range)
+            self.env.translate(tvec)
+            if scale is None:
+                center, scale = self.env.random_scaling(
+                    ex_range=self.s_ex_range)
+            self.env.scale(scale, center=center)
+            if phi is None:
+                center, phi = self.env.random_rotation(
+                    ex_range=self.r_ex_range)
+            self.env.rotate(phi, center=center)
             pert = [np.zeros(2)] * len(self.ref_state_list)
         else:
             n_p = np.random.randint(len(self.env.objects))
@@ -1276,6 +1316,7 @@ class SameConfigGen(Gen):
         phi = 0
         pert = [np.zeros(2)] * len(self.ref_state_list)
         self.env.translate(vec)
+        return state, label, vec, scale, phi, spert, pert
 
     def gen_pure_scaling(self, scale=None):
         self.env.reset()
@@ -1286,18 +1327,19 @@ class SameConfigGen(Gen):
         vec = np.zeros(2)
         phi = 0
         pert = [np.zeros(2)] * len(self.ref_state_list)
-        self.env.translate(scale)
+        self.env.scale(scale)
         return state, label, vec, scale, phi, spert, pert
 
     def gen_pure_rotation(self, phi=None):
         self.env.reset()
         self.env.from_state_list(self.ref_state_list, norm=True)
         if phi is None:
-            phi = self.env.random_rotation()
+            _, phi = self.env.random_rotation()
         spert = self.env.small_perturb_objects(self.eps)
         scale = 0
         vec = np.zeros(2)
-        self.env.translate(vec)
+        pert = [np.zeros(2)] * len(self.ref_state_list)
+        self.env.rotate(phi)
         return state, label, vec, scale, phi, spert, pert
 
     # contolled epsilon
@@ -1311,13 +1353,13 @@ class SameConfigGen(Gen):
         pert = [np.zeros(2)] * len(self.ref_state_list)
         return state, label, vec, scale, phi, spert, pert
 
-    def generate_one(self, gen_fn, i):
+    def generate_one(self, gen_fn, i, *args, **kwargs):
         """
         Wrapper for the different generation functions.
         Generates a config according to the provided generation function,
         and records the generation trace in all the good member variables.
         """
-        state, label, vec, scale, phi, spert, pert = gen_fn()
+        state, label, vec, scale, phi, spert, pert = gen_fn(*args, **kwargs)
         n_s = len(state)
         self.targets += state
         self.t_batch += n_s * [i]
@@ -1343,13 +1385,65 @@ class SameConfigGen(Gen):
             self.generate_one(self.alternative_gen_one, i + I)
         self.N += N
 
+    # def generate_generalization(self, N, n, ex_range, mod, b_size):
+    #     """
+    #     Based on the mod ('s' for scalings, 't' for translations, 'r' for
+    #     rotations, on the exclusion range, on the number n of elements in the
+    #     test grid, on the batch size b_size), generates the test and
+    #     """
+
+    def generate_grid(self, n, b_size, mod):
+        I = len(self.labels)
+        i = 0
+        if mod == 's':
+            minscale = 0.5
+            maxscale = 2.0
+            scales = np.arange(n).astype(float) / n
+            scales = (1 - scales) * minscale + scales * maxscale
+            for scale in tqdm(scales):
+                kwargs = {'scale': scale}
+                for _ in range(b_size):
+                    self.generate_one(
+                        self.alternative_gen_one,
+                        i = I + i,
+                        **kwargs)
+                    i += 1
+        if mod == 's':
+            minphi = 0
+            maxphi = 2 * np.pi
+            phis = np.arange(n).astype(float) / n
+            phis = (1 - phis) * minphi + phis * maxphi
+            for phi in tqdm(phis):
+                kwargs = {'phi': phi}
+                for _ in range(b_size):
+                    self.generate_one(
+                        self.alternative_gen_one,
+                        i = I + i,
+                        **kwargs)
+                    i += 1
+        if mod == 't':
+            minvec = - self.env.envsize
+            maxvec = self.env.envsize
+            a = np.arange(n).astype(float) / n
+            a = (1 - a) * minvec + a * maxvec
+            m = np.array(np.meshgrid(a, a))
+            for k in tqdm(range(m.shape[2])):
+                for l in range(m.shape[1]):
+                    kwargs = {'tvec': m[:, l, k]}
+                    for _ in range(b_size):
+                        self.generate_one(
+                            self.alternative_gen_one,
+                            i = I + i,
+                            **kwargs)
+                        i += 1
+
     # utils
     def render(self, path, mode='fixed'):
         """
         Renders the generated configurations at the desired path.
         For testing purposes, do not try with too big a dataset (not optimized)
 
-        pqth : string to the directory of save.
+        path : string to the directory of save.
         """
         self.compute_access_indices()
         vecs = np.array(self.targets)

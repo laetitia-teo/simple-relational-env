@@ -359,7 +359,7 @@ class Env(AbstractEnv):
             - amount : float, the scale of the scaling.
         """
         if center is None:
-            center = np.array([self.envsize/2, self.envsize/2])
+            center = self.get_center()
         state_list = self.to_state_list()
         self.reset()
         sc_state_list = []
@@ -385,7 +385,7 @@ class Env(AbstractEnv):
                 exception if it happens.
         """
         if center is None:
-            center = np.array([self.envsize/2, self.envsize/2])
+            center = self.get_center()
         state_list = self.to_state_list()
         self.reset()
         rot_state_list = []
@@ -714,7 +714,7 @@ class Env(AbstractEnv):
                     count+1)
         else:
             vec = np.random.random(2)
-            vec *= self.envsize
+            vec = (1 - vec) * minvec + vec * maxvec
         return vec
 
     def random_scaling(self, minscale=None, maxscale=None, ex_range=None):
@@ -781,19 +781,24 @@ class Env(AbstractEnv):
         # phi = 2 * np.pi * phi
         return center, phi
 
-    def random_transformation(self, rotations=True):
+    def random_transformation(self,
+                              rotations=True,
+                              s_ex_range=None,
+                              t_ex_range=None,
+                              r_ex_range=None):
         """
         Applies a random transformation on the state.
 
         This transformation can be a translation or a scaling of the current
         scene.
         """
-        amount = self.random_translation_vector()
+        amount = self.random_translation_vector_cartesian_v2(
+            ex_range=t_ex_range)
         self.translate(amount)
-        center, scale = self.random_scaling()
+        center, scale = self.random_scaling(ex_range=s_ex_range)
         self.scale(scale, center=center)
         if rotations:
-            center, phi = self.random_rotation()
+            center, phi = self.random_rotation(ex_range=r_ex_range)
             self.rotate(phi, center)
         else:
             phi = 0

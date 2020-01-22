@@ -9,10 +9,14 @@ from torch.nn import Sequential, Linear, ReLU
 from torch.nn import Sigmoid, LayerNorm, Dropout
 from torch.nn import BatchNorm1d
 
-from torch_geometric.data import Data
-from torch_scatter import scatter_mean
-from torch_scatter import scatter_add
-from torch_geometric.nn import MetaLayer
+try:
+    from torch_geometric.data import Data
+    from torch_scatter import scatter_mean
+    from torch_scatter import scatter_add
+    # from torch_geometric.nn import MetaLayer
+except:
+    from utils import Data
+    from scatter import scatter_add, scatter_mean
 
 from utils import cosine_similarity
 from utils import cos_sim

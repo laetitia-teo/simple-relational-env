@@ -1,6 +1,7 @@
 """
 Small utilities.
 """
+import re
 import os.path as op
 import numpy as np
 import torch
@@ -92,3 +93,17 @@ class Data():
         self.edge_attr = edge_attr
         self.edge_index = edge_index
         self.batch = batch
+
+    def clean_size(self, s):
+        s = str(s)
+        size = re.search(r'^torch.Size\((.*)\)$', s)[1]
+        return size
+
+    def __repr__(self):
+        s = 'Data(x={0},'.format(self.clean_size(self.x.shape)) \
+            + ' y={0},'.format(self.clean_size(self.y.shape)) \
+            + ' edge_attr={0},'.format(self.clean_size(self.edge_attr.shape)) \
+            + ' edge_index={0},'.format(self.clean_size(
+                self.edge_index.shape)) \
+            + ' batch={0})'.format(self.clean_size(self.batch.shape))
+        return s

@@ -13,13 +13,17 @@ graphs being jittred.
 import time
 import numpy as np
 import torch
-import torch_geometric
+# import torch_geometric
 
 import graph_nets as gn
 
-from torch_scatter import scatter_mean
-from torch_geometric.nn import MetaLayer
-from torch_geometric.data import Data
+try:
+    from torch_scatter import scatter_mean
+    from torch_geometric.nn import MetaLayer
+    from torch_geometric.data import Data
+except:
+    from scatter import scatter_mean
+    from utils import Data
 
 from graph_utils import data_from_graph_maker
 from graph_utils import cross_graph_ei_maker
