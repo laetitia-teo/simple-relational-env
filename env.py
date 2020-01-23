@@ -680,7 +680,7 @@ class Env(AbstractEnv):
         self,
         ex_range=None,
         count=0, 
-        timeout=30):
+        timeout=100):
         """
         Samples a random translation vector, the max for a single coordinate is
         th environment size. Is ex_range is provided, specifies the range from

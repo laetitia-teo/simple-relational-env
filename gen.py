@@ -23,6 +23,8 @@ from utils import to_file, from_file
 
 ### quick testing ###
 
+import matplotlib.pyplot as plt
+
 from torch.utils.data import DataLoader
 from dataset import collate_fn
 
@@ -1270,7 +1272,11 @@ class SameConfigGen(Gen):
         state = self.env.to_state_list(norm=True)
         return state, label, vec, scale, phi, spert, pert
 
-    def controlled_gen_one(self, scale=None, vec=None, phi=None):
+    def controlled_gen_one(self,
+                           scale=None,
+                           tvec=None,
+                           phi=None,
+                           positive_only=True):
         """
         Allows to have a semi-random transformation, where some of the
         transformation parameters are randomly sampled and others are fixed
@@ -1278,20 +1284,28 @@ class SameConfigGen(Gen):
         """
         self.env.reset()
         self.env.from_state_list(self.ref_state_list, norm=True)
-        label = np.random.randint(2) # positive or negative example
+        if positive_only:
+            label = 1
+        else:
+            label = np.random.randint(2) # positive or negative example
+        # print('passed phi %s' % phi)
         if label:
             spert = self.env.small_perturb_objects(self.eps)
-            if vec is None:
+            if tvec is None:
                 tvec = self.env.random_translation_vector_cartesian_v2(
                     ex_range=self.t_ex_range)
             self.env.translate(tvec)
             if scale is None:
                 center, scale = self.env.random_scaling(
                     ex_range=self.s_ex_range)
+            else:
+                center = None
             self.env.scale(scale, center=center)
             if phi is None:
                 center, phi = self.env.random_rotation(
                     ex_range=self.r_ex_range)
+            else:
+                center = None
             self.env.rotate(phi, center=center)
             pert = [np.zeros(2)] * len(self.ref_state_list)
         else:
@@ -1300,9 +1314,10 @@ class SameConfigGen(Gen):
             pert = [np.zeros(2)] * len(self.ref_state_list)
             self.env.random_mix()
             # pert = self.env.perturb_objects(n_p)
-            vec, scale, phi = self.env.random_transformation()
+            tvec, scale, phi = self.env.random_transformation()
         state = self.env.to_state_list(norm=True)
-        return state, label, vec, scale, phi, spert, pert
+        # print('result phi %s' % phi)
+        return state, label, tvec, scale, phi, spert, pert
 
     # generate controlled test examples
     # custom positive examples
@@ -1392,7 +1407,7 @@ class SameConfigGen(Gen):
     #     test grid, on the batch size b_size), generates the test and
     #     """
 
-    def generate_grid(self, n, b_size, mod):
+    def generate_grid(self, n, b_size, mod='s'):
         I = len(self.labels)
         i = 0
         if mod == 's':
@@ -1402,13 +1417,14 @@ class SameConfigGen(Gen):
             scales = (1 - scales) * minscale + scales * maxscale
             for scale in tqdm(scales):
                 kwargs = {'scale': scale}
+                print(scale)
                 for _ in range(b_size):
                     self.generate_one(
-                        self.alternative_gen_one,
+                        self.controlled_gen_one,
                         i = I + i,
                         **kwargs)
                     i += 1
-        if mod == 's':
+        if mod == 'r':
             minphi = 0
             maxphi = 2 * np.pi
             phis = np.arange(n).astype(float) / n
@@ -1417,7 +1433,7 @@ class SameConfigGen(Gen):
                 kwargs = {'phi': phi}
                 for _ in range(b_size):
                     self.generate_one(
-                        self.alternative_gen_one,
+                        self.controlled_gen_one,
                         i = I + i,
                         **kwargs)
                     i += 1
@@ -1432,7 +1448,7 @@ class SameConfigGen(Gen):
                     kwargs = {'tvec': m[:, l, k]}
                     for _ in range(b_size):
                         self.generate_one(
-                            self.alternative_gen_one,
+                            self.controlled_gen_one,
                             i = I + i,
                             **kwargs)
                         i += 1
