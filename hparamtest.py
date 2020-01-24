@@ -34,7 +34,7 @@ parser.add_argument('-d', '--directory',
 parser.add_argument('-r', '--run-index',
                     dest='run_idx',
                     help='index of the run',
-                    default=3)
+                    default=2)
 
 args = parser.parse_args()
 
@@ -63,7 +63,7 @@ hparams = {
 n_layers = 1
 h = 16
 lr = 10e-3
-N = 3
+N = 2
 seeds = [0, 1, 2, 3, 4]
 n_epochs = 20
 H = 16

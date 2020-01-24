@@ -302,7 +302,7 @@ def data_to_graph_cuda(data):
 
 def state_list_to_graph(state_list):
     """
-    Transforms a single state list into a fully connected graphs.
+    Transforms a single state list into a fully connected graph.
     """
     x1 = torch.tensor(state_list, dtype=DTYPE)
     batch1 = torch.zeros(len(state_list), dtype=int)

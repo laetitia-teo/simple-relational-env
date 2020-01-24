@@ -26,6 +26,8 @@ from dataset import collate_fn, make_collate_fn
 from baseline_utils import data_to_obj_seq_parts
 from graph_utils import tensor_to_graphs, data_to_graph_parts
 from graph_utils import data_to_graph_simple
+from graph_utils import state_list_to_graph
+from graph_utils import merge_graphs
 
 # viz
 
@@ -407,7 +409,7 @@ def model_metrics(run_idx):
     fig, axs = plt.subplots(2, 4, constrained_layout=True)
     # fig = plt.figure()
     # outer = gridspec.GridSpec(2, 4, wspace=0.2, hspace=0.2)
-    for i, mod_path in enumerate(m_paths[:-1]):
+    for i, mod_path in enumerate(m_paths[:8]):
         mod_idx = int(re.search(r'^model([0-9]+)$', mod_path)[1])
         # print('mod idx %s' % mod_idx)
         path = op.join(directory, mod_path, 'data')
@@ -420,30 +422,11 @@ def model_metrics(run_idx):
                 mdata.append((s[0], int(s[1]), int(s[2])))
         aa = [np.mean(np.load(op.join(path, m[0]))) for m in mdata]
         mean_acc = str(np.around(np.mean(aa), 2))[:4]
-        # inner = gridspec.GridSpecFromSubplotSpec(
-        #     2, 1, subplot_spec=outer[i], wspace=0.1, hspace=0.1)
-        # fig, axs = plt.subplots(2, 1, constrained_layout=True)
-        # all accuracies
-        # ax = plt.Subplot(fig, inner[0])
-        # ax.hist(aa, bins=10)
         j = i % 2
         k = i // 2
         axs[j, k].hist(aa, bins=20)
         s = gm.model_names[mod_idx] + '; acc : {}'.format(mean_acc)
         axs[j, k].set_title(s)
-        # accuracies for each dataset
-        # ax = plt.Subplot(fig, inner[1])
-        # get indices of the dataset
-        # d_indices = sorted([*{*[m[1] for m in mdata]}])
-        # means = np.array([np.mean(np.array(
-        #     [np.mean(np.load(op.join(path, m[0]))) for m in mdata if m[1] == j])) \
-        #         for j in d_indices])
-        # x = np.arange(len(d_indices)) * 2
-        # ax.bar(means, x)
-        # axs[1].bar(means, x)
-        # ax.set_xticklabels(d_indices)
-        # axs[1].set_xticklabels(d_indices)
-        # ax.set_title(gm.model_names[mod_idx])
     plt.show()
 
 def hardness_dsets(run_idx):
@@ -481,3 +464,46 @@ def hardness_dsets(run_idx):
         axs[j, k].set_xticklabels(np.arange(len(means)))
         axs[j, k].set_title(s)
     plt.show()
+
+def plot_heat_map_simple(model, gen):
+    """
+    Plots the heat maps of the difference between the positive and negative
+    classes as a function of the position of one of the objects in the scene,
+    and does it for each object.
+
+    Assumes the model is a simple model (one input graph) and that the
+    generator gen has the reference configuration loaded in its ref_state_list
+    attribute.
+    """
+    size = gen.env.envsize * gen.env.gridsize
+    matlist = []
+    a = np.arange(n).astype(float)
+    # y, x = np.meshgrid(a, a)
+    # y /= n
+    # x /= n
+    s = gen.ref_state_list[2:] # fix the reading
+    pos_idx = [env.N_SH+4, env.N_SH+5]
+    g = merge_graphs([state_list_to_graph(s)] * n)
+    # for i in range(len(gen.env.objects)):
+    #     mat = np.zeros((n, n))
+    #     for j in range(n):
+    #         for k in range(n):
+    for state in ref_state_list:
+        mem = state[pos_idx]
+        mat = np.zeros((0, n))
+        for x in tqdm(range(n)):
+            glist = []
+            t = time.time()
+            for y in range(n):
+                state[pos_idx] = np.array([x / gen.env.gridsize,
+                                           y / gen.env.gridsize])
+                glist.append(state_list_to_graph(s))
+            g = merge_graphs(glist)
+            pred = self.model(g).detach().numpy()
+            pred = pred[..., 1] - pred[..., 0]
+            # pred = np.expand_dims(pred, 0)
+            mat = np.concatenate((mat, pred), 0)
+        state[pos_idx] = mem
+        matlist.append(mat) # maybe change data format here
+        poslist = [state[pos_idx] * gen.env.gridsize for state in s]
+    # TODO finish this
