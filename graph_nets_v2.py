@@ -317,9 +317,27 @@ class DeepSet(torch.nn.Module):
     Deep Set.
     """
     def __init__(self,
+                 mlp_fn,
+                 f_in,
+                 h,
+                 f_out):
+        super(DeepSet, self).__init__()
+        self.phi_x = mlp_fn(f_in, h)
+        self.phi_u = mlp_fn(h, f_out)
+
+    def forward(self, x, batch):
+        x = self.phi_x(x)
+        u = self.phi_u(scatter_add(x, batch, dim=0))
+        return u
+
+class DeepSetPlus(torch.nn.Module):
+    """
+    Deep Set++
+    """
+    def __init__(self,
                  node_model,
                  global_model):
-        super(DeepSet, self).__init__()
+        super(DeepSetPlus, self).__init__()
         self.node_model = node_model
         self.global_model = global_model
 

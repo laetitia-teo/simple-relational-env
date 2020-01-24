@@ -22,14 +22,19 @@ from run_utils import load_dl, one_run, data_to_graph_simple
 # script arguments
 
 parser = ArgumentParser()
-parser.add_argument('-m', '--model',
-                    dest='model_idx',
-                    help='index of the model',
-                    default='0')
+parser.add_argument('-m', '--mode',
+                    dest='mode',
+                    help='mode : \'all\' for all available models, index of the'
+                        + ' model for a single model',
+                    default='9')
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='path of the save and log directory',
                     default='experimental_results/same_config_alt')
+parser.add_argument('-r', '--run-index',
+                    dest='run_idx',
+                    help='index of the run',
+                    default=3)
 
 args = parser.parse_args()
 
@@ -58,7 +63,7 @@ hparams = {
 n_layers = 1
 h = 16
 lr = 10e-3
-N = 2
+N = 3
 seeds = [0, 1, 2, 3, 4]
 n_epochs = 20
 H = 16
@@ -90,27 +95,54 @@ data = next(iter(dl))
 g = data_fn(data)
 m = gm.TGNN(*params)
 
+def run(m_idx, run_idx):
+    dset = 0
+    print('model number %s' % m_idx)
+    print('model name %s' % gm.model_names[m_idx])
+    for dpath_train, dpath_val in zip(train_5, val_5):
+        print('dset %s;' % dset)
+        t0 = time.time()
+        dl_train = load_dl(
+            os.path.join('data/same_config_alt', dpath_train))
+        dl_val = load_dl(
+            os.path.join('data/same_config_alt', dpath_val))
+        path = os.path.join(
+            args.directory, 'run%s' % run_idx, 'model' + str(m_idx))
+        pathlib.Path(
+            os.path.join(path, 'data')).mkdir(parents=True, exist_ok=True)
+        pathlib.Path(
+            os.path.join(path, 'models')).mkdir(parents=True, exist_ok=True)
+        for seed in seeds:
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            model = gm.model_list[m_idx](*params)
+            opt = torch.optim.Adam(model.parameters(), lr=lr)
+            one_run(
+                dset,
+                seed,
+                n_epochs,
+                model,
+                opt,
+                dl_train,
+                dl_val,
+                path,
+                cuda=False)
+        t = time.time()
+        print('total running time for one ds %s seconds' % str(t - t0))
+        dset += 1
+
 # 5 objects
 
 if __name__ == '__main__':
-    for m_idx in range(len(gm.model_list)):
-    # m_idx = 0
-        dset = 0
-        print('model number %s' % m_idx)
-        for dpath_train, dpath_val in zip(train_5, val_5):
-            print('dset %s;' % dset)
-            t0 = time.time()
-            dl_train = load_dl(os.path.join('data/same_config_alt', dpath_train))
-            dl_val = load_dl(os.path.join('data/same_config_alt', dpath_val))
-            path = os.path.join(args.directory, 'run2', 'model' + str(m_idx))
-            pathlib.Path(os.path.join(path, 'data')).mkdir(parents=True, exist_ok=True)
-            pathlib.Path(os.path.join(path, 'models')).mkdir(parents=True, exist_ok=True)
-            for seed in seeds:
-                np.random.seed(seed)
-                torch.manual_seed(seed)
-                model = gm.model_list[m_idx](*params)
-                opt = torch.optim.Adam(model.parameters(), lr=lr)
-                one_run(dset, seed, n_epochs, model, opt, dl_train, dl_val, path, cuda=False)
-            t = time.time()
-            print('total running time for one ds %s seconds' % str(t - t0))
-            dset += 1
+    if args.run_idx is None:
+        raise Exception('No run index was provided, please use the -r flag')
+    if args.mode == 'all':
+        for m_idx in range(len(gm.model_list)):
+            run(m_idx, args.run_idx)
+    else:
+        try:
+            m_idx = int(args.mode)
+            run(m_idx, args.run_idx)
+        except ValueError:
+            print('Invalid mode for the script, must be \'all\' or integer')
+            raise

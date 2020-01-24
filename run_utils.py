@@ -39,6 +39,30 @@ B_SIZE = 128
 def nparams(model):
     return sum(p.numel() for p in model.parameters())
 
+# some data utils
+
+def data_to_state_lists(data):
+    """
+    Used to transform data given by the parts DataLoader into a list of state
+    lists usable by env.Env to generate the configuration image corresponding
+    to this state of the environment.
+    There is one state list per graph in the batch, and there are two scenes
+    per batch (the target, smaller scene, and the reference scene).
+    """
+    targets, refs, labels, _, t_batch, r_batch = data
+    f_x = targets.shape[-1]
+    t_state_lists = []
+    r_state_lists = []
+    n = int(t_batch[-1] + 1)
+    for i in range(n):
+        t_idx = (t_batch == i).nonzero(as_tuple=True)[0]
+        r_idx = (r_batch == i).nonzero(as_tuple=True)[0]
+        target = list(targets[t_idx].numpy())
+        ref = list(refs[r_idx].numpy())
+        t_state_lists.append(target)
+        r_state_lists.append(ref)
+    return t_state_lists, r_state_lists, list(labels.numpy())
+
 # metrics
 
 criterion = torch.nn.CrossEntropyLoss()
@@ -100,6 +124,7 @@ def load_model(m, path):
     return m
 
 # data saving and viz
+
 
 def save_results(data, path):
     if isinstance(data, torch.Tensor):
@@ -249,6 +274,74 @@ def one_run(dset,
 
 # result navigation
 
+def get_expe_res(run_idx, model_idx):
+    """
+    Returns the list of arrays of training accuracies.
+    """
+    path = op.join(
+        'experimental_results',
+        'same_config_alt',
+        'run%s' % run_idx,
+        'model%s' % model_idx,
+        'data')
+    d_paths = os.listdir(path)
+    plist = sorted(
+        [p for p in d_paths if re.search(r'^.*train_acc.npy$', p)])
+    trainlist = [np.load(op.join(path, p)) for p in plist]
+    return np.array(trainlist)
+
+def get_stat_func(line='mean', err='std'):    
+    
+    if line == 'mean':
+        def line_f(a):
+            return np.nanmean(a, axis=0)
+    elif line == 'median':
+        def line_f(a):
+            return np.nanmedian(a, axis=0)
+    else:
+        raise NotImplementedError    
+
+    if err == 'std':
+        def err_plus(a):
+            return line_f(a) + np.nanstd(a, axis=0)
+        def err_minus(a):
+            return line_f(a) - np.nanstd(a, axis=0)
+    elif err == 'sem':
+        def err_plus(a):
+            return line_f(a) + 1.676 * np.nanstd(a, axis=0) \
+                / np.sqrt(a.shape[0])
+        def err_minus(a):
+            return line_f(a) - 1.676 * np.nanstd(a, axis=0) \
+                / np.sqrt(a.shape[0])
+    elif err == 'range':
+        def err_plus(a):
+            return np.nanmax(a, axis=0)
+        def err_minus(a):
+            return np.nanmin(a, axis=0)
+    elif err == 'interquartile':
+        def err_plus(a):
+            return np.nanpercentile(a, q=75, axis=0)
+        def err_minus(a):
+            return np.nanpercentile(a, q=25, axis=0)
+    else:
+        raise NotImplementedError    
+
+    return line_f, err_minus, err_plus
+
+def plot_train_acc(run_idx, model_idx):
+    """
+    Plots the training accuracy of the model over all runs.
+    """
+    a = get_expe_res(run_idx, model_idx)
+    line_f, err_minus, err_plus = get_stat_func(err='std')
+    m = line_f(a)
+    mi = err_minus(a)
+    ma = err_plus(a)
+    plt.plot(m)
+    plt.fill_between(np.arange(len(m)), mi, ma, alpha=0.2)
+    plt.show()
+    # return m, mi, ma
+
 def get_plot(model_idx, path):
     """
     Plots, one by one, the curves of the different models.
@@ -275,24 +368,48 @@ def get_plot(model_idx, path):
         except StopIteration:
             break
 
+def batch_to_images(data, path, mod='one'):
+    """
+    Transforms a batch of data into a set of images.
+    """
+    t_state_lists, r_state_lists, labels = data_to_state_lists(data)
+    env = Env(16, 20)
+    for tsl, rsl, l in zip(t_state_lists, r_state_lists, labels):
+        # state to env
+        # generate image
+        # save it, name is hash code
+        env.reset()
+        env.from_state_list(tsl, norm=True)
+        img = env.render(show=False)
+        if mod == 'two':
+            env.reset()
+            env.from_state_list(rsl, norm=True)
+            r_img = env.render(show=False)
+            # separator is gray for false examples and white for true examples
+            sep = np.ones((2, img.shape[1], 3)) * 127.5  + (l * 127.5)
+            img = np.concatenate((img, sep, r_img))
+        img_name = str(hash(img.tostring())) + '.jpg'
+        cv2.imwrite(op.join(path, img_name), img)
+
 # aggregate metrics
 
-def model_metrics(dir_name):
+def model_metrics(run_idx):
     """
     Plots a histogram of accuracies, accuracies and stds for each dataset, for
     each model in the considered directory.
     """
     directory = op.join(
         'experimental_results',
-        'same_config_alt_norm',
-        dir_name)
+        'same_config_alt',
+        'run%s' % run_idx)
     m_paths = sorted(os.listdir(directory))
-    # fig, axs = plt.subplots(2, 4, constrained_layout=True)
+    m_paths = [p for p in m_paths if re.search(r'^model([0-9]+)$', p)]
+    fig, axs = plt.subplots(2, 4, constrained_layout=True)
     # fig = plt.figure()
     # outer = gridspec.GridSpec(2, 4, wspace=0.2, hspace=0.2)
-    for i, mod_path in enumerate(m_paths):
+    for i, mod_path in enumerate(m_paths[:-1]):
         mod_idx = int(re.search(r'^model([0-9]+)$', mod_path)[1])
-        print('mod idx %s' % mod_idx)
+        # print('mod idx %s' % mod_idx)
         path = op.join(directory, mod_path, 'data')
         d_paths = os.listdir(path)
         mdata = []
@@ -302,25 +419,65 @@ def model_metrics(dir_name):
                 # file name, dataset number, seed number
                 mdata.append((s[0], int(s[1]), int(s[2])))
         aa = [np.mean(np.load(op.join(path, m[0]))) for m in mdata]
+        mean_acc = str(np.around(np.mean(aa), 2))[:4]
         # inner = gridspec.GridSpecFromSubplotSpec(
         #     2, 1, subplot_spec=outer[i], wspace=0.1, hspace=0.1)
-        fig, axs = plt.subplots(2, 1, constrained_layout=True)
+        # fig, axs = plt.subplots(2, 1, constrained_layout=True)
         # all accuracies
         # ax = plt.Subplot(fig, inner[0])
         # ax.hist(aa, bins=10)
-        axs[0].hist(aa, bins=20)
+        j = i % 2
+        k = i // 2
+        axs[j, k].hist(aa, bins=20)
+        s = gm.model_names[mod_idx] + '; acc : {}'.format(mean_acc)
+        axs[j, k].set_title(s)
         # accuracies for each dataset
         # ax = plt.Subplot(fig, inner[1])
         # get indices of the dataset
-        d_indices = sorted([*{*[m[1] for m in mdata]}])
-        means = np.array([np.mean(np.array(
-            [np.mean(np.load(op.join(path, m[0]))) for m in mdata if m[1] == j])) \
-                for j in d_indices])
-        x = np.arange(len(d_indices)) * 2
+        # d_indices = sorted([*{*[m[1] for m in mdata]}])
+        # means = np.array([np.mean(np.array(
+        #     [np.mean(np.load(op.join(path, m[0]))) for m in mdata if m[1] == j])) \
+        #         for j in d_indices])
+        # x = np.arange(len(d_indices)) * 2
         # ax.bar(means, x)
-        axs[1].bar(means, x)
+        # axs[1].bar(means, x)
         # ax.set_xticklabels(d_indices)
-        axs[1].set_xticklabels(d_indices)
+        # axs[1].set_xticklabels(d_indices)
         # ax.set_title(gm.model_names[mod_idx])
-        axs[1].set_title(gm.model_names[mod_idx])
+    plt.show()
+
+def hardness_dsets(run_idx):
+    """
+    Plots, for each model, the mean accuracy (over the random seeds) over each
+    dataset.
+    """
+    directory = op.join(
+        'experimental_results',
+        'same_config_alt',
+        'run%s' % run_idx)
+    m_paths = sorted(os.listdir(directory))
+    m_paths = [p for p in m_paths if re.search(r'^model([0-9]+)$', p)]
+    fig, axs = plt.subplots(2, 4, constrained_layout=True)
+    for i, mod_path in enumerate(m_paths[:-1]):
+        mod_idx = int(re.search(r'^model([0-9]+)$', mod_path)[1])
+        path = op.join(directory, mod_path, 'data')
+        d_paths = os.listdir(path)
+        mdata = []
+        for p in d_paths:
+            s = re.search(r'^([0-9]+)_([0-9]+)_val_acc.npy$', p)
+            if s:
+                # file name, dataset number, seed number
+                mdata.append((s[0], int(s[1]), int(s[2])))
+        means = []
+        for h in range(10):
+            l = [np.load(op.join(path, m[0])) for m in mdata if m[1] == h]
+            means.append(np.mean(np.array(l)))
+        j = i % 2
+        k = i // 2
+        axs[j, k].bar(np.arange(len(means)), means)
+        mean_acc = np.mean(means)
+        mean_acc = str(np.around(mean_acc, 2))
+        s = gm.model_names[mod_idx] + '; acc : {}'.format(mean_acc)
+        axs[j, k].set_xticklabels(np.arange(len(means)))
+        axs[j, k].set_title(s)
     plt.show()

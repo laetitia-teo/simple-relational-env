@@ -14,11 +14,11 @@ parser = ArgumentParser()
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='directory for the generated datasets',
-                    default='data/gen_test')
+                    default='data/gen_same_config')
 parser.add_argument('-Nc', '--number-configs',
                      dest='Nc',
                      help='number of different generated datasets',
-                     default='10')
+                     default='3')
 parser.add_argument('-Ns', '--number-samples',
                      dest='Ns',
                      help='number of samples in each dataset',
@@ -34,11 +34,15 @@ parser.add_argument('-Nt', '--number-test',
 parser.add_argument('-Nb', '--number-batch',
                      dest='Nb',
                      help='number of examples in one element of the test grid',
-                     default='4')
+                     default='128')
 parser.add_argument('-Ng', '--number-grid',
                      dest='Ng',
                      help='size of the test grid',
-                     default='10')
+                     default='100')
+parser.add_argument('-Ngt', '--number-grid-trans',
+                     dest='Ngt',
+                     help='size of the test grid for translations',
+                     default='20')
 
 args = parser.parse_args()
 
@@ -95,8 +99,8 @@ def gen_trans_train(g, ex_range, s, i):
 
 def gen_trans_test(g, i):
     g.reset()
-    g.generate_grid(int(args.Ng), int(args.Nb), mod='t')
-    a = (int(args.No), i, int(args.Ns), int(args.Ng), int(args.Nb))
+    g.generate_grid(int(args.Ngt), int(args.Nb), mod='t')
+    a = (int(args.No), i, int(args.Ns), int(args.Ngt), int(args.Nb))
     path = op.join(
         args.directory,
         '{0}_{1}_{2}_tgrid_{3}_{4}'.format(*a))

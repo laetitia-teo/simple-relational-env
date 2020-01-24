@@ -54,10 +54,23 @@ class DeepSet(GraphModel):
                  N,
                  f_dict):
         super(DeepSet, self).__init__(f_dict)
+        mlp_fn = gn.mlp_fn(mlp_layers)
+        self.deepset = gn.DeepSet(mlp_fn, self.fx, self.h, self.fout)
+
+    def forward(self, graph):
+        x, _, _, _, batch = self.data_from_graph(graph)
+        return self.deepset(x, batch)
+
+class DeepSetPlus(GraphModel):
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(DeepSet, self).__init__(f_dict)
         self.N = N # we allow multiple rounds
         mlp_fn = gn.mlp_fn(mlp_layers)
 
-        self.deepset = gn.DeepSet(
+        self.deepset = gn.DeepSetPlus(
             gn.DS_NodeModel(self.fx, self.fu, mlp_fn, self.fx),
             gn.DS_GlobalModel(self.fx, self.fu, mlp_fn, self.fu))
         self.mlp = mlp_fn(self.fu, self.fout)
@@ -70,7 +83,7 @@ class DeepSet(GraphModel):
             out_list.append(self.mlp(u))
         return out_list
 
-class DeepSet_A(GraphModel):
+class DeepSetPlus_A(GraphModel):
     def __init__(self,
                  mlp_layers,
                  N,
@@ -79,7 +92,7 @@ class DeepSet_A(GraphModel):
         self.N = N # we allow multiple rounds
         mlp_fn = gn.mlp_fn(mlp_layers)
 
-        self.deepset = gn.DeepSet(
+        self.deepset = gn.DeepSetPlus(
             gn.DS_NodeModel(self.fx, self.fu, mlp_fn, self.fx),
             gn.DS_GlobalModel_A(self.fx, self.fu, self.h, mlp_fn, self.fu))
         self.mlp = mlp_fn(self.fu, self.fout)
@@ -283,24 +296,26 @@ class TGNN(GraphModel):
 # Graph model utilities
 
 model_list = [
-    DeepSet,
-    DeepSet_A,
+    DeepSetPlus,
+    DeepSetPlus_A,
     N_GNN,
     N_GNN_A,
     GNN_NAgg,
     GNN_NAgg_A,
     GNN_NEAgg,
     GNN_NEAgg_A,
-    TGNN]
+    TGNN,
+    DeepSet]
 
 model_names = [
-    'Deep Set (0)',
-    'Deep Set, attention (1)',
+    'Deep Set++ (0)',
+    'Deep Set++, attention (1)',
     'Node GNN (2)',
     'Node GNN, attention (3)',
     'GNN, node aggreg (4)',
     'GNN, node aggreg, attention (5)',
     'GNN, node-edge aggreg (6)',
     'GNN, node-edge aggreg, attention (7)',
-    'TGNN (8)'
+    'TGNN (8)',
+    'Deep Set (9)'
 ]

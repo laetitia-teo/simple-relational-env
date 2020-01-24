@@ -228,6 +228,9 @@ class Gen():
         self.reset()
 
     def reset(self):
+        # reset env
+        self.env.reset()
+        # reset data
         self.targets = []
         self.t_batch = []
         self.refs = []
@@ -1417,7 +1420,6 @@ class SameConfigGen(Gen):
             scales = (1 - scales) * minscale + scales * maxscale
             for scale in tqdm(scales):
                 kwargs = {'scale': scale}
-                print(scale)
                 for _ in range(b_size):
                     self.generate_one(
                         self.controlled_gen_one,
