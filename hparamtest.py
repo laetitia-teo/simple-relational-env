@@ -26,7 +26,7 @@ parser.add_argument('-m', '--mode',
                     dest='mode',
                     help='mode : \'all\' for all available models, index of the'
                         + ' model for a single model',
-                    default='9')
+                    default='all')
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='path of the save and log directory',
@@ -34,7 +34,7 @@ parser.add_argument('-d', '--directory',
 parser.add_argument('-r', '--run-index',
                     dest='run_idx',
                     help='index of the run',
-                    default=2)
+                    default=3)
 
 args = parser.parse_args()
 
@@ -63,7 +63,7 @@ hparams = {
 n_layers = 1
 h = 16
 lr = 10e-3
-N = 2
+N = 1
 seeds = [0, 1, 2, 3, 4]
 n_epochs = 20
 H = 16
@@ -77,7 +77,9 @@ f_dict = {
 
 # data paths
 
-d_path = os.listdir('data/same_config_alt')
+prefix = 'data/same_config_perturb'
+
+d_path = os.listdir(prefix)
 train_5 = sorted([p for p in d_path if re.search(r'^5_.+_10{4}$', p)])[:10]
 val_5 = sorted([p for p in d_path if re.search(r'^5_.+_val$', p)])[:10]
 train_10 = sorted([p for p in d_path if re.search(r'^10_.+_10{4}$', p)])[:10]
@@ -90,7 +92,7 @@ params = ([h] * n_layers, N, f_dict)
 # for quick testing purposes
 
 data_fn = data_to_graph_simple
-dl = load_dl('data/same_config/alt_train')
+dl = load_dl('data/same_config_alt/5_0_10000')
 data = next(iter(dl))
 g = data_fn(data)
 m = gm.TGNN(*params)
@@ -103,9 +105,9 @@ def run(m_idx, run_idx):
         print('dset %s;' % dset)
         t0 = time.time()
         dl_train = load_dl(
-            os.path.join('data/same_config_alt', dpath_train))
+            os.path.join(prefix, dpath_train))
         dl_val = load_dl(
-            os.path.join('data/same_config_alt', dpath_val))
+            os.path.join(prefix, dpath_val))
         path = os.path.join(
             args.directory, 'run%s' % run_idx, 'model' + str(m_idx))
         pathlib.Path(

@@ -25,7 +25,7 @@ from gen import SameConfigGen
 from dataset import collate_fn, make_collate_fn
 from baseline_utils import data_to_obj_seq_parts
 from graph_utils import tensor_to_graphs, data_to_graph_parts
-from graph_utils import data_to_graph_simple
+from graph_utils import data_to_graph_simple, data_to_graph_double
 from graph_utils import state_list_to_graph
 from graph_utils import merge_graphs
 
@@ -104,18 +104,6 @@ def load_dl(dpath):
             collate_fn=collate_fn)
     return dl
 
-# def load_dl_overfit(dpath, n):
-#     gen = SameConfigGen()
-#     gen.load(dpath)
-#     ds = gen.to_dataset()
-#     gen.reset()
-#     # select n positive examples
-#     pos = []
-#     i = 0
-#     while len(pos) > n:
-#         if gen.labels[i]:
-#             pos.append()
-
 # model saving and loading
 
 def save_model(m, path):
@@ -173,7 +161,10 @@ def one_step(model,
     n_passes = 0
     cum_loss = 0
     cum_acc = 0
-    data_fn = data_to_graph_simple
+    if isinstance(model, gm.GraphModelSimple):
+        data_fn = data_to_graph_simple
+    elif isinstance(model, gm.GraphModelDouble):
+        data_fn = data_to_graph_double
     clss_fn = data_to_clss_parts
     if cuda:
         model.cuda()
@@ -465,7 +456,7 @@ def hardness_dsets(run_idx):
         axs[j, k].set_title(s)
     plt.show()
 
-def plot_heat_map_simple(model, gen):
+def get_heat_map_simple(model, gen):
     """
     Plots the heat maps of the difference between the positive and negative
     classes as a function of the position of one of the objects in the scene,
@@ -475,20 +466,11 @@ def plot_heat_map_simple(model, gen):
     generator gen has the reference configuration loaded in its ref_state_list
     attribute.
     """
-    size = gen.env.envsize * gen.env.gridsize
+    n = gen.env.envsize * gen.env.gridsize
     matlist = []
-    a = np.arange(n).astype(float)
-    # y, x = np.meshgrid(a, a)
-    # y /= n
-    # x /= n
     s = gen.ref_state_list[2:] # fix the reading
-    pos_idx = [env.N_SH+4, env.N_SH+5]
-    g = merge_graphs([state_list_to_graph(s)] * n)
-    # for i in range(len(gen.env.objects)):
-    #     mat = np.zeros((n, n))
-    #     for j in range(n):
-    #         for k in range(n):
-    for state in ref_state_list:
+    pos_idx = [gen.env.N_SH+4, gen.env.N_SH+5]
+    for state in s:
         mem = state[pos_idx]
         mat = np.zeros((0, n))
         for x in tqdm(range(n)):
@@ -499,11 +481,37 @@ def plot_heat_map_simple(model, gen):
                                            y / gen.env.gridsize])
                 glist.append(state_list_to_graph(s))
             g = merge_graphs(glist)
-            pred = self.model(g).detach().numpy()
+            with torch.no_grad():
+                pred = model(g)
+            if isinstance(pred, list):
+                pred = pred[-1]
+            pred = pred.numpy()
             pred = pred[..., 1] - pred[..., 0]
-            # pred = np.expand_dims(pred, 0)
+            pred = np.expand_dims(pred, 0)
             mat = np.concatenate((mat, pred), 0)
         state[pos_idx] = mem
         matlist.append(mat) # maybe change data format here
-        poslist = [state[pos_idx] * gen.env.gridsize for state in s]
-    # TODO finish this
+    poslist = [state[pos_idx] * gen.env.gridsize for state in s]
+    return matlist, poslist
+
+def plot_heat_map_simple(model, gen):
+    matlist, poslist = get_heat_map_simple(model, gen)
+    # careful, this works only for the first five objects
+    fig, axs = plt.subplots(1, 5, constrained_layout=True)
+    for i, mat in enumerate(matlist):
+        axs[i].matshow(mat)
+        for j, pos in enumerate(poslist):
+            if j == i:
+                axs[i].scatter(pos[1], pos[0], color='r')
+            else:
+                axs[i].scatter(pos[1], pos[0], color='b')
+        axs[i].set_title('object %s' % i)
+    plt.show()
+
+# test 
+
+from hparamtest import *
+
+g = SameConfigGen()
+g.load('data/same_config_alt/5_0_10000')
+model = gm.model_list[0](*params)

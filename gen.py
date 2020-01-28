@@ -1473,3 +1473,129 @@ class SameConfigGen(Gen):
             self.env.from_state_list(state_list, norm=True)
             img = self.env.render(mode=mode)
             cv2.imwrite(op.join(path, 'img_%s.jpg' % i), img)
+
+class CompareConfigGen(Gen):
+    """
+    Generator for the 'compare_config' setup.
+
+    It has the same generating procedures as the SameConfigGen but generates
+    pairs of configs instead of single configs.
+    """
+    def __init__(self, n=5):
+        super(CompareConfigGen, self).__init__()
+        self.task = 'same_config'
+        self.task_type = 'scene'
+        self.label_type = 'long'
+
+        # metadata
+        self.has_metadata = False
+        self.N = 0 # number of generated samples
+        self.translation_vectors = []
+        self.scalings = []
+        self.rotation_angles = []
+        self.n_objects = n
+        self.eps = 0.01 # amplitude factor of the perturbations
+        self.small_perturbations = []
+        self.perturbations = []
+        # ranges we exclude from generation
+        self.t_ex_range = None # example
+        self.s_ex_range = None
+        self.r_ex_range = None
+
+    def write_metadata(self, path):
+        pass
+
+    def read_metadata(self, path):
+        pass
+
+    def gen_one(self):
+        pass # TODO implement this
+
+    def alternative_gen_one(self):
+        """
+        Generates one example, by perturbing a bit each object of the reference
+        configuration.
+
+        Also records metadata for the generation.
+        """
+        # self.env.reset()
+        # self.env.from_state_list(self.ref_state_list, norm=True)
+        # state = self.env.to_state_list(norm=True)
+        # return state, label, vec, scale, phi, spert, pert
+
+        # generate first example
+        self.env.reset()
+        self.env.random_config(self.n_objects)
+        ref = self.env.to_state_list(norm=True)
+        label = np.random.randint(2) # positive or negative example
+        # self.env.reset()
+        if label:
+            spert = self.env.small_perturb_objects(self.eps)
+            vec, scale, phi = self.env.random_transformation()
+            pert = [np.zeros(2)] * len(ref)
+        else:
+            spert = self.env.small_perturb_objects(self.eps)
+            pert = [np.zeros(2)] * len(ref)
+            self.env.random_mix()
+            # pert = self.env.perturb_objects(n_p)
+            vec, scale, phi = self.env.random_transformation()
+        state = self.env.to_state_list(norm=True)
+        return state, ref, label, vec, scale, phi, spert, pert
+
+    def generate_one(self, gen_fn, i, *args, **kwargs):
+        """
+        Wrapper for the different generation functions.
+        Generates a config according to the provided generation function,
+        and records the generation trace in all the good member variables.
+        """
+        state, ref, label, vec, scale, phi, spert, pert = gen_fn(
+            *args, **kwargs)
+        n_s = len(state)
+        self.targets += state
+        self.t_batch += n_s * [i]
+        self.refs += ref
+        self.r_batch += n_s * [i]
+        self.labels += [[label]]
+        # metadata
+        self.translation_vectors += [vec]
+        self.scalings += [scale]
+        self.rotation_angles += [phi]
+        self.small_perturbations += spert
+        self.perturbations += pert
+
+    def generate(self, N):
+        I = len(self.labels)
+        for i in tqdm(range(N)):
+            self.generate_one(self.gen_one, i + I)
+        self.N += N
+
+    def generate_alternative(self, N):
+        I = len(self.labels)
+        for i in tqdm(range(N)):
+            self.generate_one(self.alternative_gen_one, i + I)
+        self.N += N
+
+    # utils
+    def render(self, path, mode='fixed'):
+        """
+        Renders the generated configurations at the desired path.
+        For testing purposes; do not try with too big a dataset (not optimized)
+        """
+        self.compute_access_indices()
+        tvecs = np.array(self.targets)
+        rvecs = np.array(self.refs)
+        for i in range(self.N):
+            print('batch %s' % i)
+            print('label %s' % self.labels[i])
+            self.env.reset()
+            t_state_list = list(tvecs[self.t_idx[i].numpy()])
+            r_state_list = list(rvecs[self.r_idx[i].numpy()])
+            self.env.from_state_list(t_state_list, norm=True)
+            t_img = self.env.render(show=False, mode=mode)
+            self.env.reset()
+            self.env.from_state_list(r_state_list, norm=True)
+            r_img = self.env.render(show=False, mode=mode)
+            l  = self.labels[i]
+            sep = np.ones((2, t_img.shape[1], 3)) * 255
+            img = np.concatenate((t_img, sep, r_img))
+            cv2.imwrite(op.join(path, 'img_%s.jpg' % i), img)

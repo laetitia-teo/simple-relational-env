@@ -180,7 +180,34 @@ def tensor_to_graphs(t):
     graph2 = Data(x=x2, edge_index=ei2, edge_attr=e2, y=u2, batch=batch2)
     return graph1, graph2
 
-def data_to_graph_parts(data):
+def data_to_graph_simple(data):
+    """
+    Converts the data yielded by a DataLoader containing the data for a single
+    graph into a form usable by a graph model.
+
+    It is the same function as above, but it only returns a single graph as 
+    output.
+    """
+    x1, x2, labels, indices, batch1, batch2 = data
+    f_x = x1.shape[-1]
+    # create edges for graph1
+    ei1 = torch.zeros((2, 0), dtype=torch.long)
+    n = batch1[-1] + 1 # number of graphs, same as batch size
+    count = 0 # for counting node index offset
+    for i in range(n):
+        idx = (batch1 == i).nonzero(as_tuple=True)[0]
+        n_x = len(idx)
+        # create edge index
+        ei = complete_edge_index(n_x, self_edges=False)
+        ei += count
+        ei1 = torch.cat((ei1, ei), 1)
+        count += n_x
+    e1 = x1[ei1[1]] - x1[ei1[0]]
+    u1 = scatter_mean(x1, batch1, dim=0)
+    graph1 = Data(x=x1, edge_index=ei1, edge_attr=e1, y=u1, batch=batch1)
+    return (graph1,)
+
+def data_to_graph_double(data):
     """
     Converts the data yielded by the PartsDataset DataLoader into graph form
     for input of the graph models.
@@ -192,7 +219,7 @@ def data_to_graph_parts(data):
     The function creates edges (complete) and global vectors for each 
     scene graph in the target and reference batches.
     """
-    x1, x2, labels, batch1, batch2 = data
+    x1, x2, labels, indices, batch1, batch2 = data
     f_x = x1.shape[-1]
     # create edges for graph1
     ei1 = torch.zeros((2, 0), dtype=torch.long)
@@ -227,33 +254,6 @@ def data_to_graph_parts(data):
     graph1 = Data(x=x1, edge_index=ei1, edge_attr=e1, y=u1, batch=batch1)
     graph2 = Data(x=x2, edge_index=ei2, edge_attr=e2, y=u2, batch=batch2)
     return graph1, graph2
-
-def data_to_graph_simple(data):
-    """
-    Converts the data yielded by a DataLoader containing the data for a single
-    graph into a form usable by a graph model.
-
-    It is the same function as above, but it only returns a single graph as 
-    output.
-    """
-    x1, x2, labels, indices, batch1, batch2 = data
-    f_x = x1.shape[-1]
-    # create edges for graph1
-    ei1 = torch.zeros((2, 0), dtype=torch.long)
-    n = batch1[-1] + 1 # number of graphs, same as batch size
-    count = 0 # for counting node index offset
-    for i in range(n):
-        idx = (batch1 == i).nonzero(as_tuple=True)[0]
-        n_x = len(idx)
-        # create edge index
-        ei = complete_edge_index(n_x, self_edges=False)
-        ei += count
-        ei1 = torch.cat((ei1, ei), 1)
-        count += n_x
-    e1 = x1[ei1[1]] - x1[ei1[0]]
-    u1 = scatter_mean(x1, batch1, dim=0)
-    graph1 = Data(x=x1, edge_index=ei1, edge_attr=e1, y=u1, batch=batch1)
-    return (graph1,)
 
 def data_to_graph_cuda(data):
     """

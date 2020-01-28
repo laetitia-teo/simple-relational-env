@@ -46,9 +46,19 @@ class GraphModel(torch.nn.Module):
         self.GPU = False
         self.data_from_graph = data_from_graph_maker(cuda=False)
 
+class GraphModelSimple(GraphModel):
+    """Single-input graph model"""
+    def __init__(self, f_dict):
+        super(GraphModelSimple, self).__init__(f_dict)
+
+class GraphModelDouble(GraphModel):
+    """Double-input graph model"""
+    def __init__(self, f_dict):
+        super(GraphModelDouble, self).__init__(f_dict)
+
 # deep sets
 
-class DeepSet(GraphModel):
+class DeepSet(GraphModelSimple):
     def __init__(self,
                  mlp_layers,
                  N,
@@ -61,12 +71,12 @@ class DeepSet(GraphModel):
         x, _, _, _, batch = self.data_from_graph(graph)
         return self.deepset(x, batch)
 
-class DeepSetPlus(GraphModel):
+class DeepSetPlus(GraphModelSimple):
     def __init__(self,
                  mlp_layers,
                  N,
                  f_dict):
-        super(DeepSet, self).__init__(f_dict)
+        super(DeepSetPlus, self).__init__(f_dict)
         self.N = N # we allow multiple rounds
         mlp_fn = gn.mlp_fn(mlp_layers)
 
@@ -83,12 +93,12 @@ class DeepSetPlus(GraphModel):
             out_list.append(self.mlp(u))
         return out_list
 
-class DeepSetPlus_A(GraphModel):
+class DeepSetPlus_A(GraphModelSimple):
     def __init__(self,
                  mlp_layers,
                  N,
                  f_dict):
-        super(DeepSet_A, self).__init__(f_dict)
+        super(DeepSetPlus_A, self).__init__(f_dict)
         self.N = N # we allow multiple rounds
         mlp_fn = gn.mlp_fn(mlp_layers)
 
@@ -109,7 +119,7 @@ class DeepSetPlus_A(GraphModel):
 
 # Node only
 
-class N_GNN(GraphModel):
+class N_GNN(GraphModelSimple):
     """
     Node-GNN. (No edge features)
     """
@@ -135,7 +145,7 @@ class N_GNN(GraphModel):
             out_list.append(self.mlp(u))
         return out_list
 
-class N_GNN_A(GraphModel):
+class N_GNN_A(GraphModelSimple):
     """
     Node-GNN, with attention in node and global aggregation.
     """
@@ -163,7 +173,7 @@ class N_GNN_A(GraphModel):
 
 # With edge features
 
-class GNN_NAgg(GraphModel):
+class GNN_NAgg(GraphModelSimple):
     """
     Edge-feature GNN, with node aggregation in the global model.
     """
@@ -189,7 +199,7 @@ class GNN_NAgg(GraphModel):
             out_list.append(self.mlp(u))
         return out_list
 
-class GNN_NAgg_A(GraphModel):
+class GNN_NAgg_A(GraphModelSimple):
     """
     Edge-feature GNN, with node aggregation in the global model.
     """
@@ -215,7 +225,7 @@ class GNN_NAgg_A(GraphModel):
             out_list.append(self.mlp(u))
         return out_list
 
-class GNN_NEAgg(GraphModel):
+class GNN_NEAgg(GraphModelSimple):
     """
     Edge-feature GNN, with node aggregation in the global model.
     """
@@ -241,7 +251,7 @@ class GNN_NEAgg(GraphModel):
             out_list.append(self.mlp(u))
         return out_list
 
-class GNN_NEAgg_A(GraphModel):
+class GNN_NEAgg_A(GraphModelSimple):
     """
     Edge-feature GNN, with node aggregation in the global model.
     """
@@ -269,7 +279,7 @@ class GNN_NEAgg_A(GraphModel):
 
 # other models
 
-class TGNN(GraphModel):
+class TGNN(GraphModelSimple):
     """
     Transformer-GNN, the nodes do a transformer-style aggregation on their
     neighbours.
@@ -290,6 +300,10 @@ class TGNN(GraphModel):
         for _ in range(self.N):
             x = self.tgnn(x, edge_index, batch)
         return self.agg(x, batch)
+
+# Double-input graph models
+
+
 
 # edge aggregation ? does it make sense ?
 

@@ -240,6 +240,7 @@ class Env(AbstractEnv):
         self.gridsize = gridsize
         self.envsize = envsize
         self.L = int(envsize * gridsize)
+        self.N_SH = N_SH
 
         # matrix where all the rendering takes place
         self.mat = np.zeros((self.L, self.L, 4))
