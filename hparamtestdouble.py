@@ -25,7 +25,7 @@ parser.add_argument('-m', '--mode',
                     dest='mode',
                     help='mode : \'all\' for all available models, index of the'
                         + ' model for a single model',
-                    default='1')
+                    default='all')
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='path of the save and log directory',
@@ -33,11 +33,11 @@ parser.add_argument('-d', '--directory',
 parser.add_argument('-r', '--run-index',
                     dest='run_idx',
                     help='index of the run',
-                    default='1')
+                    default='3')
 parser.add_argument('-c', '--curriculum',
                     dest='cur',
                     help='whether to use a curriculum of rotations',
-                    default='yep')
+                    default='yeyeeye')
 
 args = parser.parse_args()
 
@@ -67,7 +67,7 @@ n_layers = 2
 h = 16
 lr = 1e-3
 N = 2
-seeds = [0, 2, 3, 4]
+seeds = [0, 1, 2, 3, 4]
 n_epochs = 5
 H = 16
 
@@ -116,7 +116,7 @@ def run(m_idx, run_idx):
     dset = 0
     print('model number %s' % m_idx)
     print('model name %s' % gm.double_model_names[m_idx])
-    for dpath_train, dpath_val in zip(train_newrot, val_newrot):
+    for dpath_train, dpath_val in zip(train_5, val_5):
         print('dset %s;' % dset)
         t0 = time.time()
         dl_train = load_dl(

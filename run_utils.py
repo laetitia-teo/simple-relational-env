@@ -367,7 +367,7 @@ def get_plot(model_idx, path):
     done = False
     directory = op.join(
         'experimental_results',
-        'compare_config_alt',
+        'compare_config_alt_cur',
         path,
         'model%s' % model_idx,
         'data')

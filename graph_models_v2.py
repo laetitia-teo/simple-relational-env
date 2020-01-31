@@ -303,7 +303,7 @@ class TGNN(GraphModelSimple):
 
 # Double-input graph models
 
-class ReccurentGraphEmbedding(GraphModelDouble):
+class RecurrentGraphEmbedding(GraphModelDouble):
     """
     Simplest double input graph model.
     We use the full GNN with node aggreg as a GNN layer.
@@ -312,19 +312,19 @@ class ReccurentGraphEmbedding(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(ReccurentGraphEmbedding, self).__init__(f_dict)
+        super(RecurrentGraphEmbedding, self).__init__(f_dict)
         self.N = N
-        mlp_fn = gn.mlp_fn(mlp_layers)
+        model_fn = gn.mlp_fn(mlp_layers)
 
         self.gnn1 = gn.GNN(
-            gn.EdgeModel(self.fe, self.fx, self.fu, mlp_fn, self.fe),
-            gn.NodeModel(self.fe, self.fx, self.fu, mlp_fn, self.fx),
-            gn.GlobalModel_NodeOnly(self.fx, self.fu, mlp_fn, self.fx))
+            gn.EdgeModel(self.fe, self.fx, self.fu,model_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx, self.fu,model_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, self.fu,model_fn, self.fx))
         self.gnn2 = gn.GNN(
-            gn.EdgeModel(self.fe, self.fx, 2 * self.fu, mlp_fn, self.fe),
-            gn.NodeModel(self.fe, self.fx, 2 * self.fu, mlp_fn, self.fx),
-            gn.GlobalModel_NodeOnly(self.fx, 2 * self.fu, mlp_fn, self.fx))
-        self.mlp = mlp_fn(self.fu, self.fout)
+            gn.EdgeModel(self.fe, self.fx, 2 * self.fu,model_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx, 2 * self.fu,model_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, 2 * self.fu,model_fn, self.fx))
+        self.mlp =model_fn(self.fu, self.fout)
 
     def forward(self, graph1, graph2):
         x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
@@ -365,9 +365,9 @@ class AlternatingSimple(GraphModelDouble):
         # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.gnn = gn.GNN(
-            gn.EdgeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fe),
-            gn.NodeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fx),
-            gn.GlobalModel_NodeOnly(self.fx, self.fu, model_fn, self.fu))
+            gn.EdgeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, 2 * self.fu, model_fn, self.fu))
 
         self.mlp = model_fn(2 * self.fu, self.fout)
 
@@ -384,9 +384,9 @@ class AlternatingSimple(GraphModelDouble):
 
         for _ in range(self.N):
             # we can do N passes of this
-            x1 = torch.cat([x1, u2[batch1]], 1)
+            u1 = torch.cat([u1, u2], 1)
             x1, e1, u1 = self.gnn(x1, edge_index1, e1, u1, batch1)
-            x2 = torch.cat([x2, u1[batch2]], 1)
+            u2 = torch.cat([u2, u1], 1)
             x2, e2, u2 = self.gnn(x2, edge_index2, e2, u2, batch2)
 
             out_list.append(self.mlp(torch.cat([u1, u2], 1)))
@@ -407,13 +407,13 @@ class AlternatingDouble(GraphModelDouble):
         # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.gnn1 = gn.GNN(
-            gn.EdgeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fe),
-            gn.NodeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fx),
-            gn.GlobalModel_NodeOnly(self.fx, self.fu, model_fn, self.fu))
+            gn.EdgeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, 2 * self.fu, model_fn, self.fu))
         self.gnn2 = gn.GNN(
-            gn.EdgeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fe),
-            gn.NodeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fx),
-            gn.GlobalModel_NodeOnly(self.fx, self.fu, model_fn, self.fu))
+            gn.EdgeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, 2 * self.fu, model_fn, self.fu))
 
         self.mlp = model_fn(2 * self.fu, self.fout)
 
@@ -424,9 +424,9 @@ class AlternatingDouble(GraphModelDouble):
         out_list = []
 
         for _ in range(self.N):
-            x1 = torch.cat([x1, u2[batch1]], 1)
+            u1 = torch.cat([u1, u2], 1)
             x1, e1, u1 = self.gnn1(x1, edge_index1, e1, u1, batch1)
-            x2 = torch.cat([x2, u1[batch2]], 1)
+            u2 = torch.cat([u2, u1], 1)
             x2, e2, u2 = self.gnn2(x2, edge_index2, e2, u2, batch2)
 
             out_list.append(self.mlp(torch.cat([u1, u2], 1)))
@@ -447,8 +447,8 @@ class AlternatingSimpleRDS(GraphModelDouble):
         # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.gnn = gn.DeepSetPlus(
-            gn.DS_NodeModel(self.fx, self.fu, mlp_fn, self.fx),
-            gn.DS_GlobalModel(self.fx, self.fu, mlp_fn, self.fu))
+            gn.DS_NodeModel(self.fx, 2 * self.fu, model_fn, self.fx),
+            gn.DS_GlobalModel(self.fx, 2 * self.fu, model_fn, self.fu))
 
         self.mlp = model_fn(2 * self.fu, self.fout)
 
@@ -459,10 +459,10 @@ class AlternatingSimpleRDS(GraphModelDouble):
         out_list = []
 
         for _ in range(self.N):
-            x1 = torch.cat([x1, u2[batch1]], 1)
-            x1, e1, u1 = self.gnn(x1, edge_index1, e1, u1, batch1)
-            x2 = torch.cat([x2, u1[batch2]], 1)
-            x2, e2, u2 = self.gnn(x2, edge_index2, e2, u2, batch2)
+            u1 = torch.cat([u1, u2], 1)
+            x1, u1 = self.gnn(x1, u1, batch1)
+            u2 = torch.cat([u2, u1], 1)
+            x2, u2 = self.gnn(x2, u2, batch2)
 
             out_list.append(self.mlp(torch.cat([u1, u2], 1)))
 
@@ -482,9 +482,9 @@ class AlternatingSimplev2(GraphModelDouble):
 
         self.proj = torch.nn.Linear(self.fx, self.h)
         self.gnn = gn.GNN(
-            gn.EdgeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
-            gn.NodeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
-            gn.GlobalModel_NodeOnly(self.h, self.h, model_fn, self.h))
+            gn.EdgeModel(self.h, self.h, 2 * self.h, model_fn, self.h),
+            gn.NodeModel(self.h, self.h, 2 * self.h, model_fn, self.h),
+            gn.GlobalModel_NodeOnly(self.h, 2 * self.h, model_fn, self.h))
         self.mlp = model_fn(2 * self.h, self.fout)
 
     def forward(self, graph1, graph2):
@@ -502,9 +502,9 @@ class AlternatingSimplev2(GraphModelDouble):
         out_list = []
 
         for _ in range(self.N):
-            x1 = torch.cat([x1, u2[batch1]], 1)
+            u1 = torch.cat([u1, u2], 1)
             x1, e1, u1 = self.gnn(x1, edge_index1, e1, u1, batch1)
-            x2 = torch.cat([x2, u1[batch2]], 1)
+            u2 = torch.cat([u2, u1], 1)
             x2, e2, u2 = self.gnn(x2, edge_index2, e2, u2, batch2)
 
             out_list.append(self.mlp(torch.cat([u1, u2], 1)))
@@ -525,13 +525,13 @@ class AlternatingDoublev2(GraphModelDouble):
 
         self.proj = torch.nn.Linear(self.fx, self.h)
         self.gnn1 = gn.GNN(
-            gn.EdgeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
-            gn.NodeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
-            gn.GlobalModel_NodeOnly(self.h, self.h, model_fn, self.h))
+            gn.EdgeModel(self.h, self.h, 2 * self.h, model_fn, self.h),
+            gn.NodeModel(self.h, self.h, 2 * self.h, model_fn, self.h),
+            gn.GlobalModel_NodeOnly(self.h, 2 * self.h, model_fn, self.h))
         self.gnn2 = gn.GNN(
-            gn.EdgeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
-            gn.NodeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
-            gn.GlobalModel_NodeOnly(self.h, self.h, model_fn, self.h))
+            gn.EdgeModel(self.h, self.h, 2 * self.h, model_fn, self.h),
+            gn.NodeModel(self.h, self.h, 2 * self.h, model_fn, self.h),
+            gn.GlobalModel_NodeOnly(self.h, 2 * self.h, model_fn, self.h))
         self.mlp = model_fn(2 * self.h, self.fout)
 
     def forward(self, graph1, graph2):
@@ -549,13 +549,205 @@ class AlternatingDoublev2(GraphModelDouble):
         out_list = []
 
         for _ in range(self.N):
-            x1 = torch.cat([x1, u2[batch1]], 1)
+            u1 = torch.cat([u1, u2], 1)
             x1, e1, u1 = self.gnn1(x1, edge_index1, e1, u1, batch1)
-            x2 = torch.cat([x2, u1[batch2]], 1)
+            u2 = torch.cat([u2, u1], 1)
             x2, e2, u2 = self.gnn2(x2, edge_index2, e2, u2, batch2)
 
             out_list.append(self.mlp(torch.cat([u1, u2], 1)))
 
+        return out_list
+
+class AlternatingDoubleRDS(GraphModelDouble):
+    """
+    Recurrent DeepSet version of the AlternatingDouble model.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(AlternatingDoubleRDS, self).__init__(f_dict)
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.N = N
+        # f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.gnn1 = gn.DeepSetPlus(
+            gn.DS_NodeModel(self.fx, 2 * self.fu, model_fn, self.fx),
+            gn.DS_GlobalModel(self.fx, 2 * self.fu, model_fn, self.fu))
+        self.gnn2 = gn.DeepSetPlus(
+            gn.DS_NodeModel(self.fx, 2 * self.fu, model_fn, self.fx),
+            gn.DS_GlobalModel(self.fx, 2 * self.fu, model_fn, self.fu))
+
+        self.mlp = model_fn(2 * self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        out_list = []
+
+        for _ in range(self.N):
+            u1 = torch.cat([u1, u2], 1)
+            x1, u1 = self.gnn1(x1, u1, batch1)
+            u2 = torch.cat([u2, u1], 1)
+            x2, u2 = self.gnn2(x2, u2, batch2)
+
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+
+        return out_list
+
+class RecurrentGraphEmbeddingv2(GraphModelDouble):
+    """
+    Simplest double input graph model.
+    We use the full GNN with node aggreg as a GNN layer.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(RecurrentGraphEmbeddingv2, self).__init__(f_dict)
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+
+        self.proj = torch.nn.Linear(self.fx, self.h)
+
+        self.gnn1 = gn.GNN(
+            gn.EdgeModel(self.h, self.h, self.h, model_fn, self.h),
+            gn.NodeModel(self.h, self.h, self.h, model_fn, self.h),
+            gn.GlobalModel_NodeOnly(self.h, self.h, model_fn, self.h))
+        self.gnn2 = gn.GNN(
+            gn.EdgeModel(self.h, self.h, 2 * self.h, model_fn, self.h),
+            gn.NodeModel(self.h, self.h, 2 * self.h, model_fn, self.h),
+            gn.GlobalModel_NodeOnly(self.h, 2 * self.h, model_fn, self.h))
+        self.mlp = model_fn(self.h, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        # project everything in self.h dimensions
+        x1 = self.proj(x1)
+        e1 = self.proj(e1)
+        u1 = self.proj(u1)
+        x2 = self.proj(x2)
+        e2 = self.proj(e2)
+        u2 = self.proj(u2)
+
+        out_list = []
+        for _ in range(self.N):
+            x1, e1, u1 = self.gnn1(x1, ei1, e1, u1, batch1)
+            u2 = torch.cat([u2, u1], 1)
+            x2, e2, u2 = self.gnn2(x2, ei2, e2, u2, batch2)
+            out_list.append(self.mlp(u2))
+        return out_list
+
+class RecurrentGraphEmbeddingRDS(GraphModelDouble):
+    """
+    Simplest double input graph model.
+    We use the full GNN with node aggreg as a GNN layer.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(RecurrentGraphEmbeddingRDS, self).__init__(f_dict)
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+
+        self.gnn1 = gn.DeepSetPlus(
+            gn.DS_NodeModel(self.fx, self.fu, model_fn, self.fx),
+            gn.DS_GlobalModel(self.fx, self.fu, model_fn, self.fu))
+        self.gnn2 = gn.DeepSetPlus(
+            gn.DS_NodeModel(self.fx, 2 * self.fu, model_fn, self.fx),
+            gn.DS_GlobalModel(self.fx, 2 * self.fu, model_fn, self.fu))
+        self.mlp = model_fn(self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
+        out_list = []
+        for _ in range(self.N):
+            x1, u1 = self.gnn1(x1, u1, batch1)
+            u2 = torch.cat([u2, u1], 1)
+            x2, u2 = self.gnn2(x2, u2, batch2)
+            out_list.append(self.mlp(u2))
+        return out_list
+
+class ResAlternatingDouble(GraphModelDouble):
+    """
+    Different gnns inside.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(ResAlternatingDouble, self).__init__(f_dict)
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.N = N
+        # f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.gnn1 = gn.GNN(
+            gn.ResEdgeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fe),
+            gn.ResNodeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fx),
+            gn.ResGlobalModel_NodeOnly(self.fx, 2 * self.fu, model_fn, self.fu))
+        self.gnn2 = gn.GNN(
+            gn.ResEdgeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fe),
+            gn.ResNodeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fx),
+            gn.ResGlobalModel_NodeOnly(self.fx, 2 * self.fu, model_fn, self.fu))
+
+        self.mlp = model_fn(2 * self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        out_list = []
+
+        for _ in range(self.N):
+            u1 = torch.cat([u1, u2], 1)
+            x1, e1, u1 = self.gnn1(x1, edge_index1, e1, u1, batch1)
+            u2 = torch.cat([u2, u1], 1)
+            print('u {}'.format(u2.shape))
+            print('e {}'.format(e2.shape))
+            print('x {}'.format(x2.shape))
+            x2, e2, u2 = self.gnn2(x2, edge_index2, e2, u2, batch2)
+
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+
+        return out_list
+
+class ResRecurrentGraphEmbedding(GraphModelDouble):
+    """
+    Simplest double input graph model.
+    We use the full GNN with node aggreg as a GNN layer.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(ResRecurrentGraphEmbedding, self).__init__(f_dict)
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+
+        self.gnn1 = gn.GNN(
+            gn.ResEdgeModel(self.fe, self.fx, self.fu, model_fn, self.fe),
+            gn.ResNodeModel(self.fe, self.fx, self.fu, model_fn, self.fx),
+            gn.ResGlobalModel_NodeOnly(self.fx, self.fu, model_fn, self.fx))
+        self.gnn2 = gn.GNN(
+            gn.ResEdgeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fe),
+            gn.ResNodeModel(self.fe, self.fx, 2 * self.fu, model_fn, self.fx),
+            gn.ResGlobalModel_NodeOnly(self.fx, 2 * self.fu, model_fn, self.fx))
+        self.mlp = model_fn(self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
+        out_list = []
+        for _ in range(self.N):
+            x1, e1, u1 = self.gnn1(x1, ei1, e1, u1, batch1)
+            u2 = torch.cat([u2, u1], 1)
+            x2, e2, u2 = self.gnn2(x2, ei2, e2, u2, batch2)
+            out_list.append(self.mlp(u2))
         return out_list
 
 # Graph model utilities
@@ -573,8 +765,12 @@ model_list = [
     DeepSet]
 
 model_list_double = [
-    ReccurentGraphEmbedding,
-    AlternatingSimple]
+    AlternatingDouble,
+    AlternatingDoublev2,
+    AlternatingDoubleRDS,
+    RecurrentGraphEmbedding,
+    RecurrentGraphEmbeddingv2,
+    RecurrentGraphEmbeddingRDS]
 
 model_names = [
     'Deep Set++ (0)',
@@ -590,5 +786,8 @@ model_names = [
 ]
 
 double_model_names = [
-    'ReccurentGraphEmbedding (0)',
-    'AlternatingSimple (1)']
+    'RecurrentGraphEmbedding (0)',
+    'AlternatingSimple (1)',
+    'AlternatingDouble (2)',
+    'AlternatingDouble proj (3)',
+    'AlternatingDouble RDS (4)']
