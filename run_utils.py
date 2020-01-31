@@ -367,8 +367,8 @@ def get_plot(model_idx, path):
     done = False
     directory = op.join(
         'experimental_results',
-        'compare_config_alt_cur',
-        'runsmallrottest',
+        'compare_config_alt',
+        path,
         'model%s' % model_idx,
         'data')
     d_paths = os.listdir(directory)

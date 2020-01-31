@@ -14,7 +14,7 @@ parser = ArgumentParser()
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='directory for the generated datasets',
-                    default='data/compare_config_alt')
+                    default='data/compare_config_alt_cur')
 parser.add_argument('-Nc', '--number-configs',
                      dest='Nc',
                      help='number of different generated datasets',
@@ -34,7 +34,7 @@ parser.add_argument('-Nt', '--number-test',
 parser.add_argument('-m', '--mode',
                      dest='mode',
                      help='simple or double dataset generation',
-                     default='double')
+                     default='rotcur')
 
 args = parser.parse_args()
 pi = np.pi
@@ -64,27 +64,24 @@ if args.mode == 'simple':
         g.save(path)
 if args.mode == 'double':
     g = gen.CompareConfigGen(n=int(args.No))
-    g.r_ex_range = (pi/10, 2*pi)
     g.generate_alternative(int(args.Ns))
     path = op.join(
         args.directory,
-        'smallrot_%s_%s_%s' % (int(args.No), 0, int(args.Ns)))
+        'newrot3_%s_%s_%s' % (int(args.No), 0, int(args.Ns)))
     g.save(path)
     # validation
     g.reset()
-    g.r_ex_range = (pi/10, 2*pi)
     g.generate_alternative(int(args.Nt))
     path = op.join(
         args.directory,
-        'smallrot_%s_%s_%s_val' % (int(args.No), 0, int(args.Nt)))
+        'newrot3_%s_%s_%s_val' % (int(args.No), 0, int(args.Nt)))
     g.save(path)
     # generate test dataset
     g.reset()
-    g.r_ex_range = (pi/10, 2*pi)
     g.generate_alternative(int(args.Nt))
     path = op.join(
         args.directory,
-        'smallrot_%s_%s_%s_test' % (int(args.No), 0, int(args.Nt)))
+        'newrot3_%s_%s_%s_test' % (int(args.No), 0, int(args.Nt)))
     g.save(path)
 if args.mode == 'rotcur':
     cur_list = [

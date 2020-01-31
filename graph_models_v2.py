@@ -393,8 +393,170 @@ class AlternatingSimple(GraphModelDouble):
 
         return out_list
 
+class AlternatingDouble(GraphModelDouble):
+    """
+    Different gnns inside.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(AlternatingDouble, self).__init__(f_dict)
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.N = N
+        # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
-# edge aggregation ? does it make sense ?
+        self.gnn1 = gn.GNN(
+            gn.EdgeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, self.fu, model_fn, self.fu))
+        self.gnn2 = gn.GNN(
+            gn.EdgeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, self.fu, model_fn, self.fu))
+
+        self.mlp = model_fn(2 * self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        out_list = []
+
+        for _ in range(self.N):
+            x1 = torch.cat([x1, u2[batch1]], 1)
+            x1, e1, u1 = self.gnn1(x1, edge_index1, e1, u1, batch1)
+            x2 = torch.cat([x2, u1[batch2]], 1)
+            x2, e2, u2 = self.gnn2(x2, edge_index2, e2, u2, batch2)
+
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+
+        return out_list
+
+class AlternatingSimpleRDS(GraphModelDouble):
+    """
+    RDS layer inside.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(AlternatingSimple, self).__init__(f_dict)
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.N = N
+        # f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.gnn = gn.DeepSetPlus(
+            gn.DS_NodeModel(self.fx, self.fu, mlp_fn, self.fx),
+            gn.DS_GlobalModel(self.fx, self.fu, mlp_fn, self.fu))
+
+        self.mlp = model_fn(2 * self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        out_list = []
+
+        for _ in range(self.N):
+            x1 = torch.cat([x1, u2[batch1]], 1)
+            x1, e1, u1 = self.gnn(x1, edge_index1, e1, u1, batch1)
+            x2 = torch.cat([x2, u1[batch2]], 1)
+            x2, e2, u2 = self.gnn(x2, edge_index2, e2, u2, batch2)
+
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+
+        return out_list
+
+class AlternatingSimplev2(GraphModelDouble):
+    """
+    Projects the input features into a higher-dimensional space.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(AlternatingSimplev2, self).__init__(f_dict)
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.N = N
+
+        self.proj = torch.nn.Linear(self.fx, self.h)
+        self.gnn = gn.GNN(
+            gn.EdgeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
+            gn.NodeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
+            gn.GlobalModel_NodeOnly(self.h, self.h, model_fn, self.h))
+        self.mlp = model_fn(2 * self.h, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        # project everything in self.h dimensions
+        x1 = self.proj(x1)
+        e1 = self.proj(e1)
+        u1 = self.proj(u1)
+        x2 = self.proj(x2)
+        e2 = self.proj(e2)
+        u2 = self.proj(u2)
+
+        out_list = []
+
+        for _ in range(self.N):
+            x1 = torch.cat([x1, u2[batch1]], 1)
+            x1, e1, u1 = self.gnn(x1, edge_index1, e1, u1, batch1)
+            x2 = torch.cat([x2, u1[batch2]], 1)
+            x2, e2, u2 = self.gnn(x2, edge_index2, e2, u2, batch2)
+
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+
+        return out_list
+
+class AlternatingDoublev2(GraphModelDouble):
+    """
+    Projects the input features into a higher-dimensional space.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(AlternatingDoublev2, self).__init__(f_dict)
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.N = N
+
+        self.proj = torch.nn.Linear(self.fx, self.h)
+        self.gnn1 = gn.GNN(
+            gn.EdgeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
+            gn.NodeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
+            gn.GlobalModel_NodeOnly(self.h, self.h, model_fn, self.h))
+        self.gnn2 = gn.GNN(
+            gn.EdgeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
+            gn.NodeModel(self.h, 2 * self.h, self.h, model_fn, self.h),
+            gn.GlobalModel_NodeOnly(self.h, self.h, model_fn, self.h))
+        self.mlp = model_fn(2 * self.h, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        # project everything in self.h dimensions
+        x1 = self.proj(x1)
+        e1 = self.proj(e1)
+        u1 = self.proj(u1)
+        x2 = self.proj(x2)
+        e2 = self.proj(e2)
+        u2 = self.proj(u2)
+
+        out_list = []
+
+        for _ in range(self.N):
+            x1 = torch.cat([x1, u2[batch1]], 1)
+            x1, e1, u1 = self.gnn1(x1, edge_index1, e1, u1, batch1)
+            x2 = torch.cat([x2, u1[batch2]], 1)
+            x2, e2, u2 = self.gnn2(x2, edge_index2, e2, u2, batch2)
+
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+
+        return out_list
 
 # Graph model utilities
 

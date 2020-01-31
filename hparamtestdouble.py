@@ -29,15 +29,15 @@ parser.add_argument('-m', '--mode',
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='path of the save and log directory',
-                    default='experimental_results/compare_config_alt')
+                    default='experimental_results/compare_config_alt_cur')
 parser.add_argument('-r', '--run-index',
                     dest='run_idx',
                     help='index of the run',
-                    default='smallrottest2')
+                    default='1')
 parser.add_argument('-c', '--curriculum',
                     dest='cur',
                     help='whether to use a curriculum of rotations',
-                    default='')
+                    default='yep')
 
 args = parser.parse_args()
 
@@ -89,15 +89,15 @@ train_3 = sorted([p for p in d_path if re.search(r'^3_.+_10{5}$', p)])
 val_3 = sorted([p for p in d_path if re.search(r'^3_.+10{4}_val$', p)])
 train_norot = sorted([p for p in d_path if re.search(r'^norot_.+_10{5}$', p)])
 val_norot = sorted([p for p in d_path if re.search(r'^norot_.+10{4}_val$', p)])
-train_smallrot = sorted([p for p in d_path if re.search(r'^smallrot_.+_10{5}$', p)])
-val_smallrot = sorted([p for p in d_path if re.search(r'^smallrot_.+10{4}_val$', p)])
+train_newrot = sorted([p for p in d_path if re.search(r'^newrot2_.+_10{5}$', p)])
+val_newrot = sorted([p for p in d_path if re.search(r'^newrot2_.+10{4}_val$', p)])
 
 cur_prefix = 'data/compare_config_alt_cur'
 
 cur_d_path = os.listdir(cur_prefix)
 train_cur = sorted([p for p in cur_d_path if re.search(r'^rotcur.+0$', p)])
 val_cur = sorted([p for p in cur_d_path if re.search(r'^rotcur.+_val$', p)])
-val = 'rotcur4_5_0_5000_val'
+val = 'rotcur4_5_0_10000_val'
 
 # train_10 = sorted([p for p in d_path if re.search(r'^10_.+_10{4}$', p)])
 # val_10 = sorted([p for p in d_path if re.search(r'^10_.+_val$', p)])
@@ -116,7 +116,7 @@ def run(m_idx, run_idx):
     dset = 0
     print('model number %s' % m_idx)
     print('model name %s' % gm.double_model_names[m_idx])
-    for dpath_train, dpath_val in zip(train_smallrot, val_smallrot):
+    for dpath_train, dpath_val in zip(train_newrot, val_newrot):
         print('dset %s;' % dset)
         t0 = time.time()
         dl_train = load_dl(

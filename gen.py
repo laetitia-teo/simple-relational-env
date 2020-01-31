@@ -1566,7 +1566,11 @@ class CompareConfigGen(Gen):
             pert = [np.zeros(2)] * len(ref)
             self.env.random_mix()
             # pert = self.env.perturb_objects(n_p)
-            vec, scale, phi = self.env.random_transformation()
+            vec, scale, phi = self.env.random_transformation(
+                rotations=True,
+                s_ex_range=self.s_ex_range,
+                t_ex_range=self.t_ex_range,
+                r_ex_range=self.r_ex_range)
         state = self.env.to_state_list(norm=True)
         return state, ref, label, vec, scale, phi, spert, pert
 
