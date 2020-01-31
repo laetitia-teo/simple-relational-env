@@ -434,7 +434,9 @@ def make_model():
     """
     For rapid creation of models and optimizers.
     """
-    model = gm.GraphMatchingv2_U([16, 16], 10, 1, f_dict, task_type)
+    # model = gm.GraphMatchingv2_U([16, 16], 10, 1, f_dict, task_type)
+    # model = gm.AlternatingSimple([16, 16], 2, f_dict)
+    model = gm.ConditionByGraphEmbedding([16, 16], 10, 16, 2, f_dict)
     opt = torch.optim.Adam(model.parameters(), lr=L_RATE)
     return model, opt
 
@@ -647,14 +649,19 @@ def curriculum_diffseeds(s, n, cur_n=0, training=None, cuda=False):
         else:
             model, opt = training
         l, a = several_steps(n, dl_train, model, opt, cuda=cuda)
-        path = 'experimental_results/abstract_relations_test/run1/' \
-            + 'curriculum%s' % cur_n
+        # path = 'experimental_results/abstract_relations_test/run1/' \
+        #     + 'curriculum%s' % cur_n
         # path = op.join(
         #     'experimental_results',
         #     'all_tasks',
         #     task,
         #     'run4',
         #     'curriculum%s' % cur_n)
+        path = op.join(
+            'experimental_results',
+            'replicate',
+            'run2',
+            'curriculum%s' % cur_n)
         plot_metrics(l, a, i, path)
         # checkpoint model
         save_model(

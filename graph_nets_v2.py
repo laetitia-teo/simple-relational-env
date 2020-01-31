@@ -50,7 +50,7 @@ class SumAggreg():
     def __call__(self, x, batch):
         return scatter_add(x, batch, dim=0)
 
-# Node and Global models for Deep Sets
+# Node and Global models for Deep Sets ++
 
 class DS_NodeModel(torch.nn.Module):
     def __init__(self,

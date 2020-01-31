@@ -245,6 +245,8 @@ class Gen():
         Computes lists of target and reference indices for downsream efficient
         access. Computation-intensive.
         """
+        self.t_idx = []
+        self.r_idx = []
         t_batch = torch.tensor(self.t_batch, dtype=torch.float32)
         r_batch = torch.tensor(self.r_batch, dtype=torch.float32)
         for idx in tqdm(range(len(self.labels))):
@@ -291,8 +293,8 @@ class Gen():
         self.targets *= n
         self.refs *= n
         self.labels *= n
-        self.t_batch
-        self.r_batch *= n
+        # self.t_batch *= n
+        # self.r_batch *= n
         mem = list(self.t_batch)
         for i in range(n - 1):
             mem += [elem + mem[-1] + 1 for elem in self.t_batch]
@@ -1148,6 +1150,17 @@ class SameConfigGen(Gen):
         self.s_ex_range = None
         self.r_ex_range = None
 
+    def reset(self):
+        super(SameConfigGen, self).reset()
+        self.translation_vectors = []
+        self.rotations = []
+        self.scalings = []
+        self.small_perturbations = []
+        self.perturbations = []
+        self.t_ex_range = []
+        self.s_ex_range = []
+        self.r_ex_range = []
+
     def equal_cut(self, n):
         """
         Similar to the cut function, but ensures n positive and n negative
@@ -1465,13 +1478,13 @@ class SameConfigGen(Gen):
         """
         self.compute_access_indices()
         vecs = np.array(self.targets)
-        for i in range(self.t_batch[-1]):
-            print('batch %s' % i)
-            print('label %s' % self.labels[i])
+        for i in tqdm(range(self.t_batch[-1])):
+            # print('batch %s' % i)
+            # print('label %s' % self.labels[i])
             self.env.reset()
             state_list = list(vecs[self.t_idx[i].numpy()])
             self.env.from_state_list(state_list, norm=True)
-            img = self.env.render(mode=mode)
+            img = self.env.render(mode=mode, show=False)
             cv2.imwrite(op.join(path, 'img_%s.jpg' % i), img)
 
 class CompareConfigGen(Gen):
@@ -1499,6 +1512,17 @@ class CompareConfigGen(Gen):
         self.perturbations = []
         # ranges we exclude from generation
         self.t_ex_range = None # example
+        self.s_ex_range = None
+        self.r_ex_range = None
+
+    def reset(self):
+        super(CompareConfigGen, self).reset()
+        self.translation_vectors = []
+        self.rotations = []
+        self.scalings = []
+        self.small_perturbations = []
+        self.perturbations = []
+        self.t_ex_range = None
         self.s_ex_range = None
         self.r_ex_range = None
 
@@ -1531,7 +1555,11 @@ class CompareConfigGen(Gen):
         # self.env.reset()
         if label:
             spert = self.env.small_perturb_objects(self.eps)
-            vec, scale, phi = self.env.random_transformation()
+            vec, scale, phi = self.env.random_transformation(
+                rotations=True,
+                s_ex_range=self.s_ex_range,
+                t_ex_range=self.t_ex_range,
+                r_ex_range=self.r_ex_range)
             pert = [np.zeros(2)] * len(ref)
         else:
             spert = self.env.small_perturb_objects(self.eps)

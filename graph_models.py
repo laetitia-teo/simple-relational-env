@@ -22,6 +22,7 @@ try:
     from torch_geometric.nn import MetaLayer
     from torch_geometric.data import Data
 except:
+    from graph_nets import MetaLayer
     from scatter import scatter_mean
     from utils import Data
 
@@ -734,7 +735,7 @@ class Alternatingv2(GraphModelDouble):
 
 class AlternatingSimple(GraphModelDouble):
     """
-    Simple version of the Altrenating model.
+    Simple version of the Alternating model.
     """
     def __init__(self,
                  mlp_layers,

@@ -255,6 +255,8 @@ def data_to_graph_double(data):
     graph2 = Data(x=x2, edge_index=ei2, edge_attr=e2, y=u2, batch=batch2)
     return graph1, graph2
 
+data_to_graph_parts = data_to_graph_double
+
 def data_to_graph_cuda(data):
     """
     GPU version of the above.

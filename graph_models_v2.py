@@ -303,6 +303,95 @@ class TGNN(GraphModelSimple):
 
 # Double-input graph models
 
+class ReccurentGraphEmbedding(GraphModelDouble):
+    """
+    Simplest double input graph model.
+    We use the full GNN with node aggreg as a GNN layer.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(ReccurentGraphEmbedding, self).__init__(f_dict)
+        self.N = N
+        mlp_fn = gn.mlp_fn(mlp_layers)
+
+        self.gnn1 = gn.GNN(
+            gn.EdgeModel(self.fe, self.fx, self.fu, mlp_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx, self.fu, mlp_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, self.fu, mlp_fn, self.fx))
+        self.gnn2 = gn.GNN(
+            gn.EdgeModel(self.fe, self.fx, 2 * self.fu, mlp_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx, 2 * self.fu, mlp_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, 2 * self.fu, mlp_fn, self.fx))
+        self.mlp = mlp_fn(self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
+        out_list = []
+        for _ in range(self.N):
+            x1, e1, u1 = self.gnn1(x1, ei1, e1, u1, batch1)
+            u2 = torch.cat([u2, u1], 1)
+            x2, e2, u2 = self.gnn2(x2, ei2, e2, u2, batch2)
+            out_list.append(self.mlp(u2))
+        return out_list
+
+class AlternatingSimple(GraphModelDouble):
+    """
+    Simple version of the Alternating model.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        """
+        Simpler version of the alternating model. In this model there is no
+        encoder network, we only have 1 layer of GNN on each processing step.
+
+        We condition on the output global embedding from the processing on the
+        previous graph, and we only condition the node computations since there
+        are less nodes than edges (this is a choice that can be discussed).
+
+        We aggregate nodes with attention in the global model.
+
+        We use the same gnn for processing both inputs.
+        In this model, since we may want to chain the passes, we let the number
+        of input features unchanged.
+        """
+        super(AlternatingSimple, self).__init__(f_dict)
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.N = N
+        # f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.gnn = gn.GNN(
+            gn.EdgeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx + self.fu, self.fu, model_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, self.fu, model_fn, self.fu))
+
+        self.mlp = model_fn(2 * self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        """
+        Forward pass. We alternate computing on 1 graph and then on the other.
+        We initialize the conditioning vector at 0.
+        At each step we concatenate the global vectors to the node vectors.
+        """
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        out_list = []
+
+        for _ in range(self.N):
+            # we can do N passes of this
+            x1 = torch.cat([x1, u2[batch1]], 1)
+            x1, e1, u1 = self.gnn(x1, edge_index1, e1, u1, batch1)
+            x2 = torch.cat([x2, u1[batch2]], 1)
+            x2, e2, u2 = self.gnn(x2, edge_index2, e2, u2, batch2)
+
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+
+        return out_list
 
 
 # edge aggregation ? does it make sense ?
@@ -321,6 +410,10 @@ model_list = [
     TGNN,
     DeepSet]
 
+model_list_double = [
+    ReccurentGraphEmbedding,
+    AlternatingSimple]
+
 model_names = [
     'Deep Set++ (0)',
     'Deep Set++, attention (1)',
@@ -333,3 +426,7 @@ model_names = [
     'TGNN (8)',
     'Deep Set (9)'
 ]
+
+double_model_names = [
+    'ReccurentGraphEmbedding (0)',
+    'AlternatingSimple (1)']

@@ -12,7 +12,6 @@ import graph_models_v2 as gm
 
 from argparse import ArgumentParser
 
-from run import several_steps
 from gen import SameConfigGen
 from dataset import collate_fn
 from graph_utils import data_to_graph_simple
@@ -34,7 +33,7 @@ parser.add_argument('-d', '--directory',
 parser.add_argument('-r', '--run-index',
                     dest='run_idx',
                     help='index of the run',
-                    default=3)
+                    default='3')
 
 args = parser.parse_args()
 
@@ -62,7 +61,7 @@ hparams = {
 
 n_layers = 1
 h = 16
-lr = 10e-3
+lr = 10e-3 # !!!! change this
 N = 1
 seeds = [0, 1, 2, 3, 4]
 n_epochs = 20
@@ -94,7 +93,7 @@ params = ([h] * n_layers, N, f_dict)
 data_fn = data_to_graph_simple
 dl = load_dl('data/same_config_alt/5_0_10000')
 data = next(iter(dl))
-g = data_fn(data)
+graph = data_fn(data)
 m = gm.TGNN(*params)
 
 def run(m_idx, run_idx):
@@ -140,7 +139,7 @@ if __name__ == '__main__':
         raise Exception('No run index was provided, please use the -r flag')
     if args.mode == 'all':
         for m_idx in range(len(gm.model_list)):
-            run(m_idx, args.run_idx)
+            run(m_idx, int(args.run_idx))
     else:
         try:
             m_idx = int(args.mode)

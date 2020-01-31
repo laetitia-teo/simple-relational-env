@@ -21,10 +21,10 @@ except:
 
 # data utilities
 
-from gen import SameConfigGen
+from gen import SameConfigGen, CompareConfigGen
 from dataset import collate_fn, make_collate_fn
 from baseline_utils import data_to_obj_seq_parts
-from graph_utils import tensor_to_graphs, data_to_graph_parts
+from graph_utils import tensor_to_graphs
 from graph_utils import data_to_graph_simple, data_to_graph_double
 from graph_utils import state_list_to_graph
 from graph_utils import merge_graphs
@@ -94,8 +94,11 @@ def compute_f1(precision, recall):
 def data_to_clss_parts(data):
     return data[2]
 
-def load_dl(dpath):
-    gen = SameConfigGen()
+def load_dl(dpath, double=False):
+    if not double:
+        gen = SameConfigGen()
+    if double:
+        gen = CompareConfigGen()
     gen.load(dpath)
     dl = DataLoader(
             gen.to_dataset(),
@@ -150,7 +153,7 @@ def plot_metrics(losses, accs, i, path):
 def one_step(model,
              optimizer,
              dl,
-             criterion,
+             criterion=criterion,
              metric=compute_accuracy,
              train=True,
              cuda=False,
@@ -161,14 +164,15 @@ def one_step(model,
     n_passes = 0
     cum_loss = 0
     cum_acc = 0
-    if isinstance(model, gm.GraphModelSimple):
-        data_fn = data_to_graph_simple
-    elif isinstance(model, gm.GraphModelDouble):
-        data_fn = data_to_graph_double
+    data_fn = data_to_graph_double
+    # if isinstance(model, gm.GraphModelSimple):
+    #     data_fn = data_to_graph_simple
+    # elif isinstance(model, gm.GraphModelDouble):
+    #     data_fn = data_to_graph_double
     clss_fn = data_to_clss_parts
     if cuda:
         model.cuda()
-    for data in dl:
+    for data in tqdm(dl):
         indices.append(list(data[3].numpy()))
         optimizer.zero_grad()
         # ground truth, model prediction
@@ -216,6 +220,11 @@ def one_run(dset,
             cuda=False):
     """
     One complete training/testing run.
+
+    dset : dataset index
+    seed :  random seed
+    n : number of epochs
+    prefix : path of the result directory.
     """
     t0 = time.time()
     training_losses = []
@@ -224,16 +233,32 @@ def one_run(dset,
     test_accuracies = []
     test_indices = []
     # train model
-    for _ in range(n):
-        l, a = one_step(
-            model,
-            opt,
-            dl,
-            criterion=criterion, 
-            train=True, 
-            cuda=cuda)
-        training_losses += l
-        training_accuracies += a
+    if isinstance(dl, DataLoader):
+        for _ in range(n):
+            l, a = one_step(
+                model,
+                opt,
+                dl,
+                criterion=criterion, 
+                train=True, 
+                cuda=cuda)
+            training_losses += l
+            training_accuracies += a
+    elif isinstance(dl, list):
+        for d in dl:
+            for _ in range(n):
+                l, a = one_step(
+                    model,
+                    opt,
+                    d,
+                    criterion=criterion, 
+                    train=True, 
+                    cuda=cuda)
+                training_losses += l
+                training_accuracies += a
+    else:
+        print('invalid dl type, must be DataLoader or list')
+        return
     save_results(
         training_losses,
         op.join(prefix, 'data', '{0}_{1}_train_loss.npy'.format(dset, seed)))
@@ -244,7 +269,7 @@ def one_run(dset,
     l, a, i = one_step(
         model,
         opt,
-        dl,
+        test_dl,
         criterion=criterion, 
         train=False,
         report_indices=True, 
@@ -342,8 +367,8 @@ def get_plot(model_idx, path):
     done = False
     directory = op.join(
         'experimental_results',
-        'same_config_alt',
-        'run1',
+        'compare_config_alt_cur',
+        'runsmallrottest',
         'model%s' % model_idx,
         'data')
     d_paths = os.listdir(directory)
@@ -393,7 +418,7 @@ def model_metrics(run_idx):
     """
     directory = op.join(
         'experimental_results',
-        'same_config_alt',
+        'compare_config_alt',
         'run%s' % run_idx)
     m_paths = sorted(os.listdir(directory))
     m_paths = [p for p in m_paths if re.search(r'^model([0-9]+)$', p)]
@@ -507,11 +532,3 @@ def plot_heat_map_simple(model, gen):
                 axs[i].scatter(pos[1], pos[0], color='b')
         axs[i].set_title('object %s' % i)
     plt.show()
-
-# test 
-
-from hparamtest import *
-
-g = SameConfigGen()
-g.load('data/same_config_alt/5_0_10000')
-model = gm.model_list[0](*params)
