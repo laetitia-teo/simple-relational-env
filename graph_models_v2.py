@@ -784,10 +784,3 @@ model_names = [
     'TGNN (8)',
     'Deep Set (9)'
 ]
-
-double_model_names = [
-    'RecurrentGraphEmbedding (0)',
-    'AlternatingSimple (1)',
-    'AlternatingDouble (2)',
-    'AlternatingDouble proj (3)',
-    'AlternatingDouble RDS (4)']

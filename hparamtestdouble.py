@@ -33,11 +33,11 @@ parser.add_argument('-d', '--directory',
 parser.add_argument('-r', '--run-index',
                     dest='run_idx',
                     help='index of the run',
-                    default='3')
+                    default='5')
 parser.add_argument('-c', '--curriculum',
                     dest='cur',
                     help='whether to use a curriculum of rotations',
-                    default='yeyeeye')
+                    default='yep')
 
 args = parser.parse_args()
 
@@ -66,7 +66,7 @@ hparams = {
 n_layers = 2
 h = 16
 lr = 1e-3
-N = 2
+N = 1
 seeds = [0, 1, 2, 3, 4]
 n_epochs = 5
 H = 16
@@ -115,7 +115,7 @@ params = ([h] * n_layers, N, f_dict)
 def run(m_idx, run_idx):
     dset = 0
     print('model number %s' % m_idx)
-    print('model name %s' % gm.double_model_names[m_idx])
+    print('model name %s' % gm.model_list_double[m_idx].__name__)
     for dpath_train, dpath_val in zip(train_5, val_5):
         print('dset %s;' % dset)
         t0 = time.time()

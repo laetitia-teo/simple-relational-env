@@ -360,14 +360,20 @@ def plot_train_acc(run_idx, model_idx):
     plt.show()
     # return m, mi, ma
 
-def get_plot(model_idx, path):
+def get_plot(model_idx, path, i='double'):
     """
     Plots, one by one, the curves of the different models.
     """
     done = False
+    if i == 'cur':
+        d = 'compare_config_alt_cur'
+    elif i == 'double':
+        d = 'compare_config_alt'
+    else:
+        d = 'same_config_alt'
     directory = op.join(
         'experimental_results',
-        'compare_config_alt_cur',
+        d,
         path,
         'model%s' % model_idx,
         'data')
@@ -441,7 +447,7 @@ def model_metrics(run_idx):
         j = i % 2
         k = i // 2
         axs[j, k].hist(aa, bins=20)
-        s = gm.model_names[mod_idx] + '; acc : {}'.format(mean_acc)
+        s = gm.model_list[mod_idx].__name__ + '; acc : {}'.format(mean_acc)
         axs[j, k].set_title(s)
     plt.show()
 

@@ -61,7 +61,7 @@ hparams = {
 
 n_layers = 1
 h = 16
-lr = 10e-3 # !!!! change this
+lr = 1e-3
 N = 1
 seeds = [0, 1, 2, 3, 4]
 n_epochs = 20
