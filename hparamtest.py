@@ -34,6 +34,9 @@ parser.add_argument('-r', '--run-index',
                     dest='run_idx',
                     help='index of the run',
                     default='3')
+parser.add_argument('-l', '--list-mode',
+                    dest='list_mode',
+                    default='all')
 
 args = parser.parse_args()
 
@@ -76,27 +79,27 @@ f_dict = {
 
 # data paths
 
-prefix = args.directory
+prefix = 'data/same_config_alt'
 
 d_path = os.listdir(prefix)
-train_5 = sorted([p for p in d_path if re.search(r'^5_.+_10{4}$', p)])[:10]
-val_5 = sorted([p for p in d_path if re.search(r'^5_.+_val$', p)])[:10]
-train_10 = sorted([p for p in d_path if re.search(r'^10_.+_10{4}$', p)])[:10]
-val_10 = sorted([p for p in d_path if re.search(r'^10_.+_val$', p)])[:10]
-train_20 = sorted([p for p in d_path if re.search(r'^20_.+_10{4}$', p)])[:10]
-val_20 = sorted([p for p in d_path if re.search(r'^20_.+_val$', p)])[:10]
+train_5 = sorted([p for p in d_path if re.search(r'^5_.+_10{4}$', p)])[:5]
+val_5 = sorted([p for p in d_path if re.search(r'^5_.+_val$', p)])[:5]
+train_10 = sorted([p for p in d_path if re.search(r'^10_.+_10{4}$', p)])[:5]
+val_10 = sorted([p for p in d_path if re.search(r'^10_.+_val$', p)])[:5]
+train_20 = sorted([p for p in d_path if re.search(r'^20_.+_10{4}$', p)])[:5]
+val_20 = sorted([p for p in d_path if re.search(r'^20_.+_val$', p)])[:5]
 
-params = ([h] * n_layers, N, f_dict)
+# params = ([h] * n_layers, N, f_dict)
 
 # for quick testing purposes
 
-data_fn = data_to_graph_simple
-dl = load_dl('data/same_config_alt/5_0_10000')
-data = next(iter(dl))
-graph = data_fn(data)
-m = gm.TGNN(*params)
+# data_fn = data_to_graph_simple
+# dl = load_dl('data/same_config_alt/5_0_10000')
+# data = next(iter(dl))
+# graph = data_fn(data)
+# m = gm.TGNN(*params)
 
-def run(m_idx, run_idx):
+def run(m_idx, run_idx, params, list_mode='all'):
     dset = 0
     print('model number %s' % m_idx)
     print('model name %s' % gm.model_names[m_idx])
@@ -127,7 +130,8 @@ def run(m_idx, run_idx):
                 dl_train,
                 dl_val,
                 path,
-                cuda=True)
+                cuda=True,
+                list_mode=list_mode)
         t = time.time()
         print('total running time for one ds %s seconds' % str(t - t0))
         dset += 1
@@ -135,15 +139,26 @@ def run(m_idx, run_idx):
 # 5 objects
 
 if __name__ == '__main__':
-    if args.run_idx is None:
-        raise Exception('No run index was provided, please use the -r flag')
-    if args.mode == 'all':
-        for m_idx in range(len(gm.model_list)):
-            run(m_idx, int(args.run_idx))
-    else:
-        try:
-            m_idx = int(args.mode)
-            run(m_idx, args.run_idx)
-        except ValueError:
-            print('Invalid mode for the script, must be \'all\' or integer')
-            raise
+    # if args.run_idx is None:
+    #     raise Exception('No run index was provided, please use the -r flag')
+    # if args.mode == 'all':
+    #     for m_idx in range(len(gm.model_list)):
+    #         run(m_idx, int(args.run_idx))
+    # else:
+    #     try:
+    #         m_idx = int(args.mode)
+    #         run(m_idx, args.run_idx)
+    #     except ValueError:
+    #         print('Invalid mode for the script, must be \'all\' or integer')
+    #         raise
+
+    N = 1
+    params = ([h] * n_layers, N, f_dict)
+    for m_idx in range(len(gm.model_list)):
+        run(m_idx, 0, params)
+    N = 2
+    params = ([h] * n_layers, N, f_dict)
+    for m_idx in range(len(gm.model_list)):
+        run(m_idx, 1, params)
+    for m_idx in range(len(gm.model_list)):
+        run(m_idx, 2, params, list_mode='last')

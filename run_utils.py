@@ -168,11 +168,11 @@ def one_step(model,
     n_passes = 0
     cum_loss = 0
     cum_acc = 0
-    data_fn = data_to_graph_double
-    # if isinstance(model, gm.GraphModelSimple):
-    #     data_fn = data_to_graph_simple
-    # elif isinstance(model, gm.GraphModelDouble):
-    #     data_fn = data_to_graph_double
+    # data_fn = data_to_graph_double
+    if isinstance(model, gm.GraphModelSimple):
+        data_fn = data_to_graph_simple
+    elif isinstance(model, gm.GraphModelDouble):
+        data_fn = data_to_graph_double
     clss_fn = data_to_clss_parts
     if cuda:
         model.cuda()
@@ -224,7 +224,8 @@ def one_run(dset,
             test_dl,
             prefix,
             criterion=criterion,
-            cuda=False):
+            cuda=False,
+            list_mode='all'):
     """
     One complete training/testing run.
 
@@ -248,7 +249,8 @@ def one_run(dset,
                 dl,
                 criterion=criterion, 
                 train=True, 
-                cuda=cuda)
+                cuda=cuda,
+                list_mode=list_mode)
             training_losses += l
             training_accuracies += a
     elif isinstance(dl, list):
@@ -260,7 +262,8 @@ def one_run(dset,
                     d,
                     criterion=criterion, 
                     train=True, 
-                    cuda=cuda)
+                    cuda=cuda,
+                    list_mode=list_mode)
                 training_losses += l
                 training_accuracies += a
     else:
@@ -424,14 +427,18 @@ def batch_to_images(data, path, mod='one'):
 
 # aggregate metrics
 
-def model_metrics(run_idx):
+def model_metrics(run_idx, double=True):
     """
     Plots a histogram of accuracies, accuracies and stds for each dataset, for
     each model in the considered directory.
     """
+    if double:
+        mlist = gm.model_list_double
+    else:
+        mlist = gm.model_list
     directory = op.join(
         'experimental_results',
-        'compare_config_alt',
+        'compare_config_alt_cur',
         'run%s' % run_idx)
     m_paths = sorted(os.listdir(directory))
     m_paths = [p for p in m_paths if re.search(r'^model([0-9]+)$', p)]
@@ -454,7 +461,7 @@ def model_metrics(run_idx):
         j = i % 2
         k = i // 2
         axs[j, k].hist(aa, bins=20)
-        s = gm.model_list[mod_idx].__name__ + '; acc : {}'.format(mean_acc)
+        s = mlist[mod_idx].__name__ + '; acc : {}'.format(mean_acc)
         axs[j, k].set_title(s)
     plt.show()
 
