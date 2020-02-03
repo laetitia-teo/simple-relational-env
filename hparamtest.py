@@ -127,7 +127,7 @@ def run(m_idx, run_idx):
                 dl_train,
                 dl_val,
                 path,
-                cuda=False)
+                cuda=True)
         t = time.time()
         print('total running time for one ds %s seconds' % str(t - t0))
         dset += 1

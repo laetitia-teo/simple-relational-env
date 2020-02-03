@@ -157,7 +157,11 @@ def one_step(model,
              metric=compute_accuracy,
              train=True,
              cuda=False,
-             report_indices=False):
+             report_indices=False,
+             list_mode='all'):
+    """
+    list mode can be 'all' or 'last' depending on how we want to backprop.
+    """
     accs = []
     losses = []
     indices = []
@@ -185,8 +189,11 @@ def one_step(model,
             with torch.no_grad(): # saving memory
                 pred_clss = model(*data_fn(data))
         if type(pred_clss) is list:
-            # we sum the loss of all the outputs of the model
-            loss = sum([criterion(pred, clss) for pred in pred_clss])
+            if list_mode == 'all':
+                # we sum the loss of all the outputs of the model
+                loss = sum([criterion(pred, clss) for pred in pred_clss])
+            elif list_mode == 'last':
+                loss = criterion(pred_clss[-1], clss)
         else:
             loss = criterion(pred_clss, clss)
         if train:
