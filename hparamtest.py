@@ -76,7 +76,7 @@ f_dict = {
 
 # data paths
 
-prefix = 'data/same_config_perturb'
+prefix = args.directory
 
 d_path = os.listdir(prefix)
 train_5 = sorted([p for p in d_path if re.search(r'^5_.+_10{4}$', p)])[:10]
