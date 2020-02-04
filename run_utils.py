@@ -176,7 +176,7 @@ def one_step(model,
     clss_fn = data_to_clss_parts
     if cuda:
         model.cuda()
-    for data in tqdm(dl):
+    for data in dl:
         indices.append(list(data[3].numpy()))
         optimizer.zero_grad()
         # ground truth, model prediction
@@ -457,11 +457,12 @@ def model_metrics(run_idx, double=True):
                 # file name, dataset number, seed number
                 mdata.append((s[0], int(s[1]), int(s[2])))
         aa = [np.mean(np.load(op.join(path, m[0]))) for m in mdata]
+        std = str(np.around(np.std(aa), 3))[:5]
         mean_acc = str(np.around(np.mean(aa), 2))[:4]
         j = i % 2
         k = i // 2
         axs[j, k].hist(aa, bins=20)
-        s = mlist[mod_idx].__name__ + '; acc : {}'.format(mean_acc)
+        s = mlist[mod_idx].__name__ + '; {0} +- {1}'.format(mean_acc, std)
         axs[j, k].set_title(s)
     plt.show()
 

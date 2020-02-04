@@ -16,7 +16,7 @@ from gen import SameConfigGen
 from dataset import collate_fn
 from graph_utils import data_to_graph_simple
 
-from run_utils import load_dl, one_run
+from run_utils import load_dl, one_run, nparams
 from graph_utils import data_to_graph_double
 # script arguments
 
@@ -25,7 +25,7 @@ parser.add_argument('-m', '--mode',
                     dest='mode',
                     help='mode : \'all\' for all available models, index of the'
                         + ' model for a single model',
-                    default='all')
+                    default='some')
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='path of the save and log directory',
@@ -33,7 +33,7 @@ parser.add_argument('-d', '--directory',
 parser.add_argument('-r', '--run-index',
                     dest='run_idx',
                     help='index of the run',
-                    default='5')
+                    default='final')
 parser.add_argument('-c', '--curriculum',
                     dest='cur',
                     help='whether to use a curriculum of rotations',
@@ -63,7 +63,7 @@ hparams = {
 
 # default hparams
 
-n_layers = 2
+n_layers = 1
 h = 16
 lr = 1e-3
 N = 1
@@ -103,14 +103,26 @@ val = 'rotcur4_5_0_10000_val'
 # val_10 = sorted([p for p in d_path if re.search(r'^10_.+_val$', p)])
 # train_20 = sorted([p for p in d_path if re.search(r'^20_.+_10{4}$', p)])
 # val_20 = sorted([p for p in d_path if re.search(r'^20_.+_val$', p)])
+params = ([h] * 1, N, f_dict)
 
-params = ([h] * n_layers, N, f_dict)
+params1 = ([h] * 1, N, f_dict)
+params2 = ([h] * 2, N, f_dict)
+params3 = ([h] * 3, N, f_dict)
+
+param_dict = {
+    0: params1,
+    2: params3,
+    3: params1,
+    5: params3,
+    8: params3,
+    9: params3
+}
 
 # for quick testing purposes
 
-# dl = load_dl(os.path.join(prefix, train_5[0]), double=True)
-# data = next(iter(dl))
-# g1, g2 = data_to_graph_double(data)
+dl = load_dl(os.path.join(prefix, train_5[0]), double=True)
+data = next(iter(dl))
+g1, g2 = data_to_graph_double(data)
 
 def run(m_idx, run_idx):
     dset = 0
@@ -148,7 +160,7 @@ def run(m_idx, run_idx):
         print('total running time for one ds %s seconds' % str(t - t0))
         dset += 1
 
-def cur_run(m_idx, run_idx):
+def cur_run(m_idx, run_idx, params=params):
     """
     For using a curriculum of dataloaders.
     """
@@ -162,12 +174,14 @@ def cur_run(m_idx, run_idx):
         os.path.join(path, 'data')).mkdir(parents=True, exist_ok=True)
     pathlib.Path(
         os.path.join(path, 'models')).mkdir(parents=True, exist_ok=True)
+    print('model %s' % type(model).__name__)
     for seed in seeds:
         t0 = time.time()
         np.random.seed(seed)
         torch.manual_seed(seed)
         model = gm.model_list_double[m_idx](*params)
         opt = torch.optim.Adam(model.parameters(), lr=lr)
+        res = model(g1, g2)
         one_run(
             dset,
             seed,
@@ -193,6 +207,14 @@ if __name__ == '__main__':
                 run(m_idx, args.run_idx)
             else:
                 cur_run(m_idx, args.run_idx)
+    elif args.mode == 'some':
+        indices = [0, 2, 3, 5, 8, 9]
+        for m_idx in indices:
+            if not args.cur:
+                run(m_idx, args.run_idx)
+            else:
+                params = param_dict[m_idx]
+                cur_run(m_idx, args.run_idx, params=params)
     else:
         try:
             m_idx = int(args.mode)

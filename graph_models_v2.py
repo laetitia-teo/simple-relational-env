@@ -838,6 +838,142 @@ class ResRecurrentGraphEmbedding(GraphModelDouble):
             out_list.append(self.mlp(u2))
         return out_list
 
+class AlternatingDoubleDS(GraphModelDouble):
+    """
+    Recurrent DeepSet version of the AlternatingDouble model.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(AlternatingDoubleDS, self).__init__(f_dict)
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.N = N
+        # f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.ds1 = gn.DeepSet(model_fn, self.fu + self.fx, self.h, self.fx)
+        self.ds2 = gn.DeepSet(model_fn, self.fu + self.fx, self.h, self.fx)
+
+        self.mlp = model_fn(2 * self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        out_list = []
+
+        for _ in range(self.N):
+            x1_ = torch.cat([x1, u2[batch2]], 1)
+            u1 = self.ds1(x1_, batch1)
+            x2_ = torch.cat([x2, u1[batch1]], 1)
+            u2 = self.ds2(x2_, batch2)
+
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+
+        return out_list
+
+class AlternatingDoubleRSv2(GraphModelDouble):
+    """
+    Recurrent DeepSet version of the AlternatingDouble model.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(AlternatingDoubleDSv2, self).__init__(f_dict)
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.N = N
+        # f_e, f_x, f_u, f_out = self.get_features(f_dict)
+
+        self.proj = torch.nn.Linear(self.fx, self.h)
+        self.ds1 = gn.DeepSet(model_fn, 2 * self.h, self.h, self.h)
+        self.ds2 = gn.DeepSet(model_fn, 2 * self.h, self.h, self.h)
+
+        self.mlp = model_fn(2 * self.h, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        x1 = self.proj(x1)
+        e1 = self.proj(e1)
+        u1 = self.proj(u1)
+        x2 = self.proj(x2)
+        e2 = self.proj(e2)
+        u2 = self.proj(u2)
+
+        out_list = []
+
+        for _ in range(self.N):
+            x1_ = torch.cat([x1, u2[batch2]], 1)
+            u1 = self.ds1(x1_, batch1)
+            x2_ = torch.cat([x2, u1[batch1]], 1)
+            u2 = self.ds2(x2_, batch2)
+
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+
+        return out_list
+
+class RecurrentGraphEmbeddingDS(GraphModelDouble):
+    """
+    baseline.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(RecurrentGraphEmbeddingDS, self).__init__(f_dict)
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+
+        self.ds1 = gn.DeepSet(model_fn, self.fx, self.h, self.fu)
+        self.ds2 = gn.DeepSet(model_fn, self.fu + self.fx, self.h, self.fu)
+        self.mlp = model_fn(self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
+        out_list = []
+        u1 = self.ds1(x1, batch1)
+        x2 = torch.cat([x2, u1[batch1]], 1)
+        u2 = self.ds2(x2, batch2)
+        out_list.append(self.mlp(u2))
+        return out_list
+
+class RecurrentGraphEmbeddingDSv2(GraphModelDouble):
+    """
+    baseline.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super(RecurrentGraphEmbeddingDS, self).__init__(f_dict)
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+
+        self.ds1 = gn.DeepSet(model_fn, self.h, self.h, self.h)
+        self.ds2 = gn.DeepSet(model_fn, 2 * self.h, self.h, self.h)
+        self.mlp = model_fn(self.h, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        x1 = self.proj(x1)
+        e1 = self.proj(e1)
+        u1 = self.proj(u1)
+        x2 = self.proj(x2)
+        e2 = self.proj(e2)
+        u2 = self.proj(u2)
+
+        out_list = []
+        u1 = self.ds1(x1, batch1)
+        x2 = torch.cat([x2, u1[batch1]], 1)
+        u2 = self.ds2(x2, batch2)
+        out_list.append(self.mlp(u2))
+        return out_list
+
 # Graph model utilities
 
 model_list = [
@@ -853,7 +989,9 @@ model_list_double = [
     RecurrentGraphEmbeddingv2,
     RecurrentGraphEmbeddingRDS,
     AlternatingDoubleRDSv2,
-    RecurrentGraphEmbeddingRDSv2]
+    RecurrentGraphEmbeddingRDSv2,
+    AlternatingDoubleDS,
+    RecurrentGraphEmbeddingDS]
 
 model_names = [
     'Deep Set++ (0)',
