@@ -542,11 +542,11 @@ class Gen():
             indices = None
         else:
             indices = (self.t_idx, self.r_idx)
-        ds = PartsDataset(self.targets[:n],
-                          self.t_batch[:n],
-                          self.refs[:n],
-                          self.r_batch[:n],
-                          self.labels[:n],
+        ds = PartsDataset(self.targets,
+                          self.t_batch,
+                          self.refs,
+                          self.r_batch,
+                          self.labels,
                           indices,
                           self.task_type,
                           self.label_type,
@@ -1153,13 +1153,13 @@ class SameConfigGen(Gen):
     def reset(self):
         super(SameConfigGen, self).reset()
         self.translation_vectors = []
-        self.rotations = []
+        self.rotation_angles = []
         self.scalings = []
         self.small_perturbations = []
         self.perturbations = []
-        self.t_ex_range = []
-        self.s_ex_range = []
-        self.r_ex_range = []
+        self.t_ex_range = None
+        self.s_ex_range = None
+        self.r_ex_range = None
 
     def equal_cut(self, n):
         """
@@ -1284,7 +1284,11 @@ class SameConfigGen(Gen):
             pert = [np.zeros(2)] * len(self.ref_state_list)
             self.env.random_mix()
             # pert = self.env.perturb_objects(n_p)
-            vec, scale, phi = self.env.random_transformation()
+            vec, scale, phi = self.env.random_transformation(
+                rotations=True,
+                s_ex_range=self.s_ex_range,
+                t_ex_range=self.t_ex_range,
+                r_ex_range=self.r_ex_range)
         state = self.env.to_state_list(norm=True)
         return state, label, vec, scale, phi, spert, pert
 

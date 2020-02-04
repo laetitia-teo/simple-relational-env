@@ -756,8 +756,8 @@ class Env(AbstractEnv):
         Samples a random rotation center and vector.
         """
         center = self.get_center()
-        minphi = - np.pi
-        maxphi = np.pi
+        minphi = 0
+        maxphi = 2 * np.pi
         phi = np.random.random()
         if ex_range is not None:
             if ex_range[0] == minphi:

@@ -223,7 +223,7 @@ class PartsDataset(Dataset):
         return get
 
     def __len__(self):
-        return self.t_batch[-1]
+        return self.t_batch[-1] + 1
 
     def __getitem__(self, idx):
         return self.get(idx)

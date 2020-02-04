@@ -18,7 +18,7 @@ parser.add_argument('-d', '--directory',
 parser.add_argument('-Nc', '--number-configs',
                      dest='Nc',
                      help='number of different generated datasets',
-                     default='3')
+                     default='20')
 parser.add_argument('-Ns', '--number-samples',
                      dest='Ns',
                      help='number of samples in each dataset',
@@ -34,7 +34,7 @@ parser.add_argument('-Nt', '--number-test',
 parser.add_argument('-Nb', '--number-batch',
                      dest='Nb',
                      help='number of examples in one element of the test grid',
-                     default='128')
+                     default='1')
 parser.add_argument('-Ng', '--number-grid',
                      dest='Ng',
                      help='size of the test grid',
@@ -42,13 +42,14 @@ parser.add_argument('-Ng', '--number-grid',
 parser.add_argument('-Ngt', '--number-grid-trans',
                      dest='Ngt',
                      help='size of the test grid for translations',
-                     default='20')
+                     default='100')
 
 args = parser.parse_args()
 
 def gen_scale_train(g, ex_range, s, i):
     g.s_ex_range = ex_range
     g.reset()
+
     g.generate_alternative(int(args.Ns))
     a = (int(args.No), i, int(args.Ns), s)
     path = op.join(
@@ -108,7 +109,7 @@ def gen_trans_test(g, i):
 
 for i in range(int(args.Nc)):
     g = gen.SameConfigGen(n=int(args.No))
-    ref = g.ref_state_list # same ref state list for all the generates dsets
+    ref = g.ref_state_list # same ref state list for all the generated dsets
     s = 's_inter'
     print(s)
     ex_range = (0.8, 1.2)

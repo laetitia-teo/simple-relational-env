@@ -16,7 +16,7 @@ from gen import SameConfigGen
 from dataset import collate_fn
 from graph_utils import data_to_graph_simple
 
-from run_utils import load_dl, one_run, data_to_graph_simple
+from run_utils import load_dl, one_run
 
 # script arguments
 
@@ -90,6 +90,16 @@ train_20 = sorted([p for p in d_path if re.search(r'^20_.+_10{4}$', p)])[:5]
 val_20 = sorted([p for p in d_path if re.search(r'^20_.+_val$', p)])[:5]
 
 params = ([h] * n_layers, N, f_dict)
+
+params1 = ([h] * 1, N, f_dict)
+params2 = ([h] * 2, N, f_dict)
+params3 = ([h] * 4, N, f_dict)
+
+param_dict = {
+    0: params2,
+    1: params1,
+    2: params3,
+}
 
 # for quick testing purposes
 

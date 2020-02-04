@@ -174,7 +174,6 @@ def cur_run(m_idx, run_idx, params=params):
         os.path.join(path, 'data')).mkdir(parents=True, exist_ok=True)
     pathlib.Path(
         os.path.join(path, 'models')).mkdir(parents=True, exist_ok=True)
-    print('model %s' % type(model).__name__)
     for seed in seeds:
         t0 = time.time()
         np.random.seed(seed)
