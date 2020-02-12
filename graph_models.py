@@ -315,6 +315,7 @@ class RecurrentGraphEmbedding(GraphModelDouble):
         super(RecurrentGraphEmbedding, self).__init__(f_dict)
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
+        self.component = 'MPGNN'
 
         self.gnn1 = gn.GNN(
             gn.EdgeModel(self.fe, self.fx, self.fu,model_fn, self.fe),
@@ -362,6 +363,7 @@ class AlternatingSimple(GraphModelDouble):
         super(AlternatingSimple, self).__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
+        self.component = 'MPGNN'
         # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.gnn = gn.GNN(
@@ -404,6 +406,7 @@ class AlternatingDouble(GraphModelDouble):
         super(AlternatingDouble, self).__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
+        self.component = 'MPGNN'
         # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.gnn1 = gn.GNN(
@@ -444,6 +447,7 @@ class AlternatingSimpleRDS(GraphModelDouble):
         super(AlternatingSimple, self).__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
+        self.component = 'RDS'
         # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.gnn = gn.DeepSetPlus(
@@ -479,6 +483,7 @@ class AlternatingSimplev2(GraphModelDouble):
         super(AlternatingSimplev2, self).__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
+        self.component = 'MPGNN'
 
         self.proj = torch.nn.Linear(self.fx, self.h)
         self.gnn = gn.GNN(
@@ -522,6 +527,7 @@ class AlternatingDoublev2(GraphModelDouble):
         super(AlternatingDoublev2, self).__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
+        self.component = 'MPGNN'
 
         self.proj = torch.nn.Linear(self.fx, self.h)
         self.gnn1 = gn.GNN(
@@ -569,6 +575,7 @@ class AlternatingDoubleRDS(GraphModelDouble):
         super(AlternatingDoubleRDS, self).__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
+        self.component = 'RDS'
         # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.gnn1 = gn.DeepSetPlus(
@@ -608,6 +615,7 @@ class AlternatingDoubleRDSv2(GraphModelDouble):
         super(AlternatingDoubleRDSv2, self).__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
+        self.component = 'RDS'
         # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.proj = torch.nn.Linear(self.fx, self.h)
@@ -654,6 +662,7 @@ class RecurrentGraphEmbeddingv2(GraphModelDouble):
                  f_dict):
         super(RecurrentGraphEmbeddingv2, self).__init__(f_dict)
         self.N = N
+        self.component = 'MPGNN'
         model_fn = gn.mlp_fn(mlp_layers)
 
         self.proj = torch.nn.Linear(self.fx, self.h)
@@ -700,6 +709,7 @@ class RecurrentGraphEmbeddingRDS(GraphModelDouble):
         super(RecurrentGraphEmbeddingRDS, self).__init__(f_dict)
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
+        self.component = 'RDS'
 
         self.gnn1 = gn.DeepSetPlus(
             gn.DS_NodeModel(self.fx, self.fu, model_fn, self.fx),
@@ -731,6 +741,7 @@ class RecurrentGraphEmbeddingRDSv2(GraphModelDouble):
         super(RecurrentGraphEmbeddingRDSv2, self).__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
+        self.component = 'RDS'
 
         self.proj = torch.nn.Linear(self.fx, self.h)
         self.gnn1 = gn.DeepSetPlus(
@@ -772,6 +783,7 @@ class ResAlternatingDouble(GraphModelDouble):
         super(ResAlternatingDouble, self).__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
+        self.component = 'MPGNN'
         # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.gnn1 = gn.GNN(
@@ -815,6 +827,7 @@ class ResRecurrentGraphEmbedding(GraphModelDouble):
                  f_dict):
         super(ResRecurrentGraphEmbedding, self).__init__(f_dict)
         self.N = N
+        self.component = 'MPGNN'
         model_fn = gn.mlp_fn(mlp_layers)
 
         self.gnn1 = gn.GNN(
@@ -849,6 +862,7 @@ class AlternatingDoubleDS(GraphModelDouble):
         super(AlternatingDoubleDS, self).__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
+        self.component = 'DS'
         # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.ds1 = gn.DeepSet(model_fn, self.fu + self.fx, self.h, self.fx)
@@ -883,6 +897,7 @@ class AlternatingDoubleRSv2(GraphModelDouble):
         super(AlternatingDoubleDSv2, self).__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
+        self.component = 'DS'
         # f_e, f_x, f_u, f_out = self.get_features(f_dict)
 
         self.proj = torch.nn.Linear(self.fx, self.h)
@@ -925,6 +940,7 @@ class RecurrentGraphEmbeddingDS(GraphModelDouble):
         super(RecurrentGraphEmbeddingDS, self).__init__(f_dict)
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
+        self.component = 'DS'
 
         self.ds1 = gn.DeepSet(model_fn, self.fx, self.h, self.fu)
         self.ds2 = gn.DeepSet(model_fn, self.fu + self.fx, self.h, self.fu)
@@ -951,6 +967,7 @@ class RecurrentGraphEmbeddingDSv2(GraphModelDouble):
         super(RecurrentGraphEmbeddingDS, self).__init__(f_dict)
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
+        self.component = 'DS'
 
         self.ds1 = gn.DeepSet(model_fn, self.h, self.h, self.h)
         self.ds2 = gn.DeepSet(model_fn, 2 * self.h, self.h, self.h)
