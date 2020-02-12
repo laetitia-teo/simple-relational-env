@@ -18,19 +18,19 @@ parser.add_argument('-d', '--directory',
 parser.add_argument('-Nc', '--number-configs',
                      dest='Nc',
                      help='number of different generated datasets',
-                     default='10')
+                     default='1')
 parser.add_argument('-Ns', '--number-samples',
                      dest='Ns',
                      help='number of samples in each dataset',
-                     default='100000')
+                     default='10000')
 parser.add_argument('-No', '--number-objects',
                      dest='No',
                      help='number of objects in config',
-                     default='5')
+                     default='20')
 parser.add_argument('-Nt', '--number-test',
                      dest='Nt',
                      help='number of samples in test dataset',
-                     default='10000')
+                     default='5000')
 parser.add_argument('-m', '--mode',
                      dest='mode',
                      help='simple or double dataset generation',
@@ -63,26 +63,28 @@ if args.mode == 'simple':
             '%s_%s_%s_test' % (int(args.No), i, int(args.Nt)))
         g.save(path)
 if args.mode == 'double':
-    g = gen.CompareConfigGen(n=int(args.No))
-    g.generate_alternative(int(args.Ns))
-    path = op.join(
-        args.directory,
-        'newrot_pi_%s_%s_%s' % (int(args.No), 0, int(args.Ns)))
-    g.save(path)
-    # validation
-    g.reset()
-    g.generate_alternative(int(args.Nt))
-    path = op.join(
-        args.directory,
-        'newrot_pi_%s_%s_%s_val' % (int(args.No), 0, int(args.Nt)))
-    g.save(path)
-    # generate test dataset
-    g.reset()
-    g.generate_alternative(int(args.Nt))
-    path = op.join(
-        args.directory,
-        'newrot_pi_%s_%s_%s_test' % (int(args.No), 0, int(args.Nt)))
-    g.save(path)
+    for i in range(6, 21):
+        print(i)
+        g = gen.CompareConfigGen(n=i)
+        g.generate_alternative(int(args.Ns))
+        path = op.join(
+            args.directory,
+            '%s_%s_%s' % (int(args.No), 0, int(args.Ns)))
+        g.save(path)
+        g.reset()
+    # # validation
+    # g.generate_alternative(int(args.Nt))
+    # path = op.join(
+    #     args.directory,
+    #     '%s_%s_%s_val' % (int(args.No), 0, int(args.Nt)))
+    # g.save(path)
+    # # generate test dataset
+    # g.reset()
+    # g.generate_alternative(int(args.Nt))
+    # path = op.join(
+    #     args.directory,
+    #     '%s_%s_%s_test' % (int(args.No), 0, int(args.Nt)))
+    # g.save(path)
 if args.mode == 'rotcur':
     cur_list = [
         (pi/10, 2*pi),

@@ -8,7 +8,7 @@ import pathlib
 import numpy as np
 import torch
 
-import graph_models_v2 as gm
+import graph_models as gm
 
 from argparse import ArgumentParser
 
@@ -25,7 +25,7 @@ parser.add_argument('-m', '--mode',
                     dest='mode',
                     help='mode : \'all\' for all available models, index of the'
                         + ' model for a single model',
-                    default='1')
+                    default='all')
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='path of the save and log directory',
@@ -33,7 +33,7 @@ parser.add_argument('-d', '--directory',
 parser.add_argument('-r', '--run-index',
                     dest='run_idx',
                     help='index of the run',
-                    default='base')
+                    default='base20')
 parser.add_argument('-l', '--list-mode',
                     dest='list_mode',
                     default='all')
@@ -113,7 +113,7 @@ def run(m_idx, run_idx, params=params, list_mode='all'):
     dset = 0
     print('model number %s' % m_idx)
     print('model name %s' % gm.model_list[m_idx].__name__)
-    for dpath_train, dpath_val in zip(train_5, val_5):
+    for dpath_train, dpath_val in zip(train_20, val_20):
         print('dset %s;' % dset)
         t0 = time.time()
         dl_train = load_dl(
@@ -153,7 +153,8 @@ if __name__ == '__main__':
         raise Exception('No run index was provided, please use the -r flag')
     if args.mode == 'all':
         for m_idx in range(len(gm.model_list)):
-            run(m_idx, int(args.run_idx))
+            p = param_dict[m_idx]
+            run(m_idx, args.run_idx, p)
     else:
         try:
             m_idx = int(args.mode)

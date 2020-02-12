@@ -10,7 +10,7 @@ import torch
 
 import gen
 import baseline_models as bm
-import graph_models_v2 as gm
+import graph_models as gm
 
 from tqdm import tqdm
 from torch.utils.data import DataLoader
@@ -438,7 +438,7 @@ def model_metrics(run_idx, double=True):
         mlist = gm.model_list
     directory = op.join(
         'experimental_results',
-        'compare_config_alt_cur',
+        'same_config_alt',
         'run%s' % run_idx)
     m_paths = sorted(os.listdir(directory))
     m_paths = [p for p in m_paths if re.search(r'^model([0-9]+)$', p)]

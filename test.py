@@ -5,7 +5,7 @@ import os.path as op
 import cv2
 import torch
 
-import graph_models_v2 as gm
+import graph_models as gm
 
 from glob import glob
 

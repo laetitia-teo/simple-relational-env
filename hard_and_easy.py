@@ -10,7 +10,7 @@ import pathlib
 import numpy as np
 import torch
 
-import graph_models_v2 as gm
+import graph_models as gm
 
 from argparse import ArgumentParser
 
@@ -20,7 +20,7 @@ from gen import SameConfigGen
 from dataset import collate_fn
 from graph_utils import data_to_graph_simple
 
-from run_utils import data_to_graph_simple, one_step, load_dl
+from run_utils import data_to_graph_simple, one_run, load_dl
 from run_utils import save_model
 
 # path of datasets
@@ -85,13 +85,9 @@ def run(m_idx, run_idx, params=params, list_mode='all'):
     dset = 0
     print('model number %s' % m_idx)
     print('model name %s' % gm.model_list[m_idx].__name__)
-    for dpath_train, dpath_test in zip(train, test):
+    for dl_train, dl_test in zip(train, test):
         print('dset %s;' % dset)
         t0 = time.time()
-        dl_train = load_dl(
-            os.path.join(dpath, dpath_train))
-        dl_val = load_dl(
-            os.path.join(dpath, dpath_test))
         path = os.path.join(
             save_path, 'run%s' % run_idx, 'model' + str(m_idx))
         pathlib.Path(
@@ -110,7 +106,7 @@ def run(m_idx, run_idx, params=params, list_mode='all'):
                 model,
                 opt,
                 dl_train,
-                dl_val,
+                dl_test,
                 path,
                 cuda=False,
                 list_mode=list_mode)

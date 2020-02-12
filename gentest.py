@@ -9,7 +9,7 @@ import pathlib
 import numpy as np
 import torch
 
-import graph_models_v2 as gm
+import graph_models as gm
 
 from argparse import ArgumentParser
 

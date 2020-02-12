@@ -8,7 +8,7 @@ import pathlib
 import numpy as np
 import torch
 
-import graph_models_v2 as gm
+import graph_models as gm
 
 from argparse import ArgumentParser
 
@@ -33,7 +33,7 @@ parser.add_argument('-d', '--directory',
 parser.add_argument('-r', '--run-index',
                     dest='run_idx',
                     help='index of the run',
-                    default='final')
+                    default='N1')
 parser.add_argument('-c', '--curriculum',
                     dest='cur',
                     help='whether to use a curriculum of rotations',
@@ -67,7 +67,7 @@ n_layers = 1
 h = 16
 lr = 1e-3
 N = 1
-seeds = [0, 1, 2, 3, 4]
+seeds = [5, 6, 7, 8, 9, 10]
 n_epochs = 5
 H = 16
 
