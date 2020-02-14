@@ -180,7 +180,7 @@ def cur_run(m_idx, run_idx, params=params):
         torch.manual_seed(seed)
         model = gm.model_list_double[m_idx](*params)
         opt = torch.optim.Adam(model.parameters(), lr=lr)
-        res = model(g1, g2)
+        # res = model(g1, g2)
         one_run(
             dset,
             seed,

@@ -2,6 +2,7 @@
 Generates the config JSON object for the experiment runfile.
 """
 import os
+import re
 import json
 import graph_models as gm
 
@@ -14,23 +15,30 @@ parser.add_argument('-m', '--mode',
                     help='mode',
                     default='simple')
 
+args = parser.parse_args()
+
 # global, unchanging params
 
 config_folder = 'configs'
 F_OBJ = 10
 F_OUT = 2
 
+type_to_string = lambda t: re.search('^.+\.(\w+)\'>$', str(t))[1]
+
 empty_config = {
     'setting': None,
+    'expe_idx': None,
     'train_datasets': None,
     'train_dataset_indices': None,
     'test_datasets': None,
+    'test_dataset_indices': None,
     'seeds': None,
     'hparams': None,
-    'hparam_fn': None,
+    'hparam_list': None,
     'load_dir': None,
     'save_dir': None,
-    'models': None
+    'models': None,
+    'cuda': None
 }
 
 def default_hparam_fn(*args, **kwargs):
@@ -60,18 +68,18 @@ def simple_hparam_fn(*args, **kwargs):
         'f_u': F_OBJ,
         'h': H,
         'f_out': F_OUT}
-    if isinstance(m, gm.DeepSet):
+    if m == gm.DeepSet:
         return ([h] * 4, N, f_dict)
-    elif isinstance(m, gm.DeepSetplus):
+    elif m == gm.DeepSetPlus:
         return ([h] * 2, N, f_dict)
-    elif isinstance(m, gm.GNN_NAgg):
+    elif m == gm.GNN_NAgg:
         return ([h] * 1, N, f_dict)
 
 def get_default_simple_config(n_max=5, n_obj=5):
     simple_data_path = 'data/same_config_alt'
     d_path = os.listdir(simple_data_path)
     train = sorted(
-        [p for p in d_path if re.search(r'^{}_.+_10{4}$'.format(n_obj), p)])
+        [p for p in d_path if re.search(r'^{}_.+_.+0$'.format(n_obj), p)])
     test = sorted(
         [p for p in d_path if re.search(r'^{}_.+_test$'.format(n_obj), p)])
     # to limit the size of the datasets used
@@ -79,17 +87,28 @@ def get_default_simple_config(n_max=5, n_obj=5):
         train = train[:n_max]
     if not n_max == -1 and n_max <= len(test):
         test = test[:n_max]
+    model_list = [gm.DeepSet, gm.DeepSetPlus, gm.GNN_NAgg]
+    hparams = {
+        'h': 16,
+        'N': 1,
+        'lr': 1e-3,
+        'H': 16,
+        'n_layers': 1,
+        'n_epochs': 20}
     default_simple_config = {
         'setting': 'simple',
+        'expe_idx': 0,
         'train_datasets': train,
         'train_dataset_indices': list(range(len(train))),
-        'test_datasets': test
+        'test_datasets': test,
+        'test_dataset_indices': list(range(len(test))),
         'seeds': [1, 2, 3, 4, 5],
-        'hparams': {h: 16, N: 1; lr: 1e-3, H: 16, n_layers: 1, n_epochs=20},
-        'hparam_fn': simple_hparam_fn,
+        'hparams': hparams,
+        'hparam_list': [simple_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': 'data/same_config_alt',
         'save_dir': 'experimental_results/same_config_alt',
-        'models': [gm.DeepSet, gm.DeepSetPlus, gm.GNN_NAgg]
+        'models': [type_to_string(m) for m in model_list]
+        'cuda': False,
     }
     return default_simple_config
 
@@ -107,14 +126,15 @@ def double_hparam_fn(*args, **kwargs):
         'f_u': F_OBJ,
         'h': H,
         'f_out': F_OUT}
-    if m.component == 'DS':
+    if m in [gm.AlternatingDoubleDS, gm.RecurrentGraphEmbeddingDS]:
         return ([h] * 4, N, f_dict)
-    elif m.component == 'RDS':
+    elif m in [gm.AlternatingDoubleRDS, gm.RecurrentGraphEmbeddingRDS]:
         return ([h] * 2, N, f_dict)
-    elif m.component == 'MPGNN':
+    elif m in [gm.AlternatingDouble, gm.RecurrentGraphEmbedding]:
         return ([h] * 1, N, f_dict)
 
 def get_default_double_config(n_obj=5):
+    # TODO : nobj is not used
     double_data_path = 'data/compare_config_alt_cur'
     d_path = os.listdir(double_data_path)
     # change the following to deal with multiple curriculums
@@ -126,23 +146,61 @@ def get_default_double_config(n_obj=5):
     if not n_max == -1 and n_max <= len(test):
         test = test[:n_max]
     model_list = [
-        AlternatingDoubleDS,
-        AlternatingDoubleRDS,
-        AlternatingDouble,
-        RecurrentGraphEmbeddingDS
-        RecurrentGraphEmbeddingRDS,
-        RecurrentGraphEmbedding,
+        gm.AlternatingDoubleDS,
+        gm.AlternatingDoubleRDS,
+        gm.AlternatingDouble,
+        gm.RecurrentGraphEmbeddingDS,
+        gm.RecurrentGraphEmbeddingRDS,
+        gm.RecurrentGraphEmbedding,
     ]
+    hparams = {
+        'h': 16,
+        'N': 1,
+        'lr': 1e-3,
+        'H': 16,
+        'n_layers': 1,
+        'n_epochs': 5}
     default_double_config = {
         'setting': 'double',
+        'expe_idx': 1,
         'train_datasets': train,
-        'train_dataset_indices': [0],
-        'test_datasets': test
+        'train_dataset_indices': [0] * len(train),
+        'test_datasets': test,
+        'test_dataset_indices': [0],
         'seeds': [1, 2, 3, 4, 5, 6, 7, 8, 9],
-        'hparams': {h: 16, N: 1; lr: 1e-3, H: 16, n_layers: 1, n_epochs=5},
-        'hparam_fn': double_hparam_fn,
+        'hparams': hparams,
+        'hparam_fn': [double_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': 'data/compare_config_alt_cur',
         'save_dir': 'experimental_results/compare_config_alt_cur',
-        'models': model_list
+        'models': [type_to_string(m) for m in model_list]
+        'cuda': False,
     }
     return default_double_config
+
+########### easy_hard setting ##########
+
+########################################
+
+def export_config(mode=args.mode, n_obj=5, config_id=-1):
+    # if config_id is -1, just increments the max config found in the config 
+    # folder
+    if mode == 'simple':
+        config = get_default_simple_config(n_obj=n_obj)
+    elif mode == 'double':
+        config = get_default_double_config(n_obj=n_obj)
+    else:
+        config = empty_config
+    if config_id == -1:
+        # search max config id
+        paths = os.listdir(config_folder) # TODO : create if not there
+        search = lambda p: re.search(r'^config([0-9]+)$', p)
+        config_id = max(
+            [-1] + [int(search(p)[1]) for p in paths if search(p)]) + 1
+    path = os.path.join(config_folder, 'config%s' % config_id)
+    with open(path, 'w') as f:
+        f.write(json.dumps(config))
+
+def load_config(path):
+    with open(path, 'r') as f:
+        config = json.loads(f.readlines()[0])
+    return config
