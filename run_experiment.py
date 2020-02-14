@@ -9,7 +9,7 @@ import graph_models
 from argparse import ArgumentParser
 from pydoc import locate
 
-from run_utils import one_run, load_dl
+from run_utils import one_run, load_dl, load_model
 from generate_config import load_config
 
 parser = ArgumentParser()
@@ -36,6 +36,10 @@ model_list = config['models']
 hparam_list = config['hparam_list']
 hparams = config['hparams']
 cuda = config['cuda']
+try:
+    load_model = config['load_model']
+except KeyError:
+    load_model = False
 
 double = (config['setting'] == 'double')
 
@@ -46,8 +50,7 @@ def log(f, message):
 if __name__ == '__main__':
     path = op.join(s, 'expe%s' % expe_idx)
     # open log file
-    pathlib.Path(path).mkdir(
-        parents=True, exist_ok=True)
+    pathlib.Path(path).mkdir(parents=True, exist_ok=True)
     logfile = open(op.join(path, 'log'), 'w')
     log(logfile, 'started experiment {} at {}.\n'.format(
         expe_idx,

@@ -1,7 +1,10 @@
-configlist = [0]
+import os
+import re
 
-s = """
-#!/bin/sh
+paths = os.listdir('configs/')
+configlist = sorted([re.search(r'config([0-9]+)', p)[1] for p in paths])
+
+s = """#!/bin/sh
 #SBATCH --mincpus 12
 #SBATCH -p routage
 #SBATCH -t 60:00:00

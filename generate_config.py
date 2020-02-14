@@ -4,6 +4,8 @@ Generates the config JSON object for the experiment runfile.
 import os
 import re
 import json
+import pathlib
+
 import graph_models as gm
 
 from argparse import ArgumentParser
@@ -135,12 +137,12 @@ def double_hparam_fn(*args, **kwargs):
         return ([h] * 1, N, f_dict)
 
 def get_default_double_config(n_obj=5):
-    # TODO : nobj is not used
     double_data_path = 'data/compare_config_alt_cur'
     d_path = os.listdir(double_data_path)
     # change the following to deal with multiple curriculums
-    train_cur = sorted([p for p in d_path if re.search(r'^rotcur.+0$', p)])
-    test = ['rotcur4_5_0_10000_test']
+    train_cur = sorted([p for p in d_path if \
+        re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
+    test = ['rotcur4_{}_0_10000_test'.format(n_obj)]
     model_list = [
         gm.AlternatingDoubleDS,
         gm.AlternatingDoubleRDS,
@@ -195,22 +197,20 @@ def get_easy_hard_config():
     config['test_dataset_indices'] = list(range(5))
     return config
 
-def 
+def get_var_n_test_double_config():
+    config = get_default_double_config(n_obj=5)
+    config['load_model'] = True
+    config['train_datasets'] = []
+    config['train_dataset_indices'] = []
+    config['test_datasets'] = [''] # TODO : fill in this
+    config['test_dataset_indices'] = []
 
 ########################################
 
-def export_config(mode, n_obj=5, config_id=-1):
-    # if config_id is -1, just increments the max config found in the config 
-    # folder
-    if mode == 'simple':
-        config = get_default_simple_config(n_obj=n_obj)
-    elif mode == 'double':
-        config = get_default_double_config(n_obj=n_obj)
-    else:
-        config = empty_config
+def save_config(config, config_id=-1):
     if config_id == -1:
         # search max config id
-        paths = os.listdir(config_folder) # TODO : create if not there
+        paths = os.listdir(config_folder)
         search = lambda p: re.search(r'^config([0-9]+)$', p)
         config_id = max(
             [-1] + [int(search(p)[1]) for p in paths if search(p)]) + 1
@@ -218,6 +218,25 @@ def export_config(mode, n_obj=5, config_id=-1):
     path = os.path.join(config_folder, 'config%s' % config_id)
     with open(path, 'w') as f:
         f.write(json.dumps(config))
+
+def export_config(mode, n_obj=5, config_id=-1):
+    # if config_id is -1, just increments the max config found in the config 
+    # folder
+    pathlib.Path(config_folder).mkdir(parents=True, exist_ok=True)
+    if mode == 'simple':
+        config = get_default_simple_config(n_obj=n_obj)
+    elif mode == 'double':
+        config = get_default_double_config(n_obj=n_obj)
+    elif mode == 'double_var_n_obj':
+        n_obj_list = [10, 20]
+        config = [get_default_double_config(n_obj=n) for n in n_obj_list]
+    else:
+        config = empty_config
+    if isinstance(config, dict):
+        save_config(config, config_id)
+    elif isinstance(config, list):
+        for c in config:
+            save_config(c, -1)
 
 def load_config(path):
     with open(path, 'r') as f:

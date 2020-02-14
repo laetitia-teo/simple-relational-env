@@ -14,7 +14,7 @@ parser = ArgumentParser()
 parser.add_argument('-d', '--directory',
                     dest='directory',
                     help='directory for the generated datasets',
-                    default='data/compare_config_alt')
+                    default='data/compare_config_alt_cur')
 parser.add_argument('-Nc', '--number-configs',
                      dest='Nc',
                      help='number of different generated datasets',
@@ -22,7 +22,7 @@ parser.add_argument('-Nc', '--number-configs',
 parser.add_argument('-Ns', '--number-samples',
                      dest='Ns',
                      help='number of samples in each dataset',
-                     default='10000')
+                     default='100000')
 parser.add_argument('-No', '--number-objects',
                      dest='No',
                      help='number of objects in config',
@@ -30,11 +30,11 @@ parser.add_argument('-No', '--number-objects',
 parser.add_argument('-Nt', '--number-test',
                      dest='Nt',
                      help='number of samples in test dataset',
-                     default='5000')
+                     default='10000')
 parser.add_argument('-m', '--mode',
                      dest='mode',
                      help='simple or double dataset generation',
-                     default='double')
+                     default='rotcur')
 
 args = parser.parse_args()
 pi = np.pi
