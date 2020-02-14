@@ -106,7 +106,7 @@ def get_default_simple_config(n_max=5, n_obj=5):
         'hparams': hparams,
         'hparam_list': [simple_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': 'data/same_config_alt',
-        'save_dir': 'experimental_results/same_config_alt',
+        'save_dir': 'experimental_results/new',
         'models': [type_to_string(m) for m in model_list]
         'cuda': False,
     }
@@ -171,7 +171,7 @@ def get_default_double_config(n_obj=5):
         'hparams': hparams,
         'hparam_fn': [double_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': 'data/compare_config_alt_cur',
-        'save_dir': 'experimental_results/compare_config_alt_cur',
+        'save_dir': 'experimental_results/new',
         'models': [type_to_string(m) for m in model_list]
         'cuda': False,
     }

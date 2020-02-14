@@ -150,6 +150,25 @@ def plot_metrics(losses, accs, i, path):
 
 # training loops
 
+def test_and_save(dset, seed, prefix, model, opt, test_dl, cuda, test_idx=0):
+    l, a, i = one_step(
+        model,
+        opt,
+        test_dl,
+        criterion=criterion, 
+        train=False,
+        report_indices=True, 
+        cuda=cuda)
+    save_results(
+        l, op.join(prefix, 'data', '{}_{}_{}_test_loss.npy'.format(
+            test_idx, dset, seed)))
+    save_results(
+        a, op.join(prefix, 'data', '{}_{}_{}_test_acc.npy'.format(
+            test_idx, dset, seed)))
+    save_results(
+        i, op.join(prefix, 'data', '{}_{}_{}_test_indices.npy'.format(
+            test_idx, dset, seed)))
+
 def one_step(model,
              optimizer,
              dl,
@@ -233,6 +252,11 @@ def one_run(dset,
     seed :  random seed
     n : number of epochs
     prefix : path of the result directory.
+    dl and test_dl can be lists of dls:
+        if dl is a list the datasets will be trained on as a curriculum, with n
+        epochs on each.
+        if test_dl is a list, independent testing and saving will be performed
+        on each dl.
     """
     t0 = time.time()
     training_losses = []
@@ -276,23 +300,26 @@ def one_run(dset,
         training_accuracies,
         op.join(prefix, 'data', '{0}_{1}_train_acc.npy'.format(dset, seed)))
     # test
-    l, a, i = one_step(
-        model,
-        opt,
-        test_dl,
-        criterion=criterion, 
-        train=False,
-        report_indices=True, 
-        cuda=cuda)
-    save_results(
-        l, 
-        op.join(prefix, 'data', '{0}_{1}_val_loss.npy'.format(dset, seed)))
-    save_results(
-        a,
-        op.join(prefix, 'data', '{0}_{1}_val_acc.npy'.format(dset, seed)))
-    save_results(
-        i,
-        op.join(prefix, 'data', '{0}_{1}_val_indices.npy'.format(dset, seed)))
+    if isinstance(test_dl, DataLoader):
+        test_and_save(
+            dset,
+            seed,
+            prefix,
+            model,
+            opt,
+            test_dl,
+            cuda=cuda)
+    elif isinstance(test_dl, list):
+        for test_idx, test_d in test_dl:
+            test_and_save(
+                dset,
+                seed,
+                prefix,
+                model,
+                opt,
+                test_d,
+                cuda=cuda,
+                test_idx=test_idx)
     # save model
     save_model(
         model,

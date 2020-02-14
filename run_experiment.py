@@ -1,5 +1,6 @@
 import os.path as op
 import pathlib
+import time, datetime
 import torch
 
 import graph_models
@@ -35,23 +36,35 @@ hparams = config['hparams']
 cuda = config['cuda']
 
 if __name__ == '__main__':
-    # open log file
     path = op.join(s, 'expe%s' % expe_idx)
+    # open log file
+    logfile = open(op.join(path, 'log'), 'w')
+    logfile.write('started experiment {} at {}.\n'.format(
+        expe_idx,
+        str(datetime.datetime.now())))
+    logfile.write('config file at path : %s' % op.join('configs', args.config))
     for i in range(max(train_indices)):
+        logfile.write('\ntraining round %s\n' % i)
         # data loading
-        indices = [idx for idx, e in enumerate(train_indices) if e == i]
+        train_i = [idx for idx, e in enumerate(train_indices) if e == i]
         train_dls = [
-            load_dl(op.join(d, train_datasets[idx])) for idx in indices]
-        indices = [idx for idx, e in enumerate(test_indices) if e == i]
+            load_dl(op.join(d, train_datasets[idx])) for idx in train_i]
+        test_i = [idx for idx, e in enumerate(test_indices) if e == i]
         test_dls = [
-            load_dl(op.join(d, test_datasets[idx])) for idx in indices]
+            load_dl(op.join(d, test_datasets[idx])) for idx in test_i]
         ipath = op.join(path, 'run%s' % i)
+        logfile.write('train dls : {}\n'.format(
+            [train_datasets[idx] for idx in train_i]))
+        logfile.write('test dls : {}\n'.format(
+            [test_datasets[idx] for idx in test_i]))
         for seed in seeds:
+            logfile.write('\nseed %s\n' % seed)
             t0 = time.time()
             np.random.seed(seed)
             torch.manual_seed(seed)
             # models
             for m_idx, m_str in enumerate(model_list):
+                logfile.write('model %s\n' % m_str)
                 m = locate('graph_models.' + m_str)
                 model = m(*hparam_list[m_idx])
                 opt = torch.optim.Adam(model.parameters(), lr=hparams['lr'])
@@ -70,4 +83,8 @@ if __name__ == '__main__':
                     test_dls,
                     mpath,
                     cuda=cuda)
+                logfile.write('run completed, results saved in {}\n'.format(
+                    mpath))
+            logfile.write('training time for one seed %s' % time.time() - t0)
     # close log file
+    logfile.close()
