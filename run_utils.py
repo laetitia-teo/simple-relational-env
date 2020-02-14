@@ -310,7 +310,7 @@ def one_run(dset,
             test_dl,
             cuda=cuda)
     elif isinstance(test_dl, list):
-        for test_idx, test_d in test_dl:
+        for test_idx, test_d in enumerate(test_dl):
             test_and_save(
                 dset,
                 seed,
@@ -397,22 +397,16 @@ def plot_train_acc(run_idx, model_idx):
     plt.show()
     # return m, mi, ma
 
-def get_plot(model_idx, path, i='double'):
+def get_plot(model_name, path):
     """
     Plots, one by one, the curves of the different models.
     """
     done = False
-    if i == 'cur':
-        d = 'compare_config_alt_cur'
-    elif i == 'double':
-        d = 'compare_config_alt'
-    else:
-        d = 'same_config_alt'
+    
     directory = op.join(
         'experimental_results',
-        d,
         path,
-        'model%s' % model_idx,
+        model_name,
         'data')
     d_paths = os.listdir(directory)
     datalist = sorted(

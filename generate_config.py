@@ -15,7 +15,8 @@ parser.add_argument('-m', '--mode',
                     help='mode',
                     default='simple')
 
-args = parser.parse_args()
+if __name__ == '__main__':
+    args = parser.parse_args()
 
 # global, unchanging params
 
@@ -107,7 +108,7 @@ def get_default_simple_config(n_max=5, n_obj=5):
         'hparam_list': [simple_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': 'data/same_config_alt',
         'save_dir': 'experimental_results/new',
-        'models': [type_to_string(m) for m in model_list]
+        'models': [type_to_string(m) for m in model_list],
         'cuda': False,
     }
     return default_simple_config
@@ -139,12 +140,7 @@ def get_default_double_config(n_obj=5):
     d_path = os.listdir(double_data_path)
     # change the following to deal with multiple curriculums
     train_cur = sorted([p for p in d_path if re.search(r'^rotcur.+0$', p)])
-    test = 'rotcur4_5_0_10000_test'
-    # to limit the size of the datasets used
-    if not n_max == -1 and n_max <= len(train):
-        train = train[:n_max]
-    if not n_max == -1 and n_max <= len(test):
-        test = test[:n_max]
+    test = ['rotcur4_5_0_10000_test']
     model_list = [
         gm.AlternatingDoubleDS,
         gm.AlternatingDoubleRDS,
@@ -155,7 +151,7 @@ def get_default_double_config(n_obj=5):
     ]
     hparams = {
         'h': 16,
-        'N': 1,
+        'N': 2,
         'lr': 1e-3,
         'H': 16,
         'n_layers': 1,
@@ -163,25 +159,47 @@ def get_default_double_config(n_obj=5):
     default_double_config = {
         'setting': 'double',
         'expe_idx': 1,
-        'train_datasets': train,
-        'train_dataset_indices': [0] * len(train),
+        'train_datasets': train_cur,
+        'train_dataset_indices': [0] * len(train_cur),
         'test_datasets': test,
         'test_dataset_indices': [0],
-        'seeds': [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        'seeds': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         'hparams': hparams,
-        'hparam_fn': [double_hparam_fn(m, **hparams) for m in model_list],
+        'hparam_list': [double_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': 'data/compare_config_alt_cur',
         'save_dir': 'experimental_results/new',
-        'models': [type_to_string(m) for m in model_list]
+        'models': [type_to_string(m) for m in model_list],
         'cuda': False,
     }
     return default_double_config
 
-########### easy_hard setting ##########
+########### supplementary expes ##########
+
+def get_easy_hard_config():
+    config = get_default_simple_config()
+    config['load_dir'] = 'data/same_config_alt'
+    config['seeds'] = list(range(10))
+    config['train_datasets'] = [
+        'easy0_train',
+        'easy1_train',
+        '5_0_10000',
+        'hard0_train',
+        'hard1_train']
+    config['train_dataset_indices'] = list(range(5))
+    config['test_datasets'] = [
+        'easy0_test',
+        'easy1_test',
+        '5_0_5000_test',
+        'hard0_test',
+        'hard1_test']
+    config['test_dataset_indices'] = list(range(5))
+    return config
+
+def 
 
 ########################################
 
-def export_config(mode=args.mode, n_obj=5, config_id=-1):
+def export_config(mode, n_obj=5, config_id=-1):
     # if config_id is -1, just increments the max config found in the config 
     # folder
     if mode == 'simple':
@@ -196,6 +214,7 @@ def export_config(mode=args.mode, n_obj=5, config_id=-1):
         search = lambda p: re.search(r'^config([0-9]+)$', p)
         config_id = max(
             [-1] + [int(search(p)[1]) for p in paths if search(p)]) + 1
+    config['expe_idx'] = config_id
     path = os.path.join(config_folder, 'config%s' % config_id)
     with open(path, 'w') as f:
         f.write(json.dumps(config))
@@ -204,3 +223,6 @@ def load_config(path):
     with open(path, 'r') as f:
         config = json.loads(f.readlines()[0])
     return config
+
+if __name__ == '__main__':
+    export_config(args.mode)
