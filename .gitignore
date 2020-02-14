@@ -4,3 +4,4 @@ experimental_results/
 saves/
 validation_env/
 configs/
+launch*.sh
