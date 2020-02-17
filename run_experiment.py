@@ -103,5 +103,7 @@ if __name__ == '__main__':
                     mpath))
             log(logfile, 'training time for one seed %s\n' % (time.time() - t0))
     # close log file
-    log(logfile, 'finished experiment {} at {}'.format())
+    log(logfile, 'finished experiment {} at {}'.format(
+        expe_idx,
+        str(datetime.datetime.now())))
     logfile.close()
