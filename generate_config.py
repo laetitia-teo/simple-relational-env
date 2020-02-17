@@ -207,13 +207,20 @@ def get_easy_hard_config():
     config['test_dataset_indices'] = list(range(5))
     return config
 
-def get_var_n_test_double_config():
-    config = get_default_double_config(n_obj=5)
-    config['load_model'] = True
+def get_var_n_test_double_config(n_obj=5):
+    config = get_default_double_config(n_obj=n_obj)
+    double_data_path = 'data/compare_config_alt_cur'
+    d_path = os.listdir(double_data_path)
+    test = sorted(
+        [p for p in d_path if re.search(r'^testdouble_([0-9]+).*0$', p)],
+        key=lambda p: int(re.search(r'^testdouble_([0-9]+).*0$', p)[1]))
+    config['preload_model'] = True
+    config['load_idx'] = 2
     config['train_datasets'] = []
     config['train_dataset_indices'] = []
-    config['test_datasets'] = [''] # TODO : fill in this
-    config['test_dataset_indices'] = []
+    config['test_datasets'] = test
+    config['test_dataset_indices'] = [0] * len(test)
+    return config
 
 ########################################
 
@@ -229,7 +236,7 @@ def save_config(config, config_id=-1):
     with open(path, 'w') as f:
         f.write(json.dumps(config))
 
-def export_config(mode, n_obj=5, config_id=-1):
+def export_config(mode, n_obj=5, config_id=-1, cuda=False):
     """
     if config_id is -1, just increments the max config found in the config 
     folder
@@ -246,12 +253,18 @@ def export_config(mode, n_obj=5, config_id=-1):
         config = [get_default_double_config(n_obj=n) for n in n_obj_list]
     elif mode == 'double_parallel':
         config = get_double_parallel_config(n_obj=n_obj)
+    elif mode == 'test_double':
+        config = get_var_n_test_double_config(n_obj=n_obj)
     else:
         config = empty_config
     if isinstance(config, dict):
+        if cuda:
+            config['cuda'] = True
         save_config(config, config_id)
     elif isinstance(config, list):
         for c in config:
+            if cuda:
+                c['cuda'] = True
             save_config(c, -1)
 
 def load_config(path):

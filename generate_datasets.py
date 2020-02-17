@@ -116,3 +116,14 @@ if args.mode == 'rotcur':
             args.directory,
             'rotcur%s_%s_%s_%s_test' % (i, int(args.No), 0, int(args.Nt)))
         g.save(path)
+if args.mode == 'testdouble':
+    # generate test datasets for the double setting with different number of
+    # objects
+    n_obj_list = range(4, 21)
+    for n in n_obj_list:
+        g = gen.CompareConfigGen(n=n)
+        g.generate_alternative(int(args.Ns))
+        path = op.join(
+            args.directory,
+            'testdouble_%s_%s_%s' % (n, 0, int(args.Ns)))
+        g.save(path)

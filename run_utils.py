@@ -244,7 +244,8 @@ def one_run(dset,
             prefix,
             criterion=criterion,
             cuda=False,
-            list_mode='all'):
+            list_mode='all',
+            preload=False):
     """
     One complete training/testing run.
 
@@ -257,6 +258,8 @@ def one_run(dset,
         epochs on each.
         if test_dl is a list, independent testing and saving will be performed
         on each dl.
+    if load_model is True, tries to load the model corresponding to the dataset
+    and the seed. If it fails, an exception is raised.
     """
     t0 = time.time()
     training_losses = []
@@ -264,6 +267,10 @@ def one_run(dset,
     test_losses = []
     test_accuracies = []
     test_indices = []
+    if preload:
+        model = load_model(
+            model,
+            op.join(prefix, 'models', 'ds{0}_seed{1}.pt'.format(dset, seed)))
     # train model
     if isinstance(dl, DataLoader):
         for _ in range(n):

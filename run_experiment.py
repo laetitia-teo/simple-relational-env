@@ -1,3 +1,5 @@
+import os
+import shutil
 import os.path as op
 import pathlib
 import time, datetime
@@ -37,11 +39,24 @@ hparam_list = config['hparam_list']
 hparams = config['hparams']
 cuda = config['cuda']
 try:
-    load_model = config['load_model']
+    preload_model = config['preload_model']
+    load_idx = config['load_idx']
 except KeyError:
-    load_model = False
+    preload_model = False
 
 double = (config['setting'] == 'double')
+
+def copytree(src, dst):
+    if not os.path.exists(dst):
+        os.makedirs(dst)
+    for item in os.listdir(src):
+        s = os.path.join(src, item)
+        d = os.path.join(dst, item)
+        if os.path.isdir(s):
+            copytree(s, d, symlinks, ignore)
+        else:
+            if not os.path.exists(d) or os.stat(s).st_mtime - os.stat(d).st_mtime > 1:
+                shutil.copy2(s, d)
 
 def log(f, message):
     print(message, end='')
@@ -55,11 +70,17 @@ if __name__ == '__main__':
     log(logfile, 'started experiment {} at {}.\n'.format(
         expe_idx,
         str(datetime.datetime.now())))
+    if preload_model:
+        srcpath = op.join(s, 'expe%s' % load_idx)
     log(logfile, 'config file at path : %s\n' % op.join('configs', args.config))
     log(logfile, 'experiment details :\n\n')
     for k, v in config.items():
         log(logfile, '{} : {}\n'.format(k, v))
-    for i in range(max(train_indices) + 1):
+    try:
+        maxi = max(train_indices) + 1
+    except ValueError:
+        maxi = 1
+    for i in range(maxi):
         log(logfile, '\ntraining round %s\n' % i)
         # data loading
         train_i = [idx for idx, e in enumerate(train_indices) if e == i]
@@ -68,7 +89,6 @@ if __name__ == '__main__':
         test_i = [idx for idx, e in enumerate(test_indices) if e == i]
         test_dls = [
             load_dl(op.join(d, test_datasets[idx]), double) for idx in test_i]
-        ipath = op.join(path, 'run%s' % i)
         log(logfile, 'train dls : {}\n'.format(
             [train_datasets[idx] for idx in train_i]))
         log(logfile, 'test dls : {}\n'.format(
@@ -87,8 +107,12 @@ if __name__ == '__main__':
                 mpath = op.join(path, m_str)
                 pathlib.Path(op.join(mpath, 'data')).mkdir(
                     parents=True, exist_ok=True)
-                pathlib.Path(op.join(mpath, 'models')).mkdir(
-                    parents=True, exist_ok=True)
+                if not preload_model:
+                    pathlib.Path(op.join(mpath, 'models')).mkdir(
+                        parents=True, exist_ok=True)
+                else:
+                    srcmpath = op.join(srcpath, m_str, 'models')
+                    copytree(srcmpath, op.join(mpath, 'models'))
                 one_run(
                     i,
                     seed,
@@ -98,7 +122,8 @@ if __name__ == '__main__':
                     train_dls,
                     test_dls,
                     mpath,
-                    cuda=cuda)
+                    cuda=cuda,
+                    preload=preload_model)
                 log(logfile, 'run completed, results saved in {}\n'.format(
                     mpath))
             log(logfile, 'training time for one seed %s\n' % (time.time() - t0))
