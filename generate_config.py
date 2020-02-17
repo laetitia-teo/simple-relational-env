@@ -175,6 +175,16 @@ def get_default_double_config(n_obj=5):
     }
     return default_double_config
 
+def get_double_parallel_config(n_obj=5):
+    config = get_default_double_config(n_obj=n_obj)
+    configlist = []
+    for h, m in zip(config['hparam_list'], config['models']):
+        d = dict(config)
+        d['models'] = [m]
+        d['hparam_list'] = [h]
+        configlist.append(d)
+    return configlist
+
 ########### supplementary expes ##########
 
 def get_easy_hard_config():
@@ -220,8 +230,12 @@ def save_config(config, config_id=-1):
         f.write(json.dumps(config))
 
 def export_config(mode, n_obj=5, config_id=-1):
-    # if config_id is -1, just increments the max config found in the config 
-    # folder
+    """
+    if config_id is -1, just increments the max config found in the config 
+    folder
+    if parallel is True, then we have several config files they are counted as
+    the same expe, and saved in the same directory.
+    """
     pathlib.Path(config_folder).mkdir(parents=True, exist_ok=True)
     if mode == 'simple':
         config = get_default_simple_config(n_obj=n_obj)
@@ -230,6 +244,8 @@ def export_config(mode, n_obj=5, config_id=-1):
     elif mode == 'double_var_n_obj':
         n_obj_list = [10, 20]
         config = [get_default_double_config(n_obj=n) for n in n_obj_list]
+    elif mode == 'double_parallel':
+        config = get_double_parallel_config(n_obj=n_obj)
     else:
         config = empty_config
     if isinstance(config, dict):
