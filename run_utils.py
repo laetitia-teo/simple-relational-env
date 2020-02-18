@@ -13,6 +13,8 @@ import baseline_models as bm
 import graph_models as gm
 
 from tqdm import tqdm
+from pydoc import locate
+
 from torch.utils.data import DataLoader
 try:
     from torch_geometric.data import Data
@@ -28,6 +30,7 @@ from graph_utils import tensor_to_graphs
 from graph_utils import data_to_graph_simple, data_to_graph_double
 from graph_utils import state_list_to_graph
 from graph_utils import merge_graphs
+from generate_config import load_config, type_to_string
 
 # viz
 
@@ -96,12 +99,12 @@ def data_to_clss_parts(data):
 
 def load_dl(dpath, double=False):
     if not double:
-        gen = SameConfigGen()
+        g = SameConfigGen()
     if double:
-        gen = CompareConfigGen()
-    gen.load(dpath)
+        g = CompareConfigGen()
+    g.load(dpath)
     dl = DataLoader(
-            gen.to_dataset(),
+            g.to_dataset(),
             shuffle=True,
             batch_size=B_SIZE,
             collate_fn=collate_fn)
@@ -530,7 +533,35 @@ def hardness_dsets(run_idx):
         axs[j, k].set_title(s)
     plt.show()
 
-def get_heat_map_simple(model, gen):
+def models_from_config(config_idx):
+    config = load_config(op.join('configs', 'config%s' % config_idx))
+    model_list = []
+    for m_str, params in zip(config['models'], config['hparam_list']):
+        m = locate('graph_models.' + m_str)(*params)
+        model_list.append(m)
+    return model_list
+
+def load_models_from_config(dset, seed, config_idx):
+    # index of experiment is same as index of config
+    config = load_config(op.join('configs', 'config%s' % config_idx))
+    path = op.join(
+        config['save_dir'],
+        'expe%s' % config_idx)
+    model_list = models_from_config(config_idx)
+    loaded_models = []
+    for m_str, m in zip(config['models'], model_list):
+        mpath = op.join(
+            path,
+            m_str,
+            'models',
+            'ds{}_seed{}.pt'.format(dset, seed))
+        m = load_model(m, mpath)
+        loaded_models.append(m)
+    return loaded_models
+
+#################### heatmaps for simple setting ##############################
+
+def get_heat_map_simple(model, g):
     """
     Plots the heat maps of the difference between the positive and negative
     classes as a function of the position of one of the objects in the scene,
@@ -540,10 +571,11 @@ def get_heat_map_simple(model, gen):
     generator gen has the reference configuration loaded in its ref_state_list
     attribute.
     """
-    n = gen.env.envsize * gen.env.gridsize
+    a = 2
+    n = g.env.envsize * a
     matlist = []
-    s = gen.ref_state_list[2:] # fix the reading
-    pos_idx = [gen.env.N_SH+4, gen.env.N_SH+5]
+    s = g.ref_state_list[2:] # fix the reading
+    pos_idx = [g.env.N_SH+4, g.env.N_SH+5]
     for state in s:
         mem = state[pos_idx]
         mat = np.zeros((0, n))
@@ -551,12 +583,12 @@ def get_heat_map_simple(model, gen):
             glist = []
             t = time.time()
             for y in range(n):
-                state[pos_idx] = np.array([x / gen.env.gridsize,
-                                           y / gen.env.gridsize])
+                state[pos_idx] = np.array([x / a,
+                                           y / a])
                 glist.append(state_list_to_graph(s))
-            g = merge_graphs(glist)
+            graph = merge_graphs(glist)
             with torch.no_grad():
-                pred = model(g)
+                pred = model(graph)
             if isinstance(pred, list):
                 pred = pred[-1]
             pred = pred.numpy()
@@ -565,19 +597,171 @@ def get_heat_map_simple(model, gen):
             mat = np.concatenate((mat, pred), 0)
         state[pos_idx] = mem
         matlist.append(mat) # maybe change data format here
-    poslist = [state[pos_idx] * gen.env.gridsize for state in s]
+    poslist = [state[pos_idx] * a for state in s]
     return matlist, poslist
 
-def plot_heat_map_simple(model, gen):
-    matlist, poslist = get_heat_map_simple(model, gen)
+def plot_heat_map_simple(model, g, save=False, show=True, **kwargs):
+    matlist, poslist = get_heat_map_simple(model, g)
+    maxval = max([np.max(mat) for mat in matlist])
+    minval = min([np.min(mat) for mat in matlist])
+    maxval = min(5, maxval)
+    minval = max(-5, minval)
     # careful, this works only for the first five objects
-    fig, axs = plt.subplots(1, 5, constrained_layout=True)
+    fig, axs = plt.subplots(1, 5, constrained_layout=True, figsize=(14, 3))
     for i, mat in enumerate(matlist):
-        axs[i].matshow(mat)
+        axs[i].set_axis_off()
+        im = axs[i].matshow(mat, vmin=minval, vmax=maxval, cmap='inferno')
         for j, pos in enumerate(poslist):
             if j == i:
-                axs[i].scatter(pos[1], pos[0], color='r')
+                axs[i].scatter(pos[1], pos[0], color='cyan')
             else:
                 axs[i].scatter(pos[1], pos[0], color='b')
-        axs[i].set_title('object %s' % i)
-    plt.show()
+            # fig.colorbar(im)
+        # axs[i].set_title('object %s' % i)
+    cbar = fig.colorbar(im, ax=axs.ravel().tolist())
+    if show:
+        plt.show()
+    if save:
+        directory = op.join('images', 'heatmaps', 'simple')
+        seed = kwargs['seed']
+        dset = kwargs['dset']
+        expe = kwargs['expe']
+        modl = type_to_string(type(model))
+        name = 'expe{}_dset{}_seed{}_{}.png'.format(expe, dset, seed, modl)
+        plt.savefig(op.join(directory, name))
+        plt.close()
+
+def plot_heat_map_simple_several_models(model_list,
+                                        g,
+                                        save=False,
+                                        show=True,
+                                        **kwargs):
+    for m in model_list:
+        print(type_to_string(type(m)))
+        plot_heat_map_simple(m, g, save=save, show=show, **kwargs)
+
+def plot_heatmap_simple_all(config_idx):
+    g = gen.SameConfigGen()
+    config = load_config(op.join('configs', 'config%s' % config_idx))
+    for dset in range(5):
+        g.load(op.join(config['load_dir'], config['test_datasets'][dset]))
+        directory = op.join('images', 'heatmaps', 'simple')
+        path = op.join(directory, 'dset%s.png' % dset)
+        img = g.render_ref_state(show=False)
+        img = np.flip(img, 0)
+        cv2.imwrite(path, img)
+        for seed in range(5):
+            seed = seed
+            model_list = load_models_from_config(dset, seed, config_idx)
+            plot_heat_map_simple_several_models(
+                model_list,
+                g,
+                save=True,
+                show=False,
+                seed=seed,
+                expe=config_idx,
+                dset=dset)
+        g.reset()
+
+#################### heatmaps for double setting ##############################
+
+def get_heat_map_double(model, n_obj, s=None):
+    a = 2
+    env = Env()
+    n = env.envsize * a
+    matlist = []
+    if s is None:
+        env = Env()
+        env.random_config(n_obj)
+        s = env.to_state_list(norm=True)
+    graph1 = merge_graphs([state_list_to_graph(s)] * n)
+    pos_idx = [env.N_SH+4, env.N_SH+5]
+    for state in s:
+        mem = state[pos_idx]
+        mat = np.zeros((0, n))
+        for x in tqdm(range(n)):
+            glist = []
+            t = time.time()
+            for y in range(n):
+                state[pos_idx] = np.array([x / a,
+                                           y / a])
+                glist.append(state_list_to_graph(s))
+            graph2 = merge_graphs(glist)
+            with torch.no_grad():
+                pred = model(graph1, graph2)
+            if isinstance(pred, list):
+                pred = pred[-1]
+            pred = pred.numpy()
+            pred = pred[..., 1] - pred[..., 0]
+            pred = np.expand_dims(pred, 0)
+            mat = np.concatenate((mat, pred), 0)
+        state[pos_idx] = mem
+        matlist.append(mat) # maybe change data format here
+    poslist = [state[pos_idx] * a for state in s]
+    return matlist, poslist
+
+def plot_heat_map_double(model, n_obj, s, save=False, show=True, **kwargs):
+    matlist, poslist = get_heat_map_double(model, n_obj, s)
+    maxval = max([np.max(mat) for mat in matlist])
+    minval = min([np.min(mat) for mat in matlist])
+    maxval = min(5, maxval)
+    minval = max(-5, minval)
+    # careful, this works only for the first five objects
+    fig, axs = plt.subplots(1, 5, constrained_layout=True, figsize=(14, 3))
+    for i, mat in enumerate(matlist):
+        axs[i].set_axis_off()
+        im = axs[i].matshow(mat, vmin=minval, vmax=maxval, cmap='inferno')
+        for j, pos in enumerate(poslist):
+            if j == i:
+                axs[i].scatter(pos[1], pos[0], color='cyan')
+            else:
+                axs[i].scatter(pos[1], pos[0], color='b')
+            # fig.colorbar(im)
+        # axs[i].set_title('object %s' % i)
+    cbar = fig.colorbar(im, ax=axs.ravel().tolist())
+    if show:
+        plt.show()
+    if save:
+        directory = op.join('images', 'heatmaps', 'double')
+        seed = kwargs['seed']
+        draw = kwargs['draw']
+        expe = kwargs['expe']
+        modl = type_to_string(type(model))
+        name = 'expe{}_draw{}_seed{}_{}.png'.format(expe, draw, seed, modl)
+        plt.savefig(op.join(directory, name))
+        plt.close()
+
+def plot_heat_map_double_several_models(model_list,
+                                        n_obj,
+                                        s,
+                                        save=False,
+                                        show=True,
+                                        **kwargs):
+    for m in model_list:
+        print(type_to_string(type(m)))
+        plot_heat_map_double(m, n_obj, s, save=save, show=show, **kwargs)
+
+def plot_heatmap_double_all(config_idx, n_obj=5, n_draws=5):
+    config = load_config(op.join('configs', 'config%s' % config_idx))
+    env = Env()
+    for draw in range(n_draws):
+        env.random_config(n_obj)
+        s = env.to_state_list(norm=True)
+        directory = op.join('images', 'heatmaps', 'double')
+        path = op.join(directory, 'draw%s.png' % draw)
+        img = env.render(show=False, mode='envsize')
+        img = np.flip(img, 0)
+        cv2.imwrite(path, img)
+        for seed in range(5):
+            seed = seed
+            model_list = load_models_from_config(0, seed, config_idx)
+            plot_heat_map_double_several_models(
+                model_list,
+                n_obj=n_obj,
+                s=s,
+                save=True,
+                show=False,
+                seed=seed,
+                expe=config_idx,
+                draw=draw)
+        env.reset()

@@ -227,7 +227,7 @@ class Env(AbstractEnv):
     """
     Class for the implementation of the environment.
     """
-    def __init__(self, gridsize=16, envsize=1):
+    def __init__(self, gridsize=16, envsize=20):
         """
         Arguments :
 
@@ -491,6 +491,27 @@ class Env(AbstractEnv):
                 mat[xmin:xmax, ymin:ymax] = overlay(
                     mat[xmin:xmax, ymin:ymax],
                     obj_mat)
+        if mode == 'envsize':
+            L = self.L
+            mat = np.zeros((L, L, 3))
+            l = self.L
+            for obj in self.objects:
+                obj_mat = obj.to_pixels(self.gridsize)
+                s = len(obj_mat) # size of object in pixel space
+                ox, oy = ((self.gridsize * obj.pos) - int(s/2)).astype(int)
+                obj_mat = obj_mat[..., :] * np.expand_dims(obj_mat[..., 3], -1)
+                # indices
+                xmin = max(ox, 0)
+                xmax = max(ox + s, 0)
+                ymin = max(oy, 0)
+                ymax = max(oy + s, 0)
+                xminobj = max(-ox, 0)
+                xmaxobj = max(L - ox, 0)
+                yminobj = max(-oy, 0)
+                ymaxobj = max(L - oy, 0)
+                mat[xmin:xmax, ymin:ymax] = overlay(
+                    mat[xmin:xmax, ymin:ymax],
+                    obj_mat[xminobj:xmaxobj, yminobj:ymaxobj])
         mat = np.flip(mat, axis=0)
         mat = mat.astype(int)
         if show:

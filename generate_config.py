@@ -105,7 +105,7 @@ def get_default_simple_config(n_max=5, n_obj=5):
         'train_dataset_indices': list(range(len(train))),
         'test_datasets': test,
         'test_dataset_indices': list(range(len(test))),
-        'seeds': [1, 2, 3, 4, 5],
+        'seeds': [0, 1, 2, 3, 4],
         'hparams': hparams,
         'hparam_list': [simple_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': 'data/same_config_alt',
@@ -255,6 +255,8 @@ def export_config(mode, n_obj=5, config_id=-1, cuda=False):
         config = get_double_parallel_config(n_obj=n_obj)
     elif mode == 'test_double':
         config = get_var_n_test_double_config(n_obj=n_obj)
+    elif mode == 'easy_hard':
+        config = get_easy_hard_config()
     else:
         config = empty_config
     if isinstance(config, dict):

@@ -1491,6 +1491,15 @@ class SameConfigGen(Gen):
             img = self.env.render(mode=mode, show=False)
             cv2.imwrite(op.join(path, 'img_%s.jpg' % i), img)
 
+    def render_ref_state(self, show=True):
+        # buggy ref state list
+        ref_state_list = [a for a in self.ref_state_list if a.any()]
+        self.env.reset()
+        self.env.from_state_list(ref_state_list, norm=True)
+        img = self.env.render(show=show, mode='envsize')
+        self.env.reset()
+        return img
+
 class CompareConfigGen(Gen):
     """
     Generator for the 'compare_config' setup.
