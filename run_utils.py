@@ -9,7 +9,6 @@ import matplotlib.gridspec as gridspec
 import torch
 
 import gen
-import baseline_models as bm
 import graph_models as gm
 
 from tqdm import tqdm
@@ -25,7 +24,6 @@ except:
 
 from gen import SameConfigGen, CompareConfigGen
 from dataset import collate_fn, make_collate_fn
-from baseline_utils import data_to_obj_seq_parts
 from graph_utils import tensor_to_graphs
 from graph_utils import data_to_graph_simple, data_to_graph_double
 from graph_utils import state_list_to_graph
@@ -35,7 +33,6 @@ from generate_config import load_config, type_to_string
 # viz
 
 from env import Env
-from test_utils import ModelPlayground
 
 # params
 
@@ -458,7 +455,7 @@ def batch_to_images(data, path, mod='one'):
 
 # aggregate metrics
 
-def model_metrics(run_idx, double=True):
+def model_metrics_old(run_idx, double=True):
     """
     Plots a histogram of accuracies, accuracies and stds for each dataset, for
     each model in the considered directory.
@@ -497,7 +494,28 @@ def model_metrics(run_idx, double=True):
         axs[j, k].set_title(s)
     plt.show()
 
-def hardness_dsets(run_idx):
+def model_metrics(expe_idx, n_test=0):
+    config = load_config(op.join('configs', 'config%s' % expe_idx))
+    path = op.join(config['save_dir'], 'expe%s' % expe_idx)
+    for m_str in config['models']:
+        mpath = op.join(path, m_str, 'data')
+        d_paths = os.listdir(mpath)
+        mdata = []
+        for p in d_paths:
+            s = re.search(
+                r'^{}_([0-9]+)_([0-9]+)_test_acc.npy$'.format(n_test), p)
+            if s:
+                # file name, dataset number, seed number
+                mdata.append((s[0], int(s[1]), int(s[2])))
+        aa = [np.mean(np.load(op.join(mpath, m[0]))) for m in mdata]
+        std = str(np.around(np.std(aa), 3))[:5]
+        mean_acc = str(np.around(np.mean(aa), 2))[:4]
+        plt.hist(aa, bins=20)
+        title = m_str + '; {0} +- {1}'.format(mean_acc, std)
+        plt.title(title)
+        plt.show()
+
+def hardness_dsets_old(run_idx):
     """
     Plots, for each model, the mean accuracy (over the random seeds) over each
     dataset.
@@ -532,6 +550,37 @@ def hardness_dsets(run_idx):
         axs[j, k].set_xticklabels(np.arange(len(means)))
         axs[j, k].set_title(s)
     plt.show()
+
+def hardness_dsets(expe_idx, n_test=0):
+    """
+    Plots, for each model, the mean accuracy (over the random seeds) over each
+    dataset.
+    """
+    config = load_config(op.join('configs', 'config%s' % expe_idx))
+    path = op.join(config['save_dir'], 'expe%s' % expe_idx)
+    for m_str in config['models']:
+        mpath = op.join(path, m_str, 'data')
+        d_paths = os.listdir(mpath)
+        mdata = []
+        for p in d_paths:
+            s = re.search(
+                r'^{}_([0-9]+)_([0-9]+)_test_acc.npy$'.format(n_test), p)
+            if s:
+                # file name, dataset number, seed number
+                mdata.append((s[0], int(s[1]), int(s[2])))
+        means = []
+        Ndsets = max([m[1] for m in mdata])
+        for h in range(Ndsets + 1):
+            l = [np.load(op.join(mpath, m[0])) for m in mdata if m[1] == h]
+            means.append(np.mean(np.array(l)))
+        plt.bar(np.arange(len(means)), means)
+        print(means)
+        mean_acc = np.mean(means)
+        mean_acc = str(np.around(mean_acc, 2))
+        # title = m_str + '; acc : {}'.format(mean_acc)
+        # plt.xticklabels(np.arange(len(means)))
+        # plt.title(title)
+        plt.show()
 
 def models_from_config(config_idx):
     config = load_config(op.join('configs', 'config%s' % config_idx))

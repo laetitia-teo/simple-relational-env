@@ -16,6 +16,10 @@ parser.add_argument('-m', '--mode',
                     dest='mode',
                     help='mode',
                     default='simple')
+parser.add_argument('-n', '--n-objects',
+                    dest='n_obj',
+                    help='number of objects',
+                    default='5')
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -275,4 +279,9 @@ def load_config(path):
     return config
 
 if __name__ == '__main__':
-    export_config(args.mode)
+    try:
+        n = int(args.n_obj)
+    except ValueError:
+        print('Please provide a valid number for the -n flag.')
+        raise
+    export_config(args.mode, n_obj=n)

@@ -1496,7 +1496,9 @@ class SameConfigGen(Gen):
         ref_state_list = [a for a in self.ref_state_list if a.any()]
         self.env.reset()
         self.env.from_state_list(ref_state_list, norm=True)
+        self.env.scale(amount=0.7)
         img = self.env.render(show=show, mode='envsize')
+        img = np.flip(img, -1)
         self.env.reset()
         return img
 
