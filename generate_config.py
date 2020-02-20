@@ -20,6 +20,10 @@ parser.add_argument('-n', '--n-objects',
                     dest='n_obj',
                     help='number of objects',
                     default='5')
+parser.add_argument('-l', '--load_model',
+                    dest='l',
+                    help='index of the config to load, if appropriate',
+                    default='2')
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -211,7 +215,7 @@ def get_easy_hard_config():
     config['test_dataset_indices'] = list(range(5))
     return config
 
-def get_var_n_test_double_config(n_obj=5):
+def get_var_n_test_double_config(n_test, n_obj=5):
     config = get_default_double_config(n_obj=n_obj)
     double_data_path = 'data/compare_config_alt_cur'
     d_path = os.listdir(double_data_path)
@@ -240,7 +244,7 @@ def save_config(config, config_id=-1):
     with open(path, 'w') as f:
         f.write(json.dumps(config))
 
-def export_config(mode, n_obj=5, config_id=-1, cuda=False):
+def export_config(mode, n_obj=5, config_id=-1, cuda=False, n_test=None):
     """
     if config_id is -1, just increments the max config found in the config 
     folder
@@ -258,7 +262,10 @@ def export_config(mode, n_obj=5, config_id=-1, cuda=False):
     elif mode == 'double_parallel':
         config = get_double_parallel_config(n_obj=n_obj)
     elif mode == 'test_double':
-        config = get_var_n_test_double_config(n_obj=n_obj)
+        if n_test is None:
+            raise Exception('Please provide a configuration file index to ' +\
+                'load from using the -l flag.')
+        config = get_var_n_test_double_config(n_test=2, n_obj=n_obj)
     elif mode == 'easy_hard':
         config = get_easy_hard_config()
     else:
@@ -284,4 +291,5 @@ if __name__ == '__main__':
     except ValueError:
         print('Please provide a valid number for the -n flag.')
         raise
-    export_config(args.mode, n_obj=n)
+    n_test = args.l
+    export_config(args.mode, n_obj=n, n_test=n_test)
