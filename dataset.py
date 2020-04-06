@@ -15,6 +15,7 @@ import utils as ut
 import graph_utils as gu
 
 from tqdm import tqdm
+from scipy.sparse import coo_matrix
 from torch.utils.data import Dataset
 
 N_SH = 3
@@ -161,11 +162,9 @@ class PartsDataset(Dataset):
                  refs,
                  r_batch,
                  labels,
-                 indices=None,
-                 task_type='scene',
-                 label_type='long',
                  device=torch.device('cpu'),
-                 create_ei=True):
+                 task_type='scene',
+                 **kwargs):
         """
         Initializes the Parts Dataset.
         The inputs are the outputs of the Parts generator, defined in the gen
@@ -182,27 +181,24 @@ class PartsDataset(Dataset):
         if label_type == 'float':
             LABELTYPE = DTYPE
 
+        self.N = t_batch[-1] + 1
+
         self.targets = torch.tensor(targets, dtype=DTYPE, device=device)
         self.t_batch = torch.tensor(t_batch, dtype=ITYPE, device=device)
         self.refs = torch.tensor(refs, dtype=DTYPE, device=device)
         self.r_batch = torch.tensor(r_batch, dtype=ITYPE, device=device)
         self.labels = torch.tensor(labels, dtype=LABELTYPE, device=device)
 
-        if indices is None:
-            self.t_idx = []
-            self.r_idx = []
-            # build lists of all the indices corresponding to one set of
-            # (target, reference, label) for efficient access
-            # this is O(n^2) ! fix this
-            for idx in range(t_batch[-1]):
-                t = (self.t_batch == idx).nonzero(as_tuple=True)[0]
-                r = (self.r_batch == idx).nonzero(as_tuple=True)[0]
-                self.t_idx.append(t)
-                self.r_idx.append(r)
-        else:
-            t_idx, r_idx = indices
-            self.t_idx = t_idx
-            self.r_idx = r_idx
+        t_coo = coo_matrix(
+            np.empty((N,)),
+            t_batch,
+            np.arange(N))
+        self.t_ch_idx = torch.tensor(t_coo.to_csr.indptr, device=device)
+        r_coo = coo_matrix(
+            np.empty((N,)),
+            r_batch,
+            np.arange(N))
+        self.r_ch_idx = torch.tensor(r_coo.to_csr.indptr, device=device)
 
         self.get = self._get_maker()
 
@@ -210,18 +206,19 @@ class PartsDataset(Dataset):
         get = None
         if self.task_type == 'scene':
             def get(idx):
-                target = self.targets[self.t_idx[idx]]
-                ref = self.refs[self.r_idx[idx]]
-                label = self.labels[idx]
-                return target, ref, label, torch.tensor([idx])
+                tbidx, teidx = self.t_ch_idx[idx], self.t_ch_idx[idx + 1]
+                rbidx, reidx = self.r_ch_idx[idx], self.r_ch_idx[idx + 1]
+                target = self.targets[tbidx:teidx]
+                ref = self.refs[rbidx:reidx]
+                return target, ref, self.labels[idx], torch.tensor([idx])
         if self.task_type == 'object':
             def get(idx):
-                target = self.targets[self.t_idx[idx]]
-                ref = self.refs[self.r_idx[idx]]
-                label = self.labels[self.r_idx[idx]]
-                return target, ref, label, torch.tensor([idx])
-        return get
-
+                tbidx, teidx = self.t_ch_idx[idx], self.t_ch_idx[idx + 1]
+                rbidx, reidx = self.r_ch_idx[idx], self.r_ch_idx[idx + 1]
+                target = self.targets[tbidx:teidx]
+                labels = self.labels[tbidx:teidx]
+                ref = self.refs[rbidx:reidx]
+                return target, ref, labels, torch.tensor([idx])
     def __len__(self):
         return self.t_batch[-1] + 1
 

@@ -127,3 +127,5 @@ if args.mode == 'testdouble':
             args.directory,
             'testdouble_%s_%s_%s' % (n, 0, int(args.Ns)))
         g.save(path)
+if args.mode == 'simple_perturb':
+    
