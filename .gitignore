@@ -5,3 +5,4 @@ saves/
 validation_env/
 configs/
 launch*.sh
+__pycache__
