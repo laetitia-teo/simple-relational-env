@@ -9,7 +9,7 @@ def data_to_obj_seq_parts(data):
     Transforms the output of the Parts dataset DataLoader into sequences of 
     objects, to be fed to a LSTM.
     """
-    x1, x2, labels, batch1, batch2 = data
+    x1, x2, labels, indices, batch1, batch2 = data
     f_x = x1.shape[-1]
     max_size1 = 4 # max number of objects in a target scene
     max_size2 = 13 # maximum number of objects in a ref scene
@@ -25,7 +25,7 @@ def data_to_obj_seq_parts(data):
         # ith batch
         ith = (batch1 == i).nonzero(as_tuple=True)
         s = torch.zeros((max_size1, f_x))
-        s[:len(ith)] = x[ith]
+        s[:len(ith)] = x1[ith]
         seq1 = torch.cat([seq1, s], 1)
 
     # same for reference objects
@@ -34,7 +34,7 @@ def data_to_obj_seq_parts(data):
         # ith batch
         ith = (batch2 == i).nonzero(as_tuple=True)
         s = torch.zeros((max_size2, f_x))
-        s[:len(ith)] = x[ith]
+        s[:len(ith)] = x2[ith]
         seq2 = torch.cat([seq2, s], 1)
 
     return seq1, seq2

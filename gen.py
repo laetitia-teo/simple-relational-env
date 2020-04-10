@@ -245,13 +245,7 @@ class Gen():
         Computes lists of target and reference indices for downsream efficient
         access. Computation-intensive.
         """
-        self.t_idx = []
-        self.r_idx = []
-        t_batch = torch.tensor(self.t_batch, dtype=torch.float32)
-        r_batch = torch.tensor(self.r_batch, dtype=torch.float32)
-        for idx in tqdm(range(len(self.labels))):
-            self.t_idx.append((t_batch == idx).nonzero(as_tuple=True)[0])
-            self.r_idx.append((r_batch == idx).nonzero(as_tuple=True)[0])
+        pass
 
     def gen_one(self):
         raise NotImplementedError()
@@ -479,10 +473,6 @@ class Gen():
         """
         Saves the dataset as a file. 
         """
-        if write_indices and not self.t_idx:
-            print('computing access indices...')
-            self.compute_access_indices()
-            print('done')
         with open(path, 'w') as f:
             self.write_targets(f)
             self.write_refs(f)
@@ -503,15 +493,6 @@ class Gen():
             targets, t_batch = self.read_targets(lineit)
             refs, r_batch = self.read_refs(lineit)
             labels = self.read_labels(lineit)
-            if read_indices:
-                try:
-                    t_idx = self.read_t_idx(lineit)
-                    r_idx = self.read_r_idx(lineit)
-                except StopIteration:
-                    print('No indices were found but the generator was '\
-                        + 'asked to read them. Index lists are empty.')
-                    t_idx = []
-                    r_idx = []
         self.read_metadata(path)
         # stores the data
         if replace:
@@ -520,9 +501,9 @@ class Gen():
             self.refs = refs
             self.r_batch = r_batch
             self.labels = labels
-            if read_indices:
-                self.t_idx = t_idx
-                self.r_idx = r_idx
+            # if read_indices:
+            #     self.t_idx = t_idx
+            #     self.r_idx = r_idx
         else:
             # this doesn't work as is, need to update indices
             self.targets += targets
@@ -538,18 +519,12 @@ class Gen():
         Arguments :
             - n (int) : allows to contol the dataset size for export.
         """
-        if self.t_idx == []:
-            indices = None
-        else:
-            indices = (self.t_idx, self.r_idx)
         ds = PartsDataset(self.targets,
                           self.t_batch,
                           self.refs,
                           self.r_batch,
                           self.labels,
-                          indices,
                           self.task_type,
-                          self.label_type,
                           device=device)
         return ds
 
@@ -1257,6 +1232,7 @@ class SameConfigGen(Gen):
             n_p = np.random.randint(len(self.env.objects))
             spert = self.env.small_perturb_objects(self.eps)
             pert = self.env.perturb_objects(n_p)
+            self.shuffle_objects()
             vec, scale, phi = self.env.random_transformation()
         state = self.env.to_state_list(norm=True)
         return state, label, vec, scale, phi, spert, pert
@@ -1283,6 +1259,7 @@ class SameConfigGen(Gen):
             spert = self.env.small_perturb_objects(self.eps)
             pert = [np.zeros(2)] * len(self.ref_state_list)
             self.env.random_mix()
+            self.env.shuffle_objects()
             # pert = self.env.perturb_objects(n_p)
             vec, scale, phi = self.env.random_transformation(
                 rotations=True,
@@ -1509,7 +1486,7 @@ class CompareConfigGen(Gen):
     It has the same generating procedures as the SameConfigGen but generates
     pairs of configs instead of single configs.
     """
-    def __init__(self, n=5):
+    def __init__(self, n_min=5, n_max=5):
         super(CompareConfigGen, self).__init__()
         self.task = 'same_config'
         self.task_type = 'scene'
@@ -1521,7 +1498,8 @@ class CompareConfigGen(Gen):
         self.translation_vectors = []
         self.scalings = []
         self.rotation_angles = []
-        self.n_objects = n
+        self.n_objects_min = n_min
+        self.n_objects_max = n_max
         self.eps = 0.01 # amplitude factor of the perturbations
         self.small_perturbations = []
         self.perturbations = []
@@ -1547,8 +1525,35 @@ class CompareConfigGen(Gen):
     def read_metadata(self, path):
         pass
 
-    def gen_one(self):
-        pass # TODO implement this
+    def gen_one(self, n_max=1):
+        # n_max is max number of perturbed objects
+        self.env.reset()
+        nobj = np.random.randint(self.n_objects_min, self.n_objects_max)
+        self.env.random_config(nobj)
+        ref = self.env.to_state_list(norm=True)
+        label = np.random.randint(2)
+        if label:
+            spert = self.env.small_perturb_objects(self.eps)
+            vec, scale, phi = self.env.random_transformation(
+                rotations=True,
+                s_ex_range=self.s_ex_range,
+                t_ex_range=self.t_ex_range,
+                r_ex_range=self.r_ex_range)
+            pert = [np.zeros(2)] * len(ref)
+        else:
+            spert = self.env.small_perturb_objects(self.eps)
+            # number of objects to perturb
+            n = np.random.randint(1, n_max + 1)
+            self.env.perturb_objects(n)
+            self.env.shuffle_objects()
+            vec, scale, phi = self.env.random_transformation(
+                rotations=True,
+                s_ex_range=self.s_ex_range,
+                t_ex_range=self.t_ex_range,
+                r_ex_range=self.r_ex_range)
+            pert = [np.zeros(2)] * len(ref)
+        state = self.env.to_state_list(norm=True)
+        return state, ref, label, vec, scale, phi, spert, pert
 
     def alternative_gen_one(self):
         """
@@ -1564,10 +1569,10 @@ class CompareConfigGen(Gen):
 
         # generate first example
         self.env.reset()
-        self.env.random_config(self.n_objects)
+        nobj = np.random.randint(self.n_objects_min, self.n_objects_max)
+        self.env.random_config(nobj)
         ref = self.env.to_state_list(norm=True)
         label = np.random.randint(2) # positive or negative example
-        # self.env.reset()
         if label:
             spert = self.env.small_perturb_objects(self.eps)
             vec, scale, phi = self.env.random_transformation(
@@ -1580,6 +1585,7 @@ class CompareConfigGen(Gen):
             spert = self.env.small_perturb_objects(self.eps)
             pert = [np.zeros(2)] * len(ref)
             self.env.random_mix()
+            self.env.shuffle_objects()
             # pert = self.env.perturb_objects(n_p)
             vec, scale, phi = self.env.random_transformation(
                 rotations=True,
@@ -1610,16 +1616,16 @@ class CompareConfigGen(Gen):
         self.small_perturbations += spert
         self.perturbations += pert
 
-    def generate(self, N):
+    def generate(self, N, *args, **kwargs):
         I = len(self.labels)
         for i in tqdm(range(N)):
-            self.generate_one(self.gen_one, i + I)
+            self.generate_one(self.gen_one, i + I, *args, **kwargs)
         self.N += N
 
-    def generate_alternative(self, N):
+    def generate_alternative(self, N, *args, **kwargs):
         I = len(self.labels)
         for i in tqdm(range(N)):
-            self.generate_one(self.alternative_gen_one, i + I)
+            self.generate_one(self.alternative_gen_one, i + I, *args, **kwargs)
         self.N += N
 
     # utils

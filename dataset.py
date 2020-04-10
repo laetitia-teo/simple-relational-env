@@ -162,8 +162,9 @@ class PartsDataset(Dataset):
                  refs,
                  r_batch,
                  labels,
-                 device=torch.device('cpu'),
                  task_type='scene',
+                 device=torch.device('cpu'),
+                 label_type='long',
                  **kwargs):
         """
         Initializes the Parts Dataset.
@@ -181,7 +182,8 @@ class PartsDataset(Dataset):
         if label_type == 'float':
             LABELTYPE = DTYPE
 
-        self.N = t_batch[-1] + 1
+        Nt = len(t_batch)
+        Nr = len(r_batch)
 
         self.targets = torch.tensor(targets, dtype=DTYPE, device=device)
         self.t_batch = torch.tensor(t_batch, dtype=ITYPE, device=device)
@@ -189,16 +191,16 @@ class PartsDataset(Dataset):
         self.r_batch = torch.tensor(r_batch, dtype=ITYPE, device=device)
         self.labels = torch.tensor(labels, dtype=LABELTYPE, device=device)
 
-        t_coo = coo_matrix(
-            np.empty((N,)),
-            t_batch,
-            np.arange(N))
-        self.t_ch_idx = torch.tensor(t_coo.to_csr.indptr, device=device)
-        r_coo = coo_matrix(
-            np.empty((N,)),
-            r_batch,
-            np.arange(N))
-        self.r_ch_idx = torch.tensor(r_coo.to_csr.indptr, device=device)
+        t_coo = coo_matrix((
+            np.empty((Nt,)),
+            (t_batch,
+            np.arange(Nt))))
+        self.t_ch_idx = torch.tensor(t_coo.tocsr().indptr, device=device)
+        r_coo = coo_matrix((
+            np.empty((Nr,)),
+            (r_batch,
+            np.arange(Nr))))
+        self.r_ch_idx = torch.tensor(r_coo.tocsr().indptr, device=device)
 
         self.get = self._get_maker()
 
@@ -219,6 +221,8 @@ class PartsDataset(Dataset):
                 labels = self.labels[tbidx:teidx]
                 ref = self.refs[rbidx:reidx]
                 return target, ref, labels, torch.tensor([idx])
+        return get
+    
     def __len__(self):
         return self.t_batch[-1] + 1
 

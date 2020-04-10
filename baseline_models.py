@@ -1,49 +1,6 @@
 """
 This file defines simple baseline models for scene comparison.
-
-The task : two configurations are presented in as input, and the model has
-to decide if they are the same or not.
-We can imagine several versions of the task, with incrasing difficulty :
-    - "Same configuration" means we need to have the same shapes, with the
-    same colors, with the same orientation to be considered as same config.
-    The transformations applied to the scene would be translations and small
-    scalings.
-    - "Same <attribute>" : in this version of the task, the models would be 
-    trained to recognise if the objects in the scene all share the same
-    attribute, such as color or orientation, and if the attribute they share
-    is the same as in the other image.
-    - "Same spatial configuration" : this task is similar to the first one,
-    but the models are required to abstract from shape, orientation and color
-    information, as well as from absolute positions, to concentrate only on
-    relative distances. No scaling here, since the size of the shapes may vary.
-
-It would also be interesting to see if we can generalize from one task to the 
-next, or have a task-conditioned model that can achieve good results on all
-tasks.
-
-For the first experiments, we shall focus on the first task, the more intuitive
-notion of "same configuration". We shall need an appropriate dataset that mixes
-the same shapes with same colors/sizes/orientations in different spatial
-configurations.
-
-The models are :
-
-A simple MLP taking in the environment state (how to adapt to different
-number of objects ?)
-
-A CNN-based model that works directly from pixels (with a pretrained 
-embedding maybe - generic on other images, or maybe use the latent layer of a 
-VAE trained to reconstruct the shapes)
-
-Other interesting models to consider : LSTM with attention (taking in the 
-objects as a sequence), transformer models. We'll see.
 """
-
-###############################################################################
-#                                                                             #
-#                             Vector-based Baselines                          #
-#                                                                             #
-###############################################################################
 
 import torch
 import torch.nn.functional as F
@@ -185,7 +142,7 @@ class NaiveLSTM(torch.nn.Module):
         [seq_len, b_size, f_obj]
 
         We use the last hidden state as the latent vector we then decode using
-        a simple linear layer.
+        am mlp.
         """
         out = self.lstm(data)[0][-1]
         return self.mlp(out)

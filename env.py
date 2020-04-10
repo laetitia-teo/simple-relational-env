@@ -551,8 +551,6 @@ class Env(AbstractEnv):
         """
         Creates a scene configuration where the objects are the same, but the
         spatial configuration is randomly re-sampled.
-
-        TODO : change this so we are sure the config is indeed different
         """
         new_objects = []
         for obj in self.objects:
@@ -849,7 +847,7 @@ class Env(AbstractEnv):
             amounts.append(self.small_perturbation(i, eps))
         return amounts
 
-    def perturb_one(self, idx, r=None):
+    def perturb_one(self, idx, r=None, rotate=False):
         """
         Perturbs one object by sampling a radius and an angle at random, with 
         the radius larger than r, and translates the object there.
@@ -866,6 +864,9 @@ class Env(AbstractEnv):
         amount = np.zeros(7)
         amount[4:6] = addpos
         self.act(idx, amount)
+        if rotate:
+            phi = theta = 2 * np.pi * np.random.random()
+            self.objects[idx].ori += phi
         return R, theta
 
     def non_spatial_perturb_one(self, idx):
@@ -894,14 +895,11 @@ class Env(AbstractEnv):
         n = len(self.objects)
         n_p = min(n, n_p)
         indices = np.random.choice(n, n_p, replace=False)
-        data = []
-        for idx in range(n):
-            if idx in indices:
-                R, theta = self.perturb_one(idx)
-                data.append(np.array([R, theta]))
-            else:
-                data.append(np.zeros(2))
-        return data
+        # data = []
+        for idx in indices:
+            R, theta = self.perturb_one(idx)
+            # data.append(np.array([R, theta]))
+        # return data
 
 class NActionSpace():
     """
