@@ -196,31 +196,50 @@ class PartsDataset(Dataset):
             (t_batch,
             np.arange(Nt))))
         self.t_ch_idx = torch.tensor(t_coo.tocsr().indptr, device=device)
-        r_coo = coo_matrix((
-            np.empty((Nr,)),
-            (r_batch,
-            np.arange(Nr))))
-        self.r_ch_idx = torch.tensor(r_coo.tocsr().indptr, device=device)
+        try:
+            r_coo = coo_matrix((
+                np.empty((Nr,)),
+                (r_batch,
+                np.arange(Nr))))
+            self.r_ch_idx = torch.tensor(r_coo.tocsr().indptr, device=device)
+            self.double = True
+        except ValueError:
+            # simple ds
+            self.r_ch_idx = []
+            self.double = False
 
         self.get = self._get_maker()
 
     def _get_maker(self):
         get = None
         if self.task_type == 'scene':
-            def get(idx):
-                tbidx, teidx = self.t_ch_idx[idx], self.t_ch_idx[idx + 1]
-                rbidx, reidx = self.r_ch_idx[idx], self.r_ch_idx[idx + 1]
-                target = self.targets[tbidx:teidx]
-                ref = self.refs[rbidx:reidx]
-                return target, ref, self.labels[idx], torch.tensor([idx])
+            if self.double:
+                def get(idx):
+                    tbidx, teidx = self.t_ch_idx[idx], self.t_ch_idx[idx + 1]
+                    rbidx, reidx = self.r_ch_idx[idx], self.r_ch_idx[idx + 1]
+                    target = self.targets[tbidx:teidx]
+                    ref = self.refs[rbidx:reidx]
+                    return target, ref, self.labels[idx], torch.tensor([idx])
+            else:
+                def get(idx):
+                    tbidx, teidx = self.t_ch_idx[idx], self.t_ch_idx[idx + 1]
+                    target = self.targets[tbidx:teidx]
+                    return target, [], self.labels[idx], torch.tensor([idx])
         if self.task_type == 'object':
-            def get(idx):
-                tbidx, teidx = self.t_ch_idx[idx], self.t_ch_idx[idx + 1]
-                rbidx, reidx = self.r_ch_idx[idx], self.r_ch_idx[idx + 1]
-                target = self.targets[tbidx:teidx]
-                labels = self.labels[tbidx:teidx]
-                ref = self.refs[rbidx:reidx]
-                return target, ref, labels, torch.tensor([idx])
+            if self.double:
+                def get(idx):
+                    tbidx, teidx = self.t_ch_idx[idx], self.t_ch_idx[idx + 1]
+                    rbidx, reidx = self.r_ch_idx[idx], self.r_ch_idx[idx + 1]
+                    target = self.targets[tbidx:teidx]
+                    labels = self.labels[tbidx:teidx]
+                    ref = self.refs[rbidx:reidx]
+                    return target, ref, labels, torch.tensor([idx])
+            else:
+                def get(idx):
+                    tbidx, teidx = self.t_ch_idx[idx], self.t_ch_idx[idx + 1]
+                    target = self.targets[tbidx:teidx]
+                    labels = self.labels[tbidx:teidx]
+                    return target, [], labels, torch.tensor([idx])
         return get
     
     def __len__(self):

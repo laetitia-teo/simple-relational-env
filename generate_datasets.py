@@ -73,6 +73,35 @@ if args.mode == 'simple':
     for i in range(Nc):
         g = gen.SameConfigGen(n=No)
         ref = g.ref_state_list
+        g.generate_alternative(Ns)
+        path = op.join(
+            save_dir,
+            '%s_%s_%s' % (No, i, Ns))
+        g.save(path)
+        # generate validation dataset
+        g = gen.SameConfigGen(ref_state_list=ref)
+        g.generate_alternative(Nt)
+        path = op.join(
+            save_dir,
+            '%s_%s_%s_val' % (No, i, Nt))
+        g.save(path)
+        # generate test dataset
+        g = gen.SameConfigGen(ref_state_list=ref)
+        g.generate_alternative(Nt)
+        path = op.join(
+            save_dir,
+            '%s_%s_%s_test' % (No, i, Nt))
+        g.save(path)
+if args.mode == 'simple_perturb':
+    save_dir = 'data/simple_perturb'
+    Nc = 10 # number of different datasets
+    No = 5 # number of objects in a dataset
+    Ns = 10000 # number of train examples
+    Nt = 5000 # number of validation/test examples
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
+    for i in range(Nc):
+        g = gen.SameConfigGen(n=No)
+        ref = g.ref_state_list
         g.generate(Ns)
         path = op.join(
             save_dir,
@@ -108,12 +137,12 @@ if args.mode == 'rotcur':
         (3*pi/2 + pi/10, 2*pi),
         None]
     for i, cur in enumerate(cur_list):
-        g = gen.CompareConfigGen(n_objects_min=No_min, n_objects_max=No_max)
+        g = gen.CompareConfigGen(n_min=No_min, n_max=No_max)
         g.r_ex_range = cur
         g.generate_alternative(Ns)
         path = op.join(
             save_dir,
-            'rotcur%s_%s_%s_%s' % (i, No, 0, Ns))
+            f'rotcur{i}_{No_min}_{No_max}_{Ns}')
         g.save(path)
         # validation
         g.reset()
@@ -121,7 +150,7 @@ if args.mode == 'rotcur':
         g.generate_alternative(Nt)
         path = op.join(
             save_dir,
-            'rotcur%s_%s_%s_%s_val' % (i, No, 0, Nt))
+            f'rotcur{i}_{No_min}_{No_max}_{Ns}')
         g.save(path)
         # generate test dataset
         g.reset()
@@ -129,7 +158,7 @@ if args.mode == 'rotcur':
         g.generate_alternative(Nt)
         path = op.join(
             save_dir,
-            'rotcur%s_%s_%s_%s_test' % (i, No, 0, Nt))
+            f'rotcur{i}_{No_min}_{No_max}_{Ns}')
         g.save(path)
 if args.mode == 'rotcur_perturb':
     # double setting, rotation curriculum, perturbed version
@@ -139,14 +168,20 @@ if args.mode == 'rotcur_perturb':
     No_max = 5 # maximum number of objects in a dataset
     Ns = 100000 # number of train examples
     Nt = 10000 # number of validation/test examples
+    cur_list = [
+        (pi/10, 2*pi),
+        (pi/2 + pi/10, 2*pi),
+        (pi + pi/10, 2*pi),
+        (3*pi/2 + pi/10, 2*pi),
+        None]
     Path(save_dir).mkdir(parents=True, exist_ok=True)
     for i, cur in enumerate(cur_list):
-        g = gen.CompareConfigGen(n_objects_min=No_min, n_objects_max=No_max)
+        g = gen.CompareConfigGen(n_min=No_min, n_max=No_max)
         g.r_ex_range = cur
         g.generate(Ns)
         path = op.join(
             save_dir,
-            'rotcur%s_%s_%s_%s' % (i, No, 0, Ns))
+            f'rotcur{i}_{No_min}_{No_max}_{Ns}')
         g.save(path)
         # validation
         g.reset()
@@ -154,7 +189,7 @@ if args.mode == 'rotcur_perturb':
         g.generate(Nt)
         path = op.join(
             save_dir,
-            'rotcur%s_%s_%s_%s_val' % (i, No, 0, Nt))
+            f'rotcur{i}_{No_min}_{No_max}_{Ns}')
         g.save(path)
         # generate test dataset
         g.reset()
@@ -162,7 +197,7 @@ if args.mode == 'rotcur_perturb':
         g.generate(Nt)
         path = op.join(
             save_dir,
-            'rotcur%s_%s_%s_%s_test' % (i, No, 0, Nt))
+            f'rotcur{i}_{No_min}_{No_max}_{Ns}')
         g.save(path)
 if args.mode == 'test_double':
     # generate test datasets for the double setting with different number of
@@ -172,7 +207,7 @@ if args.mode == 'test_double':
     n_obj_list = range(4, 21)
     Path(save_dir).mkdir(parents=True, exist_ok=True)
     for n in n_obj_list:
-        g = gen.CompareConfigGen(n=n)
+        g = gen.CompareConfigGen(n_min=n, n_max=n)
         g.generate_alternative(Ns)
         path = op.join(
             save_dir,

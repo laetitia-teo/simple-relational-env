@@ -480,7 +480,7 @@ class Gen():
             if write_indices:
                 self.write_t_idx(f)
                 self.write_r_idx(f)
-        self.write_metadata(path)
+        # self.write_metadata(path)
 
     def load(self, path, read_indices=True, replace=True):
         """
@@ -493,7 +493,7 @@ class Gen():
             targets, t_batch = self.read_targets(lineit)
             refs, r_batch = self.read_refs(lineit)
             labels = self.read_labels(lineit)
-        self.read_metadata(path)
+        # self.read_metadata(path)
         # stores the data
         if replace:
             self.targets = targets
@@ -1232,7 +1232,7 @@ class SameConfigGen(Gen):
             n_p = np.random.randint(len(self.env.objects))
             spert = self.env.small_perturb_objects(self.eps)
             pert = self.env.perturb_objects(n_p)
-            self.shuffle_objects()
+            self.env.shuffle_objects()
             vec, scale, phi = self.env.random_transformation()
         state = self.env.to_state_list(norm=True)
         return state, label, vec, scale, phi, spert, pert
@@ -1383,7 +1383,7 @@ class SameConfigGen(Gen):
         self.scalings += [scale]
         self.rotation_angles += [phi]
         self.small_perturbations += spert
-        self.perturbations += pert
+        # self.perturbations += pert
 
     def generate(self, N):
         I = len(self.labels)
@@ -1499,7 +1499,7 @@ class CompareConfigGen(Gen):
         self.scalings = []
         self.rotation_angles = []
         self.n_objects_min = n_min
-        self.n_objects_max = n_max
+        self.n_objects_max = n_max + 1
         self.eps = 0.01 # amplitude factor of the perturbations
         self.small_perturbations = []
         self.perturbations = []
@@ -1614,7 +1614,7 @@ class CompareConfigGen(Gen):
         self.scalings += [scale]
         self.rotation_angles += [phi]
         self.small_perturbations += spert
-        self.perturbations += pert
+        # self.perturbations += pert
 
     def generate(self, N, *args, **kwargs):
         I = len(self.labels)
