@@ -16,7 +16,8 @@ class NaiveMLP(torch.nn.Module):
     def __init__(self, 
                  n_objects,
                  f_obj,
-                 layers):
+                 layers,
+                 **kwargs):
     
         super().__init__()
         self.layer_list = []
@@ -41,7 +42,8 @@ class NaiveLSTM(torch.nn.Module):
                  f_obj,
                  h,
                  layers,
-                 n_layers=1):
+                 n_layers=1,
+                 **kwargs):
 
         super().__init__()
         self.lstm = torch.nn.LSTM(f_obj, h, n_layers)
@@ -75,7 +77,8 @@ class DoubleNaiveMLP(torch.nn.Module):
     def __init__(self, 
                  n_objects,
                  f_obj,
-                 layers):
+                 layers,
+                 **kwargs):
 
         super().__init__()
         self.layer_list = []
@@ -100,7 +103,8 @@ class SceneMLP(torch.nn.Module):
                  f_obj,
                  layers_scene,
                  f_scene,
-                 layers_merge):
+                 layers_merge,
+                 **kwargs):
 
         super().__init__()
         # scene mlp
@@ -136,7 +140,8 @@ class DoubleNaiveLSTM(torch.nn.Module):
                  f_obj,
                  h,
                  layers,
-                 n_layers=1):
+                 n_layers=1,
+                 **kwargs):
 
         super().__init__()
         self.lstm = torch.nn.LSTM(f_obj, h, n_layers)
@@ -154,7 +159,7 @@ class DoubleNaiveLSTM(torch.nn.Module):
         out = self.lstm(torch.cat([x1, x2], 0))[0][-1]
         return self.mlp(out)
 
-class DoubleSceneLSTM(torch.nn.Module):
+class SceneLSTM(torch.nn.Module):
     """
     LSTM baseline, with scene separation.
     """
@@ -163,7 +168,8 @@ class DoubleSceneLSTM(torch.nn.Module):
                  h,
                  layers,
                  f_out=2,
-                 n_layers=1):
+                 n_layers=1,
+                 **kwargs):
 
         super().__init__()
         self.lstm = torch.nn.LSTM(f_obj, h, n_layers)

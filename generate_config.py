@@ -7,6 +7,7 @@ import json
 import pathlib
 
 import graph_models as gm
+import baseline_models as bm
 
 from argparse import ArgumentParser
 
@@ -34,7 +35,7 @@ config_folder = 'configs'
 F_OBJ = 10
 F_OUT = 2
 
-type_to_string = lambda t: re.search('^.+\.(\w+)\'>$', str(t))[1]
+type_to_string = lambda t: re.search(r'^.+\.(\w+)\'>$', str(t))[1]
 
 empty_config = {
     'setting': None,
@@ -62,7 +63,8 @@ def default_hparam_fn(*args, **kwargs):
         'f_e': F_OBJ,
         'f_u': F_OBJ,
         'h': H,
-        'f_out': F_OUT}
+        'f_out': F_OUT
+        }
     return ([h] * n_layers, N, f_dict)
 
 ######### simple setting ##########
@@ -78,7 +80,8 @@ def simple_hparam_fn(*args, **kwargs):
         'f_e': F_OBJ,
         'f_u': F_OBJ,
         'h': H,
-        'f_out': F_OUT}
+        'f_out': F_OUT
+        }
     if m == gm.DeepSet:
         return ([h] * 4, N, f_dict)
     elif m == gm.DeepSetPlus:
@@ -87,7 +90,7 @@ def simple_hparam_fn(*args, **kwargs):
         return ([h] * 1, N, f_dict)
 
 def get_default_simple_config(n_max=5, n_obj=5):
-    simple_data_path = 'data/same_config_alt'
+    simple_data_path = 'data/simple'
     d_path = os.listdir(simple_data_path)
     train = sorted(
         [p for p in d_path if re.search(r'^{}_.+_.+0$'.format(n_obj), p)])
@@ -105,7 +108,8 @@ def get_default_simple_config(n_max=5, n_obj=5):
         'lr': 1e-3,
         'H': 16,
         'n_layers': 1,
-        'n_epochs': 20}
+        'n_epochs': 20
+        }
     default_simple_config = {
         'setting': 'simple',
         'expe_idx': 0,
@@ -136,7 +140,8 @@ def double_hparam_fn(*args, **kwargs):
         'f_e': F_OBJ,
         'f_u': F_OBJ,
         'h': H,
-        'f_out': F_OUT}
+        'f_out': F_OUT
+        }
     if m in [gm.AlternatingDoubleDS, gm.RecurrentGraphEmbeddingDS]:
         return ([h] * 4, N, f_dict)
     elif m in [gm.AlternatingDoubleRDS, gm.RecurrentGraphEmbeddingRDS]:
@@ -145,7 +150,7 @@ def double_hparam_fn(*args, **kwargs):
         return ([h] * 1, N, f_dict)
 
 def get_default_double_config(n_obj=5):
-    double_data_path = 'data/compare_config_alt_cur'
+    double_data_path = 'data/double'
     d_path = os.listdir(double_data_path)
     # change the following to deal with multiple curriculums
     train_cur = sorted([p for p in d_path if \
@@ -165,7 +170,8 @@ def get_default_double_config(n_obj=5):
         'lr': 1e-3,
         'H': 16,
         'n_layers': 1,
-        'n_epochs': 5}
+        'n_epochs': 5
+        }
     default_double_config = {
         'setting': 'double',
         'expe_idx': 1,
@@ -204,20 +210,22 @@ def get_easy_hard_config():
         'easy1_train',
         '5_0_10000',
         'hard0_train',
-        'hard1_train']
+        'hard1_train'
+        ]
     config['train_dataset_indices'] = list(range(5))
     config['test_datasets'] = [
         'easy0_test',
         'easy1_test',
         '5_0_5000_test',
         'hard0_test',
-        'hard1_test']
+        'hard1_test'
+        ]
     config['test_dataset_indices'] = list(range(5))
     return config
 
 def get_var_n_test_double_config(n_test, n_obj=5):
     config = get_default_double_config(n_obj=n_obj)
-    double_data_path = 'data/compare_config_alt_cur'
+    double_data_path = 'data/double'
     d_path = os.listdir(double_data_path)
     test = sorted(
         [p for p in d_path if re.search(r'^testdouble_([0-9]+).*0$', p)],
@@ -228,6 +236,151 @@ def get_var_n_test_double_config(n_test, n_obj=5):
     config['train_dataset_indices'] = []
     config['test_datasets'] = test
     config['test_dataset_indices'] = [0] * len(test)
+    return config
+
+########### rebuttal expes ##########
+
+def simple_baseline_hparam_fn(*args, **kwargs):
+    m = args[0]
+    H = kwargs['H']
+    h = kwargs['h']
+    N = kwargs['N']
+    n_obj = kwargs['n_objects']
+    n_layers = kwargs['n_layers']
+    f_dict = {
+        'f_x': F_OBJ,
+        'f_e': F_OBJ,
+        'f_u': F_OBJ,
+        'h': H,
+        'f_out': F_OUT
+        }
+    if m == bm.NaiveMLP:
+        d = {
+            'n_objects': n_obj,
+            'f_obj': f_dict['f_x'],
+            'layers': [h] * n_layers
+            }
+        return d
+    elif m == bm.NaiveLSTM:
+        d = {
+            'f_obj': f_dict['f_x'],
+            'h': h,
+            'layers': [h] * n_layers
+            }
+        return d
+
+def get_simple_baseline_config(n_obj=5):
+    simple_data_path = 'data/simple'
+    d_path = os.listdir(simple_data_path)
+    train = sorted(
+        [p for p in d_path if re.search(r'^{}_.+_.+0$'.format(n_obj), p)])
+    test = sorted(
+        [p for p in d_path if re.search(r'^{}_.+_test$'.format(n_obj), p)])
+    model_list = [
+        bm.NaiveMLP,
+        bm.NaiveLSTM
+        ]
+    hparams = {
+        'n_objects': n_obj,
+        'f_obj': 10,
+        'h': 16,
+        'N': 1,
+        'lr': 1e-3,
+        'H': 16,
+        'n_layers': 2,
+        'n_epochs': 20}
+    config = {
+        'setting': 'simple',
+        'expe_idx': 0,
+        'train_datasets': train,
+        'train_dataset_indices': list(range(len(train))),
+        'test_datasets': test,
+        'test_dataset_indices': list(range(len(test))),
+        'seeds': [0, 1, 2, 3, 4],
+        'hparams': hparams,
+        'hparam_list': \
+            [simple_baseline_hparam_fn(m, **hparams) for m in model_list],
+        'load_dir': 'data/same_config_alt',
+        'save_dir': 'experimental_results/new',
+        'models': [type_to_string(m) for m in model_list],
+        'cuda': False,
+    }
+    return config
+
+ef simple_baseline_hparam_fn(*args, **kwargs):
+    m = args[0]
+    H = kwargs['H']
+    h = kwargs['h']
+    N = kwargs['N']
+    n_obj = kwargs['n_objects']
+    n_layers = kwargs['n_layers']
+    f_dict = {
+        'f_x': F_OBJ,
+        'f_e': F_OBJ,
+        'f_u': F_OBJ,
+        'h': H,
+        'f_out': F_OUT
+        }
+    if m == bm.DoubleNaiveMLP:
+        d = {
+            'n_objects': n_obj,
+            'f_obj': f_dict['f_x'],
+            'layers': [h] * n_layers * 2
+            }
+        return d
+    elif m == bm.SceneMLP:
+        d = {
+            'n_objects': n_obj,
+            'f_obj': f_dict['f_x'],
+            'layers_scene': [h] * n_layers,
+            'f_scene': H,
+            'layers_merge': [h] * n_layers
+            }
+        return d
+    elif m in [bm.DoubleNaiveLSTM, bm.SceneLSTM]:
+        d = {
+            'f_obj': f_dict['f_x'],
+            'h': h
+            'layers': [h] * n_layers
+            }
+        return d
+
+def get_double_baseline_config(n_obj=5):
+    simple_data_path = 'data/double'
+    d_path = os.listdir(simple_data_path)
+    train_cur = sorted([p for p in d_path if \
+        re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
+    test = ['rotcur4_{}_0_10000_test'.format(n_obj)]
+    model_list = [
+        bm.DoubleNaiveMLP,
+        bm.SceneMLP,
+        bm.DoubleNaiveLSTM,
+        bm.SceneLSTM
+        ]
+    hparams = {
+        'n_objects': n_obj,
+        'f_obj': 10,
+        'h': 16,
+        'N': 1,
+        'lr': 1e-3,
+        'H': 16,
+        'n_layers': 2,
+        'n_epochs': 20}
+    config = {
+        'setting': 'simple',
+        'expe_idx': 0,
+        'train_datasets': train_cur,
+        'train_dataset_indices': [0] * len(train_cur),
+        'test_datasets': test,
+        'test_dataset_indices': [0],
+        'seeds': [0, 1, 2, 3, 4],
+        'hparams': hparams,
+        'hparam_list': [mlp_hparam_fn(m, **hparams) for m in model_list],
+        'load_dir': 'data/same_config_alt',
+        'save_dir': 'experimental_results/new',
+        'models': [type_to_string(m) for m in model_list],
+        'cuda': False,
+    }
     return config
 
 ########################################
