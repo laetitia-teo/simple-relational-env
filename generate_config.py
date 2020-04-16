@@ -17,7 +17,7 @@ parser.add_argument('-m', '--mode',
                     dest='mode',
                     help='mode',
                     default='simple')
-parser.add_argument('-n', '--n-objects',
+parser.add_argument('-No', '--n-objects',
                     dest='n_obj',
                     help='number of objects',
                     default='5')
@@ -25,6 +25,14 @@ parser.add_argument('-l', '--load_model',
                     dest='l',
                     help='index of the config to load, if appropriate',
                     default='2')
+parser.add_argument('-c', '--cuda',
+                    dest='cuda',
+                    help='if True, use gpu. Defaults to False',
+                    default=None)
+parser.add_argument('--c-id',
+                    dest='config_id',
+                    help='use this to override config id',
+                    default=-1)
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -89,7 +97,7 @@ def simple_hparam_fn(*args, **kwargs):
     elif m == gm.GNN_NAgg:
         return ([h] * 1, N, f_dict)
 
-def get_default_simple_config(n_max=5, n_obj=5):
+def get_default_simple_config(n_max=5, n_obj=5, cuda=False):
     simple_data_path = 'data/simple'
     d_path = os.listdir(simple_data_path)
     train = sorted(
@@ -123,7 +131,7 @@ def get_default_simple_config(n_max=5, n_obj=5):
         'load_dir': 'data/same_config_alt',
         'save_dir': 'experimental_results/new',
         'models': [type_to_string(m) for m in model_list],
-        'cuda': False,
+        'cuda': cuda,
     }
     return default_simple_config
 
@@ -146,16 +154,19 @@ def double_hparam_fn(*args, **kwargs):
         return ([h] * 4, N, f_dict)
     elif m in [gm.AlternatingDoubleRDS, gm.RecurrentGraphEmbeddingRDS]:
         return ([h] * 2, N, f_dict)
-    elif m in [gm.AlternatingDouble, gm.RecurrentGraphEmbedding]:
+    elif m in [
+            gm.AlternatingDouble,
+            gm.RecurrentGraphEmbedding,
+            gm.Parallel]:
         return ([h] * 1, N, f_dict)
 
-def get_default_double_config(n_obj=5):
+def get_default_double_config(n_obj=5, cuda=False):
     double_data_path = 'data/double'
     d_path = os.listdir(double_data_path)
     # change the following to deal with multiple curriculums
     train_cur = sorted([p for p in d_path if \
         re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
-    test = ['rotcur4_{}_0_10000_test'.format(n_obj)]
+    test = ['rotcur4_{0}_{0}_100000_test'.format(n_obj)]
     model_list = [
         gm.AlternatingDoubleDS,
         gm.AlternatingDoubleRDS,
@@ -182,14 +193,14 @@ def get_default_double_config(n_obj=5):
         'seeds': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         'hparams': hparams,
         'hparam_list': [double_hparam_fn(m, **hparams) for m in model_list],
-        'load_dir': 'data/compare_config_alt_cur',
+        'load_dir': 'data/',
         'save_dir': 'experimental_results/new',
         'models': [type_to_string(m) for m in model_list],
-        'cuda': False,
+        'cuda': cuda,
     }
     return default_double_config
 
-def get_double_parallel_config(n_obj=5):
+def get_double_parallel_config(n_obj=5, cuda=False):
     config = get_default_double_config(n_obj=n_obj)
     configlist = []
     for h, m in zip(config['hparam_list'], config['models']):
@@ -223,7 +234,7 @@ def get_easy_hard_config():
     config['test_dataset_indices'] = list(range(5))
     return config
 
-def get_var_n_test_double_config(n_test, n_obj=5):
+def get_var_n_test_double_config(n_test, n_obj=5, cuda=False):
     config = get_default_double_config(n_obj=n_obj)
     double_data_path = 'data/double'
     d_path = os.listdir(double_data_path)
@@ -255,22 +266,12 @@ def simple_baseline_hparam_fn(*args, **kwargs):
         'f_out': F_OUT
         }
     if m == bm.NaiveMLP:
-        d = {
-            'n_objects': n_obj,
-            'f_obj': f_dict['f_x'],
-            'layers': [h] * n_layers
-            }
-        return d
+        return (n_obj, f_dict['f_x'], [2 * h] * n_layers)
     elif m == bm.NaiveLSTM:
-        d = {
-            'f_obj': f_dict['f_x'],
-            'h': h,
-            'layers': [h] * n_layers
-            }
-        return d
+        return (f_dict['f_x'], h, [h] * n_layers)
 
-def get_simple_baseline_config(n_obj=5):
-    simple_data_path = 'data/simple'
+def get_simple_baseline_config(n_obj=5, cuda=False):
+    simple_data_path = 'data/recognition'
     d_path = os.listdir(simple_data_path)
     train = sorted(
         [p for p in d_path if re.search(r'^{}_.+_.+0$'.format(n_obj), p)])
@@ -300,14 +301,14 @@ def get_simple_baseline_config(n_obj=5):
         'hparams': hparams,
         'hparam_list': \
             [simple_baseline_hparam_fn(m, **hparams) for m in model_list],
-        'load_dir': 'data/same_config_alt',
-        'save_dir': 'experimental_results/new',
+        'load_dir': 'data/recognition',
+        'save_dir': 'experimental_results',
         'models': [type_to_string(m) for m in model_list],
-        'cuda': False,
+        'cuda': cuda,
     }
     return config
 
-ef simple_baseline_hparam_fn(*args, **kwargs):
+def double_baseline_hparam_fn(*args, **kwargs):
     m = args[0]
     H = kwargs['H']
     h = kwargs['h']
@@ -322,35 +323,18 @@ ef simple_baseline_hparam_fn(*args, **kwargs):
         'f_out': F_OUT
         }
     if m == bm.DoubleNaiveMLP:
-        d = {
-            'n_objects': n_obj,
-            'f_obj': f_dict['f_x'],
-            'layers': [h] * n_layers * 2
-            }
-        return d
+        return (n_obj, f_dict['f_x'], [2 * h] * n_layers)
     elif m == bm.SceneMLP:
-        d = {
-            'n_objects': n_obj,
-            'f_obj': f_dict['f_x'],
-            'layers_scene': [h] * n_layers,
-            'f_scene': H,
-            'layers_merge': [h] * n_layers
-            }
-        return d
+        return (n_obj, f_dict['f_x'], [2 * h] * n_layers, 2 * H, [h] * n_layers)
     elif m in [bm.DoubleNaiveLSTM, bm.SceneLSTM]:
-        d = {
-            'f_obj': f_dict['f_x'],
-            'h': h
-            'layers': [h] * n_layers
-            }
-        return d
+        return (f_dict['f_x'], 2 * h, [2 * h] * n_layers)
 
-def get_double_baseline_config(n_obj=5):
-    simple_data_path = 'data/double'
-    d_path = os.listdir(simple_data_path)
+def get_double_baseline_config(n_obj=5, cuda=False):
+    double_data_path = 'data/comparison'
+    d_path = os.listdir(double_data_path)
     train_cur = sorted([p for p in d_path if \
         re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
-    test = ['rotcur4_{}_0_10000_test'.format(n_obj)]
+    test = ['rotcur4_{0}_{0}_100000_test'.format(n_obj)]
     model_list = [
         bm.DoubleNaiveMLP,
         bm.SceneMLP,
@@ -367,7 +351,7 @@ def get_double_baseline_config(n_obj=5):
         'n_layers': 2,
         'n_epochs': 20}
     config = {
-        'setting': 'simple',
+        'setting': 'double',
         'expe_idx': 0,
         'train_datasets': train_cur,
         'train_dataset_indices': [0] * len(train_cur),
@@ -375,13 +359,50 @@ def get_double_baseline_config(n_obj=5):
         'test_dataset_indices': [0],
         'seeds': [0, 1, 2, 3, 4],
         'hparams': hparams,
-        'hparam_list': [mlp_hparam_fn(m, **hparams) for m in model_list],
-        'load_dir': 'data/same_config_alt',
-        'save_dir': 'experimental_results/new',
+        'hparam_list': [double_baseline_hparam_fn(
+            m, **hparams) for m in model_list],
+        'load_dir': 'data/comparison',
+        'save_dir': 'experimental_results',
         'models': [type_to_string(m) for m in model_list],
-        'cuda': False,
+        'cuda': cuda,
     }
     return config
+
+def get_parallel_double_config(n_obj=5, cuda=False):
+    double_data_path = 'data/double'
+    d_path = os.listdir(double_data_path)
+    train_cur = sorted([p for p in d_path if \
+        re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
+    test = ['rotcur4_{0}_{0}_100000_test'.format(n_obj)]
+    model_list = [
+        gm.Parallel,
+        gm.AlternatingDouble,
+        gm.RecurrentGraphEmbedding
+    ]
+    hparams = {
+        'h': 16,
+        'N': 2,
+        'lr': 1e-3,
+        'H': 16,
+        'n_layers': 1,
+        'n_epochs': 5
+        }
+    default_double_config = {
+        'setting': 'double',
+        'expe_idx': 1,
+        'train_datasets': train_cur,
+        'train_dataset_indices': [0] * len(train_cur),
+        'test_datasets': test,
+        'test_dataset_indices': [0],
+        'seeds': [0, 1, 2, 3, 4],
+        'hparams': hparams,
+        'hparam_list': [double_hparam_fn(m, **hparams) for m in model_list],
+        'load_dir': 'data/double',
+        'save_dir': 'experimental_results',
+        'models': [type_to_string(m) for m in model_list],
+        'cuda': cuda,
+    }
+    return default_double_config
 
 ########################################
 
@@ -406,21 +427,27 @@ def export_config(mode, n_obj=5, config_id=-1, cuda=False, n_test=None):
     """
     pathlib.Path(config_folder).mkdir(parents=True, exist_ok=True)
     if mode == 'simple':
-        config = get_default_simple_config(n_obj=n_obj)
+        config = get_default_simple_config(n_obj=n_obj, cuda=cuda)
     elif mode == 'double':
-        config = get_default_double_config(n_obj=n_obj)
+        config = get_default_double_config(n_obj=n_obj, cuda=cuda)
     elif mode == 'double_var_n_obj':
         n_obj_list = [10, 20]
-        config = [get_default_double_config(n_obj=n) for n in n_obj_list]
+        config = [get_default_double_config(n_obj=n, cuda=cuda) for n in n_obj_list]
     elif mode == 'double_parallel':
-        config = get_double_parallel_config(n_obj=n_obj)
+        config = get_double_parallel_config(n_obj=n_obj, cuda=cuda)
     elif mode == 'test_double':
         if n_test is None:
             raise Exception('Please provide a configuration file index to ' +\
                 'load from using the -l flag.')
-        config = get_var_n_test_double_config(n_test=2, n_obj=n_obj)
+        config = get_var_n_test_double_config(n_test=2, n_obj=n_obj, cuda=cuda)
     elif mode == 'easy_hard':
         config = get_easy_hard_config()
+    elif mode == 'baseline_simple':
+        config = get_simple_baseline_config(n_obj=n_obj, cuda=cuda)
+    elif mode == 'baseline_double':
+        config = get_double_baseline_config(n_obj=n_obj, cuda=cuda)
+    elif mode == 'parallel':
+        config = get_parallel_double_config(n_obj=n_obj, cuda=cuda)
     else:
         config = empty_config
     if isinstance(config, dict):
@@ -436,6 +463,12 @@ def export_config(mode, n_obj=5, config_id=-1, cuda=False, n_test=None):
 def load_config(path):
     with open(path, 'r') as f:
         config = json.loads(f.readlines()[0])
+        for key in config.keys():
+            print(key)
+            try:
+                config[key] = int(config[key])
+            except:
+                pass
     return config
 
 if __name__ == '__main__':
@@ -445,4 +478,11 @@ if __name__ == '__main__':
         print('Please provide a valid number for the -n flag.')
         raise
     n_test = args.l
-    export_config(args.mode, n_obj=n, n_test=n_test)
+    cuda = args.cuda is not None
+    config_id = int(args.config_id)
+    export_config(
+        args.mode,
+        n_obj=n,
+        n_test=n_test,
+        cuda=cuda,
+        config_id=config_id)

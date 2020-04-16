@@ -7,11 +7,12 @@ import numpy as np
 import torch
 
 import graph_models
+import baseline_models
 
 from argparse import ArgumentParser
 from pydoc import locate
 
-from run_utils import one_run, load_dl, load_model
+from run_utils import one_run, load_dl, load_model, nparams
 from generate_config import load_config
 
 parser = ArgumentParser()
@@ -22,9 +23,13 @@ parser.add_argument('-c', '--config',
 
 if __name__ == '__main__':
     args = parser.parse_args()
+    cfg_name = args.config
+else:
+    cfg_name = 'config0'
 
-config = load_config(op.join('configs', args.config))
+config = load_config(op.join('configs', cfg_name))
 
+n_obj = config['hparams']['n_objects']
 expe_idx = config['expe_idx']
 d = config['load_dir']
 s = config['save_dir']
@@ -55,7 +60,8 @@ def copytree(src, dst):
         if os.path.isdir(s):
             copytree(s, d, symlinks, ignore)
         else:
-            if not os.path.exists(d) or os.stat(s).st_mtime - os.stat(d).st_mtime > 1:
+            if not os.path.exists(d) \
+                    or os.stat(s).st_mtime - os.stat(d).st_mtime > 1:
                 shutil.copy2(s, d)
 
 def log(f, message):
@@ -72,7 +78,8 @@ if __name__ == '__main__':
         str(datetime.datetime.now())))
     if preload_model:
         srcpath = op.join(s, 'expe%s' % load_idx)
-    log(logfile, 'config file at path : %s\n' % op.join('configs', args.config))
+    log(logfile, 'config file at path : %s\n' % op.join(
+        'configs', cfg_name))
     log(logfile, 'experiment details :\n\n')
     for k, v in config.items():
         log(logfile, '{} : {}\n'.format(k, v))
@@ -101,8 +108,13 @@ if __name__ == '__main__':
             # models
             for m_idx, m_str in enumerate(model_list):
                 log(logfile, 'model %s\n' % m_str)
+                log(logfile, f'')
                 m = locate('graph_models.' + m_str)
+                if m is None:
+                    # baseline model
+                    m = locate('baseline_models.' + m_str)
                 model = m(*hparam_list[m_idx])
+                log(logfile, f'nparams : {nparams(model)}\n')
                 opt = torch.optim.Adam(model.parameters(), lr=hparams['lr'])
                 mpath = op.join(path, m_str)
                 pathlib.Path(op.join(mpath, 'data')).mkdir(
@@ -123,6 +135,7 @@ if __name__ == '__main__':
                     test_dls,
                     mpath,
                     cuda=cuda,
+                    n_obj=n_obj,
                     preload=preload_model)
                 log(logfile, 'run completed, results saved in {}\n'.format(
                     mpath))

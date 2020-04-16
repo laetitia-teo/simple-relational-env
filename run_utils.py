@@ -10,6 +10,7 @@ import torch
 
 import gen
 import graph_models as gm
+import baseline_models as bm
 
 from tqdm import tqdm
 from pydoc import locate
@@ -28,6 +29,7 @@ from graph_utils import tensor_to_graphs
 from graph_utils import data_to_graph_simple, data_to_graph_double
 from graph_utils import state_list_to_graph
 from graph_utils import merge_graphs
+from baseline_utils import make_data_to_mlp_inputs, make_data_to_seq
 from generate_config import load_config, type_to_string
 
 # viz
@@ -150,7 +152,7 @@ def plot_metrics(losses, accs, i, path):
 
 # training loops
 
-def test_and_save(dset, seed, prefix, model, opt, test_dl, cuda, test_idx=0):
+def test_and_save(dset, seed, prefix, model, opt, test_dl, cuda, n_obj, test_idx=0):
     l, a, i = one_step(
         model,
         opt,
@@ -158,7 +160,8 @@ def test_and_save(dset, seed, prefix, model, opt, test_dl, cuda, test_idx=0):
         criterion=criterion, 
         train=False,
         report_indices=True, 
-        cuda=cuda)
+        cuda=cuda,
+        n_obj=n_obj)
     save_results(
         l, op.join(prefix, 'data', '{}_{}_{}_test_loss.npy'.format(
             test_idx, dset, seed)))
@@ -177,7 +180,10 @@ def one_step(model,
              train=True,
              cuda=False,
              report_indices=False,
-             list_mode='all'):
+             list_mode='all',
+             n_obj=5,
+             **kwargs
+             ):
     """
     list mode can be 'all' or 'last' depending on how we want to backprop.
     """
@@ -192,6 +198,10 @@ def one_step(model,
         data_fn = data_to_graph_simple
     elif isinstance(model, gm.GraphModelDouble):
         data_fn = data_to_graph_double
+    elif isinstance(model, bm.MLPBaseline):
+        data_fn = make_data_to_mlp_inputs(n_obj)
+    elif isinstance(model, bm.RNNBaseline):
+        data_fn = make_data_to_seq(n_obj)
     clss_fn = data_to_clss_parts
     if cuda:
         model.cuda()
@@ -242,6 +252,7 @@ def one_run(dset,
             dl,
             test_dl,
             prefix,
+            n_obj=5,
             criterion=criterion,
             cuda=False,
             list_mode='all',
@@ -281,7 +292,8 @@ def one_run(dset,
                 criterion=criterion, 
                 train=True, 
                 cuda=cuda,
-                list_mode=list_mode)
+                list_mode=list_mode,
+                n_obj=n_obj)
             training_losses += l
             training_accuracies += a
     elif isinstance(dl, list):
@@ -294,7 +306,8 @@ def one_run(dset,
                     criterion=criterion, 
                     train=True, 
                     cuda=cuda,
-                    list_mode=list_mode)
+                    list_mode=list_mode,
+                    n_obj=n_obj)
                 training_losses += l
                 training_accuracies += a
     else:
@@ -315,6 +328,7 @@ def one_run(dset,
             model,
             opt,
             test_dl,
+            n_obj=n_obj,
             cuda=cuda)
     elif isinstance(test_dl, list):
         for test_idx, test_d in enumerate(test_dl):
@@ -326,6 +340,7 @@ def one_run(dset,
                 opt,
                 test_d,
                 cuda=cuda,
+                n_obj=n_obj,
                 test_idx=test_idx)
     # save model
     save_model(

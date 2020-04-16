@@ -7,9 +7,17 @@ import torch.nn.functional as F
 
 from torch.nn import Linear, Sequential, ReLU
 
+class MLPBaseline(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+class RNNBaseline(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
 # simple models
 
-class NaiveMLP(torch.nn.Module):
+class NaiveMLP(MLPBaseline):
     """
     The simplest, most unstructured model.
     """
@@ -29,12 +37,11 @@ class NaiveMLP(torch.nn.Module):
         self.layer_list.append(Linear(f_in, 2))
         self.mlp = Sequential(*self.layer_list)
 
-    def forward(self, inputs):
-        print(inputs)
+    def forward(self, *inputs):
         x, _, _, _ = inputs
         return self.mlp(x)
 
-class NaiveLSTM(torch.nn.Module):
+class NaiveLSTM(RNNBaseline):
     """
     LSTM Baseline.
     """
@@ -56,7 +63,7 @@ class NaiveLSTM(torch.nn.Module):
         self.layer_list.append(Linear(f_in, 2))
         self.mlp = Sequential(*self.layer_list)
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         """
         Forward pass. Expects the data to be have as size :
         [seq_len, b_size, f_obj]
@@ -70,7 +77,7 @@ class NaiveLSTM(torch.nn.Module):
 
 # double models
 
-class DoubleNaiveMLP(torch.nn.Module):
+class DoubleNaiveMLP(MLPBaseline):
     """
     The simplest, most unstructured model.
     """
@@ -90,11 +97,11 @@ class DoubleNaiveMLP(torch.nn.Module):
         self.layer_list.append(Linear(f_in, 2))
         self.mlp = Sequential(*self.layer_list)
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         x1, x2, _, _ = inputs
         return self.mlp(torch.cat([x1, x2], 1))
 
-class SceneMLP(torch.nn.Module):
+class SceneMLP(MLPBaseline):
     """
     A model that is a bit more structured than NaiveMLP.
     """
@@ -126,13 +133,13 @@ class SceneMLP(torch.nn.Module):
         self.layer_list.append(Linear(f_in, 2))
         self.merge_mlp = Sequential(*self.layer_list)
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         x1, x2, _, _ = inputs        
         scene1 = self.scene_mlp(x1)
         scene2 = self.scene_mlp(x2)
         return self.merge_mlp(torch.cat([scene1, scene2], 1))
 
-class DoubleNaiveLSTM(torch.nn.Module):
+class DoubleNaiveLSTM(RNNBaseline):
     """
     LSTM Baseline for double setting.
     """
@@ -154,12 +161,12 @@ class DoubleNaiveLSTM(torch.nn.Module):
         self.layer_list.append(Linear(f_in, 2))
         self.mlp = Sequential(*self.layer_list)
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         x1, x2, _, _ = inputs
         out = self.lstm(torch.cat([x1, x2], 0))[0][-1]
         return self.mlp(out)
 
-class SceneLSTM(torch.nn.Module):
+class SceneLSTM(RNNBaseline):
     """
     LSTM baseline, with scene separation.
     """
@@ -182,7 +189,7 @@ class SceneLSTM(torch.nn.Module):
         self.layer_list.append(Linear(f_in, 2))
         self.mlp = Sequential(*self.layer_list)
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         x1, x2, _, _ = inputs
         h1 = self.lstm(x1)[0][-1]
         h2 = self.lstm(x2)[0][-1]

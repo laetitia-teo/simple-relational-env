@@ -303,6 +303,40 @@ class TGNN(GraphModelSimple):
 
 # Double-input graph models
 
+class Parallel(GraphModelDouble):
+    """
+    Parallel processing of inputs.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+
+        super().__init__(f_dict)
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.component = 'MPGNN'
+
+        self.gnn1 = gn.GNN(
+            gn.EdgeModel(self.fe, self.fx, self.fu,model_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx, self.fu,model_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, self.fu,model_fn, self.fx))
+        self.gnn2 = gn.GNN(
+            gn.EdgeModel(self.fe, self.fx, self.fu,model_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx, self.fu,model_fn, self.fx),
+            gn.GlobalModel_NodeOnly(self.fx, self.fu,model_fn, self.fx))
+        self.mlp = model_fn(2 * self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
+        out_list = []
+        for _ in range(self.N):
+            x1, e1, u1 = self.gnn1(x1, ei1, e1, u1, batch1)
+            x2, e2, u2 = self.gnn2(x2, ei2, e2, u2, batch2)
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+        return out_list
+
 class RecurrentGraphEmbedding(GraphModelDouble):
     """
     Simplest double input graph model.

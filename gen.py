@@ -1226,6 +1226,7 @@ class SameConfigGen(Gen):
         label = np.random.randint(2) # positive or negative example
         if label:
             spert = self.env.small_perturb_objects(self.eps)
+            self.env.shuffle_objects()
             vec, scale, phi = self.env.random_transformation()
             pert = [np.zeros(2)] * len(self.ref_state_list)
         else:
@@ -1248,6 +1249,7 @@ class SameConfigGen(Gen):
         label = np.random.randint(2) # positive or negative example
         if label:
             spert = self.env.small_perturb_objects(self.eps)
+            self.env.shuffle_objects()
             vec, scale, phi = self.env.random_transformation(
                 rotations=True,
                 s_ex_range=self.s_ex_range,
@@ -1534,6 +1536,7 @@ class CompareConfigGen(Gen):
         label = np.random.randint(2)
         if label:
             spert = self.env.small_perturb_objects(self.eps)
+            self.env.shuffle_objects()
             vec, scale, phi = self.env.random_transformation(
                 rotations=True,
                 s_ex_range=self.s_ex_range,
@@ -1575,6 +1578,7 @@ class CompareConfigGen(Gen):
         label = np.random.randint(2) # positive or negative example
         if label:
             spert = self.env.small_perturb_objects(self.eps)
+            self.env.shuffle_objects()
             vec, scale, phi = self.env.random_transformation(
                 rotations=True,
                 s_ex_range=self.s_ex_range,

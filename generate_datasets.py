@@ -64,9 +64,9 @@ if args.mode == 'double':
     #     '%s_%s_%s_test' % (int(args.No), 0, int(args.Nt)))
     # g.save(path)
 if args.mode == 'simple':
-    save_dir = 'data/simple'
+    save_dir = 'data/recognition'
     Nc = 10 # number of different datasets
-    No = 5 # number of objects in a dataset
+    No = int(args.No) # number of objects in a dataset
     Ns = 10000 # number of train examples
     Nt = 5000 # number of validation/test examples
     Path(save_dir).mkdir(parents=True, exist_ok=True)
@@ -95,7 +95,7 @@ if args.mode == 'simple':
 if args.mode == 'simple_perturb':
     save_dir = 'data/simple_perturb'
     Nc = 10 # number of different datasets
-    No = 5 # number of objects in a dataset
+    No = int(args.No) # number of objects in a dataset
     Ns = 10000 # number of train examples
     Nt = 5000 # number of validation/test examples
     Path(save_dir).mkdir(parents=True, exist_ok=True)
@@ -123,10 +123,10 @@ if args.mode == 'simple_perturb':
         g.save(path)
 if args.mode == 'rotcur':
     # double setting, rotation curriculum
-    save_dir = 'data/double'
+    save_dir = 'data/comparison'
     Nc = 10 # number of different datasets
-    No_min = 5 # minimum number of objects in a dataset
-    No_max = 5 # maximum number of objects in a dataset
+    No_min = int(args.No) # minimum number of objects in a dataset
+    No_max = int(args.No) # maximum number of objects in a dataset
     Ns = 100000 # number of train examples
     Nt = 10000 # number of validation/test examples
     Path(save_dir).mkdir(parents=True, exist_ok=True)
@@ -144,28 +144,21 @@ if args.mode == 'rotcur':
             save_dir,
             f'rotcur{i}_{No_min}_{No_max}_{Ns}')
         g.save(path)
-        # validation
-        g.reset()
-        g.r_ex_range = cur
-        g.generate_alternative(Nt)
-        path = op.join(
-            save_dir,
-            f'rotcur{i}_{No_min}_{No_max}_{Ns}')
-        g.save(path)
-        # generate test dataset
-        g.reset()
-        g.r_ex_range = cur
-        g.generate_alternative(Nt)
-        path = op.join(
-            save_dir,
-            f'rotcur{i}_{No_min}_{No_max}_{Ns}')
-        g.save(path)
+    # test
+    cur = None
+    g = gen.CompareConfigGen(n_min=No_min, n_max=No_max)
+    g.r_ex_range = cur
+    g.generate_alternative(Ns)
+    path = op.join(
+        save_dir,
+        f'rotcur{i}_{No_min}_{No_max}_{Ns}_test')
+    g.save(path)
 if args.mode == 'rotcur_perturb':
     # double setting, rotation curriculum, perturbed version
     save_dir = 'data/double_perturb'
     Nc = 10 # number of different datasets
-    No_min = 5 # minimum number of objects in a dataset
-    No_max = 5 # maximum number of objects in a dataset
+    No_min = int(args.No) # minimum number of objects in a dataset
+    No_max = int(args.No) # maximum number of objects in a dataset
     Ns = 100000 # number of train examples
     Nt = 10000 # number of validation/test examples
     cur_list = [
