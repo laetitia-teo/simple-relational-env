@@ -29,7 +29,10 @@ else:
 
 config = load_config(op.join('configs', cfg_name))
 
-n_obj = config['hparams']['n_objects']
+try:
+    n_obj = config['hparams']['n_objects']
+except:
+    pass
 expe_idx = config['expe_idx']
 d = config['load_dir']
 s = config['save_dir']

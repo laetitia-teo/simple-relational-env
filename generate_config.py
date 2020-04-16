@@ -161,7 +161,7 @@ def double_hparam_fn(*args, **kwargs):
         return ([h] * 1, N, f_dict)
 
 def get_default_double_config(n_obj=5, cuda=False):
-    double_data_path = 'data/double'
+    double_data_path = 'data/comparison'
     d_path = os.listdir(double_data_path)
     # change the following to deal with multiple curriculums
     train_cur = sorted([p for p in d_path if \
@@ -236,7 +236,7 @@ def get_easy_hard_config():
 
 def get_var_n_test_double_config(n_test, n_obj=5, cuda=False):
     config = get_default_double_config(n_obj=n_obj)
-    double_data_path = 'data/double'
+    double_data_path = 'data/comparison'
     d_path = os.listdir(double_data_path)
     test = sorted(
         [p for p in d_path if re.search(r'^testdouble_([0-9]+).*0$', p)],
@@ -369,7 +369,7 @@ def get_double_baseline_config(n_obj=5, cuda=False):
     return config
 
 def get_parallel_double_config(n_obj=5, cuda=False):
-    double_data_path = 'data/double'
+    double_data_path = 'data/comparison'
     d_path = os.listdir(double_data_path)
     train_cur = sorted([p for p in d_path if \
         re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
@@ -380,6 +380,7 @@ def get_parallel_double_config(n_obj=5, cuda=False):
         gm.RecurrentGraphEmbedding
     ]
     hparams = {
+        'n_objects': n_obj,
         'h': 16,
         'N': 2,
         'lr': 1e-3,
@@ -397,7 +398,7 @@ def get_parallel_double_config(n_obj=5, cuda=False):
         'seeds': [0, 1, 2, 3, 4],
         'hparams': hparams,
         'hparam_list': [double_hparam_fn(m, **hparams) for m in model_list],
-        'load_dir': 'data/double',
+        'load_dir': 'data/comparison',
         'save_dir': 'experimental_results',
         'models': [type_to_string(m) for m in model_list],
         'cuda': cuda,
