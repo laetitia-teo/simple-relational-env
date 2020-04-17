@@ -405,6 +405,58 @@ def get_parallel_double_config(n_obj=5, cuda=False):
     }
     return default_double_config
 
+def double_lstm_hparam_fn(*args, **kwargs):
+    m = args[0]
+    H = kwargs['H']
+    h = kwargs['h']
+    N = kwargs['N']
+    n_obj = kwargs['n_objects']
+    n_layers = kwargs['n_layers']
+    f_dict = {
+        'f_x': F_OBJ,
+        'f_e': F_OBJ,
+        'f_u': F_OBJ,
+        'h': H,
+        'f_out': F_OUT
+        }
+    return (f_dict['f_x'], h, [2 * h] * n_layers)
+
+def get_lstm_double_config(n_obj=5, cuda=False):
+    double_data_path = 'data/comparison'
+    d_path = os.listdir(double_data_path)
+    train_cur = sorted([p for p in d_path if \
+        re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
+    test = ['rotcur4_{0}_{0}_100000_test'.format(n_obj)]
+    model_list = [
+        bm.SceneLSTM
+    ]
+    hparams = {
+        'n_objects': n_obj,
+        'h': 16,
+        'N': 2,
+        'lr': 1e-3,
+        'H': 16,
+        'n_layers': 1,
+        'n_epochs': 5
+        }
+    default_double_config = {
+        'setting': 'double',
+        'expe_idx': 1,
+        'train_datasets': train_cur,
+        'train_dataset_indices': [0] * len(train_cur),
+        'test_datasets': test,
+        'test_dataset_indices': [0],
+        'seeds': [0, 1, 2, 3, 4],
+        'hparams': hparams,
+        'hparam_list': \
+            [double_lstm_hparam_fn(m, **hparams) for m in model_list],
+        'load_dir': 'data/comparison',
+        'save_dir': 'experimental_results',
+        'models': [type_to_string(m) for m in model_list],
+        'cuda': cuda,
+    }
+    return default_double_config
+
 ########################################
 
 def save_config(config, config_id=-1):
@@ -415,6 +467,7 @@ def save_config(config, config_id=-1):
         config_id = max(
             [-1] + [int(search(p)[1]) for p in paths if search(p)]) + 1
     config['expe_idx'] = config_id
+    print(config_id)
     path = os.path.join(config_folder, 'config%s' % config_id)
     with open(path, 'w') as f:
         f.write(json.dumps(config))
@@ -449,6 +502,8 @@ def export_config(mode, n_obj=5, config_id=-1, cuda=False, n_test=None):
         config = get_double_baseline_config(n_obj=n_obj, cuda=cuda)
     elif mode == 'parallel':
         config = get_parallel_double_config(n_obj=n_obj, cuda=cuda)
+    elif mode == 'lstm':
+        config = get_lstm_double_config(n_obj=n_obj, cuda=cuda)
     else:
         config = empty_config
     if isinstance(config, dict):
