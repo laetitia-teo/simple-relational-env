@@ -2,7 +2,8 @@ import os
 import re
 
 paths = os.listdir('configs/')
-configlist = sorted([re.search(r'config([0-9]+)', p)[1] for p in paths])
+configlist = sorted([re.search(r'config([0-9]+)', p)[1] for p in paths\
+    if re.search(r'config([0-9]+)', p)])
 
 s = """#!/bin/sh
 #SBATCH --mincpus 12

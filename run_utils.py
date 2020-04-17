@@ -509,9 +509,9 @@ def model_metrics_old(run_idx, double=True):
         axs[j, k].set_title(s)
     plt.show()
 
-def model_metrics(expe_idx, n_test=0):
-    config = load_config(op.join('configs', 'config%s' % expe_idx))
-    path = op.join(config['save_dir'], 'expe%s' % expe_idx)
+def model_metrics(expe_idx, dir_prefix='', n_test=0):
+    config = load_config(op.join('configs', dir_prefix, 'config%s' % expe_idx))
+    path = op.join(config['save_dir'], dir_prefix, 'expe%s' % expe_idx)
     for m_str in config['models']:
         mpath = op.join(path, m_str, 'data')
         d_paths = os.listdir(mpath)

@@ -436,7 +436,7 @@ def get_lstm_double_config(n_obj=5, cuda=False):
         'N': 2,
         'lr': 1e-3,
         'H': 16,
-        'n_layers': 1,
+        'n_layers': 2,
         'n_epochs': 5
         }
     default_double_config = {
@@ -450,6 +450,44 @@ def get_lstm_double_config(n_obj=5, cuda=False):
         'hparams': hparams,
         'hparam_list': \
             [double_lstm_hparam_fn(m, **hparams) for m in model_list],
+        'load_dir': 'data/comparison',
+        'save_dir': 'experimental_results',
+        'models': [type_to_string(m) for m in model_list],
+        'cuda': cuda,
+    }
+    return default_double_config
+
+def get_varnobj_double_config(n_obj_min=3, n_obj_max=8, cuda=False):
+    double_data_path = 'data/comparison'
+    d_path = os.listdir(double_data_path)
+    train_cur = sorted([p for p in d_path if \
+        re.search(
+            r'^rotcur[0-9]+_{0}_{1}_100000$'.format(
+                n_obj_min, n_obj_max), p)])
+    test = [f'rotcur4_{n_obj_min}_{n_obj_max}_100000_test']
+    model_list = [
+        gm.AlternatingDouble,
+        gm.RecurrentGraphEmbedding
+    ]
+    hparams = {
+        'n_objects': (n_obj_min, n_obj_max),
+        'h': 16,
+        'N': 2,
+        'lr': 1e-3,
+        'H': 16,
+        'n_layers': 1,
+        'n_epochs': 5
+        }
+    default_double_config = {
+        'setting': 'double',
+        'expe_idx': 1,
+        'train_datasets': train_cur,
+        'train_dataset_indices': [0] * len(train_cur),
+        'test_datasets': test,
+        'test_dataset_indices': [0],
+        'seeds': [0, 1, 2, 3, 4],
+        'hparams': hparams,
+        'hparam_list': [double_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': 'data/comparison',
         'save_dir': 'experimental_results',
         'models': [type_to_string(m) for m in model_list],
@@ -504,6 +542,8 @@ def export_config(mode, n_obj=5, config_id=-1, cuda=False, n_test=None):
         config = get_parallel_double_config(n_obj=n_obj, cuda=cuda)
     elif mode == 'lstm':
         config = get_lstm_double_config(n_obj=n_obj, cuda=cuda)
+    elif mode == 'var':
+        config = get_varnobj_double_config(cuda=cuda)
     else:
         config = empty_config
     if isinstance(config, dict):

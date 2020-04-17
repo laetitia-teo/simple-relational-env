@@ -28,6 +28,10 @@ parser.add_argument('-No', '--number-objects',
                      dest='No',
                      help='number of objects in config',
                      default='5')
+parser.add_argument('-Nm', '--number-objects-max',
+                     dest='No_max',
+                     help='max number of objects in config',
+                     default=None)
 parser.add_argument('-Nt', '--number-test',
                      dest='Nt',
                      help='number of samples in test dataset',
@@ -126,7 +130,10 @@ if args.mode == 'rotcur':
     save_dir = 'data/comparison'
     Nc = 10 # number of different datasets
     No_min = int(args.No) # minimum number of objects in a dataset
-    No_max = int(args.No) # maximum number of objects in a dataset
+    if args.No_max is None:
+        No_max = int(args.No)
+    else:
+        No_max = int(args.No_max) # maximum number of objects in a dataset
     Ns = 100000 # number of train examples
     Nt = 10000 # number of validation/test examples
     Path(save_dir).mkdir(parents=True, exist_ok=True)
