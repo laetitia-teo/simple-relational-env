@@ -506,7 +506,7 @@ def get_big_mlp_simple_config(n_obj=5, cuda=False):
         bm.NaiveMLP
     ]
     hparams = {
-        'n_objects': n_obj
+        'n_objects': n_obj,
         'h': n_obj * F_OBJ,
         'N': 2,
         'lr': 1e-3,
@@ -544,7 +544,7 @@ def get_big_mlp_double_config(n_obj=5, cuda=False):
         bm.DoubleNaiveMLP
     ]
     hparams = {
-        'n_objects': n_obj
+        'n_objects': n_obj,
         'h': 2 * n_obj * F_OBJ,
         'N': 2,
         'lr': 1e-3,
