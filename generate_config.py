@@ -530,7 +530,44 @@ def get_big_mlp_simple_config(n_obj=5, cuda=False):
         'models': [type_to_string(m) for m in model_list],
         'cuda': cuda,
     }
-    return default_double_config
+    return config
+
+def get_mpgnn_simple_config(n_obj=5, cuda=False):
+    simple_data_path = 'data/recognition'
+    d_path = os.listdir(simple_data_path)
+    train = sorted(
+        [p for p in d_path if re.search(r'^{}_.+_.+0$'.format(n_obj), p)])
+    test = sorted(
+        [p for p in d_path if re.search(r'^{}_.+_test$'.format(n_obj), p)])
+    model_list = [
+        gm.GNN_NAgg
+    ]
+    hparams = {
+        'n_objects': n_obj,
+        'h': 16,
+        'N': 2,
+        'lr': 1e-3,
+        'H': 16,
+        'n_layers': 2,
+        'n_epochs': 20
+        }
+    config = {
+        'setting': 'simple',
+        'expe_idx': 0,
+        'train_datasets': train,
+        'train_dataset_indices': list(range(len(train))),
+        'test_datasets': test,
+        'test_dataset_indices': list(range(len(test))),
+        'seeds': [0, 1, 2, 3, 4],
+        'hparams': hparams,
+        'hparam_list': \
+            [simple_hparam_fn(m, **hparams) for m in model_list],
+        'load_dir': 'data/recognition',
+        'save_dir': 'experimental_results',
+        'models': [type_to_string(m) for m in model_list],
+        'cuda': cuda,
+    }
+    return config
 
 def get_big_mlp_double_config(n_obj=5, cuda=False):
     double_data_path = 'data/comparison'
@@ -561,7 +598,8 @@ def get_big_mlp_double_config(n_obj=5, cuda=False):
         'test_dataset_indices': [0],
         'seeds': [0, 1, 2, 3, 4],
         'hparams': hparams,
-        'hparam_list': [double_hparam_fn(m, **hparams) for m in model_list],
+        'hparam_list': \
+            [double_baseline_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': 'data/comparison',
         'save_dir': 'experimental_results',
         'models': [type_to_string(m) for m in model_list],
