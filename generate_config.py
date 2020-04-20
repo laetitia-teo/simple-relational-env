@@ -535,7 +535,7 @@ def get_big_mlp_simple_config(n_obj=5, cuda=False):
 def get_big_mlp_double_config(n_obj=5, cuda=False):
     double_data_path = 'data/comparison'
     d_path = os.listdir(double_data_path)
-    rain_cur = sorted([p for p in d_path if \
+    train_cur = sorted([p for p in d_path if \
         re.search(
             r'^rotcur[0-9]+_{0}_{1}_100000$'.format(
                 n_obj, n_obj), p)])
