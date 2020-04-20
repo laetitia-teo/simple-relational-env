@@ -266,7 +266,7 @@ def simple_baseline_hparam_fn(*args, **kwargs):
         'f_out': F_OUT
         }
     if m == bm.NaiveMLP:
-        return (n_obj, f_dict['f_x'], [2 * h] * n_layers)
+        return (n_obj, f_dict['f_x'], [h] * n_layers)
     elif m == bm.NaiveLSTM:
         return (f_dict['f_x'], h, [h] * n_layers)
 
@@ -489,6 +489,80 @@ def get_varnobj_double_config(n_obj_min=3, n_obj_max=8, cuda=False):
         'hparams': hparams,
         'hparam_list': [double_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': 'data/comparison',
+        'save_dir': 'experimental_results',
+        'models': [type_to_string(m) for m in model_list],
+        'cuda': cuda,
+    }
+    return default_double_config
+
+def get_big_mlp_simple_config(n_obj=5, cuda=False):
+    simple_data_path = 'data/recognition'
+    d_path = os.listdir(simple_data_path)
+    train = sorted(
+        [p for p in d_path if re.search(r'^{}_.+_.+0$'.format(n_obj), p)])
+    test = sorted(
+        [p for p in d_path if re.search(r'^{}_.+_test$'.format(n_obj), p)])
+    model_list = [
+        bm.NaiveMLP
+    ]
+    hparams = {
+        'n_objects': n_obj
+        'h': n_obj * F_OBJ,
+        'N': 2,
+        'lr': 1e-3,
+        'H': n_obj * F_OBJ,
+        'n_layers': 2,
+        'n_epochs': 20
+        }
+    config = {
+        'setting': 'simple',
+        'expe_idx': 0,
+        'train_datasets': train,
+        'train_dataset_indices': list(range(len(train))),
+        'test_datasets': test,
+        'test_dataset_indices': list(range(len(test))),
+        'seeds': [0, 1, 2, 3, 4],
+        'hparams': hparams,
+        'hparam_list': \
+            [simple_baseline_hparam_fn(m, **hparams) for m in model_list],
+        'load_dir': 'data/recognition',
+        'save_dir': 'experimental_results',
+        'models': [type_to_string(m) for m in model_list],
+        'cuda': cuda,
+    }
+    return default_double_config
+
+def get_big_mlp_double_config(n_obj=5, cuda=False):
+    double_data_path = 'data/recognition'
+    d_path = os.listdir(double_data_path)
+    rain_cur = sorted([p for p in d_path if \
+        re.search(
+            r'^rotcur[0-9]+_{0}_{1}_100000$'.format(
+                n_obj, n_obj), p)])
+    test = [f'rotcur4_{n_obj}_{n_obj}_100000_test']
+    model_list = [
+        bm.DoubleNaiveMLP
+    ]
+    hparams = {
+        'n_objects': n_obj
+        'h': 2 * n_obj * F_OBJ,
+        'N': 2,
+        'lr': 1e-3,
+        'H': n_obj * F_OBJ,
+        'n_layers': 2,
+        'n_epochs': 20
+        }
+    default_double_config = {
+        'setting': 'double',
+        'expe_idx': 1,
+        'train_datasets': train_cur,
+        'train_dataset_indices': [0] * len(train_cur),
+        'test_datasets': test,
+        'test_dataset_indices': [0],
+        'seeds': [0, 1, 2, 3, 4],
+        'hparams': hparams,
+        'hparam_list': [double_hparam_fn(m, **hparams) for m in model_list],
+        'load_dir': 'data/recognition',
         'save_dir': 'experimental_results',
         'models': [type_to_string(m) for m in model_list],
         'cuda': cuda,
