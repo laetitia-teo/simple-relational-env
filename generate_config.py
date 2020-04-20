@@ -533,7 +533,7 @@ def get_big_mlp_simple_config(n_obj=5, cuda=False):
     return default_double_config
 
 def get_big_mlp_double_config(n_obj=5, cuda=False):
-    double_data_path = 'data/recognition'
+    double_data_path = 'data/comparison'
     d_path = os.listdir(double_data_path)
     rain_cur = sorted([p for p in d_path if \
         re.search(
@@ -562,7 +562,7 @@ def get_big_mlp_double_config(n_obj=5, cuda=False):
         'seeds': [0, 1, 2, 3, 4],
         'hparams': hparams,
         'hparam_list': [double_hparam_fn(m, **hparams) for m in model_list],
-        'load_dir': 'data/recognition',
+        'load_dir': 'data/comparison',
         'save_dir': 'experimental_results',
         'models': [type_to_string(m) for m in model_list],
         'cuda': cuda,
