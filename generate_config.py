@@ -618,6 +618,10 @@ def export_config(mode, n_obj=5, config_id=-1, cuda=False, n_test=None):
         config = get_lstm_double_config(n_obj=n_obj, cuda=cuda)
     elif mode == 'var':
         config = get_varnobj_double_config(cuda=cuda)
+    elif mode == 'bigmlp_s':
+        config = get_big_mlp_simple_config(n_obj=n_obj, cuda=cuda)
+    elif mode == 'bigmlp_d':
+        config = get_big_mlp_double_config(n_obj=n_obj, cuda=cuda)
     else:
         config = empty_config
     if isinstance(config, dict):
