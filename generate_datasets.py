@@ -204,7 +204,7 @@ if args.mode == 'test_double':
     # objects
     Ns = 10000
     save_dir = 'data/test_double'
-    n_obj_list = range(4, 21)
+    n_obj_list = range(8, 21)
     Path(save_dir).mkdir(parents=True, exist_ok=True)
     for n in n_obj_list:
         g = gen.CompareConfigGen(n_min=n, n_max=n)

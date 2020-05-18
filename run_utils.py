@@ -530,6 +530,42 @@ def model_metrics(expe_idx, dir_prefix='', n_test=0):
         plt.title(title)
         plt.show()
 
+def test_on(expe_idx, tpath, midx=0, dir_prefix=''):
+    # only tests the first model
+    test_paths = os.listdir(tpath)
+    config = load_config(op.join('configs', dir_prefix, 'config%s' % expe_idx))
+    path = op.join(config['save_dir'], dir_prefix, 'expe%s' % expe_idx)
+    hparams = config['hparam_list'][midx]
+    for test_path in test_paths:
+        print('loading dl')
+        test_dl = load_dl(op.join(tpath, test_path), double=True)
+        print('done')
+        model_name = config['models'][midx]
+        mpaths = op.join(path, model_name, 'models')
+        try:
+            model = eval('gm.' + model_name + '(*hparams)')
+        except:
+            model = eval('bm.' + model_name + '(*hparams)')
+        mpathlist = os.listdir(mpaths)
+        accs = []
+        mpathlist = [p for p in mpathlist \
+                     if re.search(r'^ds0_seed[0-9]+.pt', p)]
+        for mpath in mpathlist:
+            mpath = op.join(mpaths, mpath)
+            model = load_model(model, mpath)
+            opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+            l, a, i = one_step(
+                model,
+                opt,
+                test_dl,
+                criterion=criterion,
+                train=False,
+                report_indices=True, 
+            )
+            accs += list(a)
+        print(
+            f'dset : {test_path}, mean acc {np.mean(accs)} +- {np.std(accs)}')
+
 def hardness_dsets_old(run_idx):
     """
     Plots, for each model, the mean accuracy (over the random seeds) over each
