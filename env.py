@@ -570,26 +570,17 @@ class Env(AbstractEnv):
                           color=None,
                           shape=None):
         """
-        Adds a random object, with collision handling.
+        Adds a random object.
 
         The sampling algorithm is quite basic : uniformly sample the shape
         type, the shape color, the orientation and the shape size. Then (using
-        size information), sample the position uniformly. If there is a
-        collision with an aready-existing shape, resample. We allow up to
-        timeout resamplings, after which, if all sampled positions were
-        rejected, we throw an exception (the environment is probably too full
-        by this point).
-
-        Raises SamplingTimeout if more than timeout position samplings have
-        given rise to an error.
+        size information), sample the position uniformly.
 
         Arguments :
-            - timeout : number of failed samplings before raising
-                SamplingTimeout;
             - color : the color of the sampled object, color is drawn uniformly
                 in rgb space if unspecified;
             - shape : the shape of the sampled object. All shapes are drawn
-                with equal probability if unspcified.
+                with equal probability if unspecified.
         """
         count = 0
         # maybe change this
@@ -619,9 +610,6 @@ class Env(AbstractEnv):
         Returns a random configuration of the environment.
         Doesn't reset the environment to zero, this should be done manually
         if desired.
-
-        Raises SamplingTimeout if we reject more than timeout position
-        samplings on one of the random object generations.
         """
         for _ in range(n_objects):
             self.add_random_object()
@@ -875,17 +863,25 @@ class Env(AbstractEnv):
         """
         minsize = self.envsize / 40
         maxsize = self.envsize / 10
+        obj = self.objects[idx]
         pos = obj.pos
         si = self.objects[idx].shape_index
-        shapelist = list(range(len(N_SH))).pop(si)
+        shapelist = list(range(N_SH))
         si = np.random.choice(shapelist)
         color = (np.random.random(3) * 255).astype(int)
         size = np.random.random()
         size = (1 - size) * minsize + size * maxsize
-        ori = np.random.random() * 2 * np.pi
+        ori = np.random.random(1) * 2 * np.pi
         amount = np.concatenate([np.array([size]), color, pos, ori], 0)
         self.change_shape(idx, si)
         self.act(idx, amount)
+
+    def non_spatial_perturb(self):
+        """
+        Perturbs all objects' features except spatial position.
+        """
+        for i in range(len(self.objects)):
+            self.non_spatial_perturb_one(i)
 
     def perturb_objects(self, n_p):
         """

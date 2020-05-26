@@ -2,8 +2,10 @@ import os
 import re
 import os.path as op
 import time
-import numpy as np
 import cv2
+
+import numpy as np
+import scipy.stats as st
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import torch
@@ -509,9 +511,17 @@ def model_metrics_old(run_idx, double=True):
         axs[j, k].set_title(s)
     plt.show()
 
-def model_metrics(expe_idx, dir_prefix='', n_test=0):
+def model_metrics(expe_idx, dir_prefix='', n_test=0, var='std'):
+    """
+    Print the mean accuracy of the model on the test data specified by the 
+    expe_idx. dir_prefix allows us to use data/models in subdirectories of the
+    standard datsavea and config directories.
+    The variability reported can be 'std' for standard deviation or 'conf' for 
+    95 percent confidence intervals.
+    """
     config = load_config(op.join('configs', dir_prefix, 'config%s' % expe_idx))
     path = op.join(config['save_dir'], dir_prefix, 'expe%s' % expe_idx)
+    res_dict = {}
     for m_str in config['models']:
         mpath = op.join(path, m_str, 'data')
         d_paths = os.listdir(mpath)
@@ -523,19 +533,44 @@ def model_metrics(expe_idx, dir_prefix='', n_test=0):
                 # file name, dataset number, seed number
                 mdata.append((s[0], int(s[1]), int(s[2])))
         aa = [np.mean(np.load(op.join(mpath, m[0]))) for m in mdata]
-        std = str(np.around(np.std(aa), 3))[:5]
-        mean_acc = str(np.around(np.mean(aa), 2))[:4]
+        # if var == 'std':
+        #     std = str(np.around(np.std(aa), 3))[:5]
+        #     mean_acc = str(np.around(np.mean(aa), 2))[:4]
+        # elif var == 'conf':
+        #     mean_acc = np.mean(accs)
+        #     v = st.t.interval(
+        #         0.95,
+        #         len(accs) - 1,
+        #         loc=np.mean(accs),
+        #         scale=st.sem(accs))
+        # else:
+        #     raise ValueError(f'Invalid value for "var": {var}, must be one' \
+        #         + 'of "std" or "conf"')
+        # res_dict[m_str] = (mean_acc, v)
+        # v_round = str(np.around(v, 3))[:5]
+        # mean_acc_round = str(np.around(mean_acc, 2))[:4]
+        v_round = str(np.around(np.std(aa), 3))[:5]
+        mean_acc_round = str(np.around(np.mean(aa), 2))[:4]
         plt.hist(aa, bins=20)
-        title = m_str + '; {0} +- {1}'.format(mean_acc, std)
+        title = m_str + '; {0} +- {1}'.format(mean_acc_round, v_round)
         plt.title(title)
         plt.show()
+    return res_dict
 
-def test_on(expe_idx, tpath, midx=0, dir_prefix=''):
-    # only tests the first model
+def test_on(expe_idx, tpath, midx=0, dir_prefix='', var='std'):
+    """
+    Loads trained models as specified by the expe_idx, and tests them on all
+    test data at path specified by tpath. The model tested corresponds to the
+    one at index midx of the model list specified by the configuration file
+    corresponding to expe_idx.
+    The variability metric reported can be the standard deviation (var='std')
+    or the 95 percent confidence interval (var='conf').
+    """
     test_paths = os.listdir(tpath)
     config = load_config(op.join('configs', dir_prefix, 'config%s' % expe_idx))
     path = op.join(config['save_dir'], dir_prefix, 'expe%s' % expe_idx)
     hparams = config['hparam_list'][midx]
+    res_dict = {}
     for test_path in test_paths:
         print('loading dl')
         test_dl = load_dl(op.join(tpath, test_path), double=True)
@@ -563,8 +598,21 @@ def test_on(expe_idx, tpath, midx=0, dir_prefix=''):
                 report_indices=True, 
             )
             accs += list(a)
-        print(
-            f'dset : {test_path}, mean acc {np.mean(accs)} +- {np.std(accs)}')
+        if var == 'std':
+            v = np.std(accs)
+        elif var == 'conf':
+            v = st.t.interval(
+                0.95,
+                len(accs) - 1,
+                loc=np.mean(accs),
+                scale=st.sem(accs))
+        else:
+            raise ValueError(f'Invalid value for "var": {var}, must be one' \
+                + 'of "std" or "conf"')
+        a = np.mean(accs)
+        print(f'dset : {test_path}, mean acc {a} +- {v}')
+        res_dict[test_path] = (a, v)
+    return res_dict
 
 def hardness_dsets_old(run_idx):
     """

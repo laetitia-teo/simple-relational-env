@@ -97,8 +97,12 @@ def simple_hparam_fn(*args, **kwargs):
     elif m == gm.GNN_NAgg:
         return ([h] * 1, N, f_dict)
 
-def get_default_simple_config(n_max=5, n_obj=5, cuda=False):
-    simple_data_path = 'data/simple'
+def get_default_simple_config(
+        n_max=5,
+        n_obj=5,
+        cuda=False,
+        simple_data_path='data/simple',
+        restricted_models=False):
     d_path = os.listdir(simple_data_path)
     train = sorted(
         [p for p in d_path if re.search(r'^{}_.+_.+0$'.format(n_obj), p)])
@@ -109,8 +113,12 @@ def get_default_simple_config(n_max=5, n_obj=5, cuda=False):
         train = train[:n_max]
     if not n_max == -1 and n_max <= len(test):
         test = test[:n_max]
-    model_list = [gm.DeepSet, gm.DeepSetPlus, gm.GNN_NAgg]
+    if restricted_models:
+        model_list = [gm.GNN_NAgg]
+    else:
+        model_list = [gm.DeepSet, gm.DeepSetPlus, gm.GNN_NAgg]
     hparams = {
+        'n_objects': n_obj,
         'h': 16,
         'N': 1,
         'lr': 1e-3,
@@ -128,8 +136,8 @@ def get_default_simple_config(n_max=5, n_obj=5, cuda=False):
         'seeds': [0, 1, 2, 3, 4],
         'hparams': hparams,
         'hparam_list': [simple_hparam_fn(m, **hparams) for m in model_list],
-        'load_dir': 'data/same_config_alt',
-        'save_dir': 'experimental_results/new',
+        'load_dir': simple_data_path,
+        'save_dir': 'experimental_results',
         'models': [type_to_string(m) for m in model_list],
         'cuda': cuda,
     }
@@ -160,22 +168,33 @@ def double_hparam_fn(*args, **kwargs):
             gm.Parallel]:
         return ([h] * 1, N, f_dict)
 
-def get_default_double_config(n_obj=5, cuda=False):
-    double_data_path = 'data/comparison'
+def get_default_double_config(
+        n_obj=5,
+        cuda=False,
+        double_data_path='data/double',
+        restricted_models=False):
     d_path = os.listdir(double_data_path)
     # change the following to deal with multiple curriculums
     train_cur = sorted([p for p in d_path if \
         re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
-    test = ['rotcur4_{0}_{0}_100000_test'.format(n_obj)]
-    model_list = [
-        gm.AlternatingDoubleDS,
-        gm.AlternatingDoubleRDS,
-        gm.AlternatingDouble,
-        gm.RecurrentGraphEmbeddingDS,
-        gm.RecurrentGraphEmbeddingRDS,
-        gm.RecurrentGraphEmbedding,
-    ]
+    test = [p for p in d_path if \
+        re.search(r'^rotcur._{}.+0_test$'.format(n_obj), p)]
+    if restricted_models:
+        model_list = [
+            gm.AlternatingDouble,
+            gm.RecurrentGraphEmbedding,
+        ]
+    else:
+        model_list = [
+            gm.AlternatingDoubleDS,
+            gm.AlternatingDoubleRDS,
+            gm.AlternatingDouble,
+            gm.RecurrentGraphEmbeddingDS,
+            gm.RecurrentGraphEmbeddingRDS,
+            gm.RecurrentGraphEmbedding,
+        ]
     hparams = {
+        'n_objects': n_obj,
         'h': 16,
         'N': 2,
         'lr': 1e-3,
@@ -193,8 +212,8 @@ def get_default_double_config(n_obj=5, cuda=False):
         'seeds': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         'hparams': hparams,
         'hparam_list': [double_hparam_fn(m, **hparams) for m in model_list],
-        'load_dir': 'data/',
-        'save_dir': 'experimental_results/new',
+        'load_dir': double_data_path,
+        'save_dir': 'experimental_results',
         'models': [type_to_string(m) for m in model_list],
         'cuda': cuda,
     }
@@ -334,7 +353,8 @@ def get_double_baseline_config(n_obj=5, cuda=False):
     d_path = os.listdir(double_data_path)
     train_cur = sorted([p for p in d_path if \
         re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
-    test = ['rotcur4_{0}_{0}_100000_test'.format(n_obj)]
+    test = [p for p in d_path if \
+        re.search(r'^rotcur._{}.+0_test$'.format(n_obj), p)][0]
     model_list = [
         bm.DoubleNaiveMLP,
         bm.SceneMLP,
@@ -373,7 +393,8 @@ def get_parallel_double_config(n_obj=5, cuda=False):
     d_path = os.listdir(double_data_path)
     train_cur = sorted([p for p in d_path if \
         re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
-    test = ['rotcur4_{0}_{0}_100000_test'.format(n_obj)]
+    test = [p for p in d_path if \
+        re.search(r'^rotcur._{}.+0_test$'.format(n_obj), p)][0]
     model_list = [
         gm.Parallel,
         gm.AlternatingDouble,
@@ -426,7 +447,8 @@ def get_lstm_double_config(n_obj=5, cuda=False):
     d_path = os.listdir(double_data_path)
     train_cur = sorted([p for p in d_path if \
         re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
-    test = ['rotcur4_{0}_{0}_100000_test'.format(n_obj)]
+    test = [p for p in d_path if \
+        re.search(r'^rotcur._{}.+0_test$'.format(n_obj), p)][0]
     model_list = [
         bm.SceneLSTM
     ]
@@ -607,6 +629,8 @@ def get_big_mlp_double_config(n_obj=5, cuda=False):
     }
     return default_double_config
 
+######### perturb/abstract expes #######
+
 ########################################
 
 def save_config(config, config_id=-1):
@@ -662,6 +686,43 @@ def export_config(mode, n_obj=5, config_id=-1, cuda=False, n_test=None):
         config = get_mpgnn_simple_config(n_obj=n_obj, cuda=cuda)
     elif mode == 'bigmlp_d':
         config = get_big_mlp_double_config(n_obj=n_obj, cuda=cuda)
+    # perturb/abstract
+    elif mode == 'simple_perturb':
+        config = get_default_simple_config(
+            n_obj=n_obj,
+            cuda=cuda,
+            simple_data_path='data/simple_perturb',
+            restricted_models=True)
+    elif mode == 'simple_abstract':
+        config = get_default_simple_config(
+            n_obj=n_obj,
+            cuda=cuda,
+            simple_data_path='data/simple_abstract',
+            restricted_models=True)
+    elif mode == 'simple_abstract_distractors':
+        config = get_default_simple_config(
+            n_obj=n_obj,
+            cuda=cuda,
+            simple_data_path='data/simple_abstract_distractors',
+            restricted_models=True)
+    elif mode == 'double_perturb':
+        config = get_default_double_config(
+            n_obj=n_obj,
+            cuda=cuda,
+            double_data_path='data/double_perturb',
+            restricted_models=True)
+    elif mode == 'double_abstract':
+        config = get_default_double_config(
+            n_obj=n_obj,
+            cuda=cuda,
+            double_data_path='data/double_abstract',
+            restricted_models=True)
+    elif mode == 'double_abstract_distractors':
+        config = get_default_double_config(
+            n_obj=n_obj,
+            cuda=cuda,
+            double_data_path='data/double_abstract_distractors',
+            restricted_models=True)
     else:
         config = empty_config
     if isinstance(config, dict):
