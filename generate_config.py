@@ -33,6 +33,10 @@ parser.add_argument('--c-id',
                     dest='config_id',
                     help='use this to override config id',
                     default=-1)
+parser.add_argument('--hparam',
+                    dest='hparam',
+                    help='whether to perform hparam search',
+                    default='')
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -158,9 +162,15 @@ def double_hparam_fn(*args, **kwargs):
         'h': H,
         'f_out': F_OUT
         }
-    if m in [gm.AlternatingDoubleDS, gm.RecurrentGraphEmbeddingDS]:
+    if m in [
+            gm.AlternatingDoubleDS,
+            gm.RecurrentGraphEmbeddingDS,
+            gm.ParallelDS]:
         return ([h] * 4, N, f_dict)
-    elif m in [gm.AlternatingDoubleRDS, gm.RecurrentGraphEmbeddingRDS]:
+    elif m in [
+            gm.AlternatingDoubleRDS,
+            gm.RecurrentGraphEmbeddingRDS,
+            gm.ParallelRDS]:
         return ([h] * 2, N, f_dict)
     elif m in [
             gm.AlternatingDouble,
@@ -758,10 +768,22 @@ if __name__ == '__main__':
     n_test = args.l
     cuda = args.cuda is not None
     config_id = int(args.config_id)
-    export_config(
-        args.mode,
-        n_test=n_test,
-        cuda=cuda,
-        config_id=config_id)
+    
+    hparam = args.hparam
+    if not hparam:
 
+        export_config(
+            args.mode,
+            n_test=n_test,
+            cuda=cuda,
+            config_id=config_id)
+    else:
+        for H in [16, 32, 64, 128, 256, 512]:
+            export_config(
+                args.mode,
+                n_test=n_test,
+                cuda=cuda,
+                config_id=config_id,
+                H=H)
+    
     from make_runfile import *
