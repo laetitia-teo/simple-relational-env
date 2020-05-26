@@ -19,39 +19,6 @@ from tqdm import tqdm
 from graph_utils import state_list_to_graph
 from graph_utils import merge_graphs
 
-# def test_models(save_dir, test_list, taxon):
-#     """
-#     Tests all the models listed in save_dir on the datasets loaded from the
-#     test list (that lists the names of the datasets to be loaded).
-
-#     Returns the 
-
-#     taxon is the model used.
-#     """
-#     test_dls = []
-#     for name in test_list:
-#         print(name)
-#         test_dls.append(load_dl_parts(name))
-#     save_list = sorted(glob(op.join(save_dir, '*.pt')))
-#     for model_path in save_list:
-#          ...
-
-# def play(taxon, save_path):
-#     """
-#     Initializes an environment that a user can play with to test the model
-#     predictons.
-#     """
-#     e = env.Env(16, 20)
-#     e.random_config(3)
-#     state_list = e.to_state_list(norm=True)
-#     query_graph = state_list_to_graph(state_list)
-#     # add distractors
-#     n_d = 5
-#     for _ in range(n_d):
-#         env.add_random_object()
-#     s = env.to_state_list(norm=False)
-#     pg = env.Playground(16, 20, s)
-#           
 
 class ModelPlayground(env.Playground):
     """
