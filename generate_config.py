@@ -28,7 +28,7 @@ parser.add_argument('-l', '--load_model',
 parser.add_argument('-c', '--cuda',
                     dest='cuda',
                     help='if True, use gpu. Defaults to False',
-                    default=None)
+                    default=True)
 parser.add_argument('--c-id',
                     dest='config_id',
                     help='use this to override config id',
@@ -169,37 +169,42 @@ def double_hparam_fn(*args, **kwargs):
         return ([h] * 1, N, f_dict)
 
 def get_default_double_config(
-        n_obj=5,
-        cuda=False,
+        n_obj=3,
+        n_obj_max=8,
+        cuda=True,
         double_data_path='data/double',
-        restricted_models=False):
+        restricted_models=False,
+        seeds=10,
+        H=16,
+        **kwargs):
+
     d_path = os.listdir(double_data_path)
-    # change the following to deal with multiple curriculums
+
+    if n_obj_max is None:
+        n_obj_max = n_obj
+
     train_cur = sorted([p for p in d_path if \
-        re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
+        re.search(rf'^rotcur._{n_obj}_{n_obj_max}.+0$', p)])
     test = [p for p in d_path if \
-        re.search(r'^rotcur._{}.+0_test$'.format(n_obj), p)]
+        re.search(rf'^rotcur._{n_obj}_{n_obj_max}.+0_test$', p)]
+    
     if restricted_models:
         model_list = [
-            gm.AlternatingDouble,
-            gm.RecurrentGraphEmbedding,
+            gm.Parallel,
         ]
     else:
         model_list = [
-            gm.AlternatingDoubleDS,
-            gm.AlternatingDoubleRDS,
-            gm.AlternatingDouble,
-            gm.RecurrentGraphEmbeddingDS,
-            gm.RecurrentGraphEmbeddingRDS,
-            gm.RecurrentGraphEmbedding,
+            gm.Parallel,
+            gm.ParallelRDS,
+            gm.ParallelDS
         ]
     hparams = {
-        'n_objects': n_obj,
-        'h': 16,
+        'n_objects': n_obj_max,
+        'h': H,
         'N': 2,
         'lr': 1e-3,
-        'H': 16,
-        'n_layers': 1,
+        'H': H,
+        'n_layers': 2,
         'n_epochs': 5
         }
     default_double_config = {
@@ -209,7 +214,7 @@ def get_default_double_config(
         'train_dataset_indices': [0] * len(train_cur),
         'test_datasets': test,
         'test_dataset_indices': [0],
-        'seeds': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        'seeds': list(range(seeds)),
         'hparams': hparams,
         'hparam_list': [double_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': double_data_path,
@@ -646,7 +651,11 @@ def save_config(config, config_id=-1):
     with open(path, 'w') as f:
         f.write(json.dumps(config))
 
-def export_config(mode, n_obj=5, config_id=-1, cuda=False, n_test=None):
+def export_config(
+        mode,
+        config_id=-1,
+        n_test=None,
+        **kwargs):
     """
     if config_id is -1, just increments the max config found in the config 
     folder
@@ -655,74 +664,68 @@ def export_config(mode, n_obj=5, config_id=-1, cuda=False, n_test=None):
     """
     pathlib.Path(config_folder).mkdir(parents=True, exist_ok=True)
     if mode == 'simple':
-        config = get_default_simple_config(n_obj=n_obj, cuda=cuda)
+        config = get_default_simple_config(**kwargs)
     elif mode == 'double':
-        config = get_default_double_config(n_obj=n_obj, cuda=cuda)
+        config = get_default_double_config(**kwargs)
     elif mode == 'double_var_n_obj':
         n_obj_list = [10, 20]
-        config = [get_default_double_config(n_obj=n, cuda=cuda) for n in n_obj_list]
+        config = [get_default_double_config(n_obj=n, **kwargs) for n in n_obj_list]
     elif mode == 'double_parallel':
-        config = get_double_parallel_config(n_obj=n_obj, cuda=cuda)
+        config = get_double_parallel_config(**kwargs)
     elif mode == 'test_double':
         if n_test is None:
             raise Exception('Please provide a configuration file index to ' +\
                 'load from using the -l flag.')
-        config = get_var_n_test_double_config(n_test=2, n_obj=n_obj, cuda=cuda)
+        config = get_var_n_test_double_config(n_test=2, **kwargs)
     elif mode == 'easy_hard':
         config = get_easy_hard_config()
     elif mode == 'baseline_simple':
-        config = get_simple_baseline_config(n_obj=n_obj, cuda=cuda)
+        config = get_simple_baseline_config(**kwargs)
     elif mode == 'baseline_double':
-        config = get_double_baseline_config(n_obj=n_obj, cuda=cuda)
+        config = get_double_baseline_config(**kwargs)
     elif mode == 'parallel':
-        config = get_parallel_double_config(n_obj=n_obj, cuda=cuda)
+        config = get_parallel_double_config(**kwargs)
     elif mode == 'lstm':
-        config = get_lstm_double_config(n_obj=n_obj, cuda=cuda)
+        config = get_lstm_double_config(**kwargs)
     elif mode == 'var':
-        config = get_varnobj_double_config(cuda=cuda)
+        config = get_varnobj_double_config(**kwargs)
     elif mode == 'bigmlp_s':
-        config = get_big_mlp_simple_config(n_obj=n_obj, cuda=cuda)
+        config = get_big_mlp_simple_config(**kwargs)
     elif mode == 'mpgnn_s':
-        config = get_mpgnn_simple_config(n_obj=n_obj, cuda=cuda)
+        config = get_mpgnn_simple_config(**kwargs)
     elif mode == 'bigmlp_d':
-        config = get_big_mlp_double_config(n_obj=n_obj, cuda=cuda)
+        config = get_big_mlp_double_config(**kwargs)
     # perturb/abstract
     elif mode == 'simple_perturb':
         config = get_default_simple_config(
-            n_obj=n_obj,
-            cuda=cuda,
             simple_data_path='data/simple_perturb',
-            restricted_models=True)
+            restricted_models=True,
+            **kwargs)
     elif mode == 'simple_abstract':
         config = get_default_simple_config(
-            n_obj=n_obj,
-            cuda=cuda,
             simple_data_path='data/simple_abstract',
-            restricted_models=True)
+            restricted_models=True,
+            **kwargs)
     elif mode == 'simple_abstract_distractors':
         config = get_default_simple_config(
-            n_obj=n_obj,
-            cuda=cuda,
             simple_data_path='data/simple_abstract_distractors',
-            restricted_models=True)
+            restricted_models=True,
+            **kwargs)
     elif mode == 'double_perturb':
         config = get_default_double_config(
-            n_obj=n_obj,
-            cuda=cuda,
             double_data_path='data/double_perturb',
-            restricted_models=True)
+            restricted_models=True,
+            **kwargs)
     elif mode == 'double_abstract':
         config = get_default_double_config(
-            n_obj=n_obj,
-            cuda=cuda,
             double_data_path='data/double_abstract',
-            restricted_models=True)
+            restricted_models=True,
+            **kwargs)
     elif mode == 'double_abstract_distractors':
         config = get_default_double_config(
-            n_obj=n_obj,
-            cuda=cuda,
             double_data_path='data/double_abstract_distractors',
-            restricted_models=True)
+            restricted_models=True,
+            **kwargs)
     else:
         config = empty_config
     if isinstance(config, dict):
@@ -757,7 +760,8 @@ if __name__ == '__main__':
     config_id = int(args.config_id)
     export_config(
         args.mode,
-        n_obj=n,
         n_test=n_test,
         cuda=cuda,
         config_id=config_id)
+
+    from make_runfile import *

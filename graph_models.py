@@ -337,6 +337,66 @@ class Parallel(GraphModelDouble):
             out_list.append(self.mlp(torch.cat([u1, u2], 1)))
         return out_list
 
+class ParallelRDS(GraphModelDouble):
+    """
+    RDS version of Parallel model.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super().__init__(f_dict)
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.component = 'RDS'
+
+        self.gnn1 = gn.DeepSetPlus(
+            gn.DS_NodeModel(self.fx, self.fu, model_fn, self.fx),
+            gn.DS_GlobalModel(self.fx, self.fu, model_fn, self.fu))
+        self.gnn2 = gn.DeepSetPlus(
+            gn.DS_NodeModel(self.fx, self.fu, model_fn, self.fx),
+            gn.DS_GlobalModel(self.fx, self.fu, model_fn, self.fu))
+        self.mlp = model_fn(2 * self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
+        out_list = []
+        for _ in range(self.N):
+            x1, e1, u1 = self.gnn1(x1, ei1, e1, u1, batch1)
+            x2, e2, u2 = self.gnn2(x2, ei2, e2, u2, batch2)
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+        return out_list
+
+class ParallelDS(GraphModelDouble):
+    """
+    DS version of Parallel model.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+        super().__init__(f_dict)
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.component = 'DS'
+
+        self.ds1 = gn.DeepSet(model_fn, self.fx, self.h, self.fx)
+        self.ds2 = gn.DeepSet(model_fn, self.fx, self.h, self.fx)
+
+        self.mlp = model_fn(2 * self.fu, self.fout)
+
+    def forward(self, graph1, graph2):
+        x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
+
+        out_list = []
+        u1 = self.ds1(x1, batch1)
+        u2 = self.ds2(x2, batch2)
+        out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+        
+        return out_list
+
 class RecurrentGraphEmbedding(GraphModelDouble):
     """
     Simplest double input graph model.
@@ -1002,6 +1062,8 @@ class RecurrentGraphEmbeddingDSv2(GraphModelDouble):
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
         self.component = 'DS'
+
+        self.proj = torch.nn.Linear(self.fx, self.h)
 
         self.ds1 = gn.DeepSet(model_fn, self.h, self.h, self.h)
         self.ds2 = gn.DeepSet(model_fn, 2 * self.h, self.h, self.h)
