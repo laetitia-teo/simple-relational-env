@@ -69,7 +69,7 @@ if args.mode == 'double':
     # g.save(path)
 
 if args.mode == 'simple':
-    save_dir = 'data/recognition'
+    save_dir = 'data/simple'
     Nc = 10 # number of different datasets
     No = int(args.No) # number of objects in a dataset
     Ns = 10000 # number of train examples
@@ -130,22 +130,25 @@ if args.mode == 'simple_perturb':
 
 if args.mode == 'rotcur':
     # double setting, rotation curriculum
-    save_dir = 'data/comparison'
-    Nc = 10 # number of different datasets
+    save_dir = 'data/double'
     No_min = int(args.No) # minimum number of objects in a dataset
+
     if args.No_max is None:
         No_max = int(args.No)
     else:
         No_max = int(args.No_max) # maximum number of objects in a dataset
+
     Ns = 100000 # number of train examples
     Nt = 10000 # number of validation/test examples
     Path(save_dir).mkdir(parents=True, exist_ok=True)
+
     cur_list = [
         (pi/10, 2*pi),
         (pi/2 + pi/10, 2*pi),
         (pi + pi/10, 2*pi),
         (3*pi/2 + pi/10, 2*pi),
         None]
+
     for i, cur in enumerate(cur_list):
         g = gen.CompareConfigGen(n_min=No_min, n_max=No_max)
         g.r_ex_range = cur
@@ -154,6 +157,17 @@ if args.mode == 'rotcur':
             save_dir,
             f'rotcur{i}_{No_min}_{No_max}_{Ns}')
         g.save(path)
+
+    # valid
+    cur = None
+    g = gen.CompareConfigGen(n_min=No_min, n_max=No_max)
+    g.r_ex_range = cur
+    g.generate_alternative(Nt)
+    path = op.join(
+        save_dir,
+        f'rotcur{i}_{No_min}_{No_max}_{Nt}_val')
+    g.save(path)
+
     # test
     cur = None
     g = gen.CompareConfigGen(n_min=No_min, n_max=No_max)
