@@ -173,7 +173,7 @@ def get_default_simple_config(
         'train_dataset_indices': train_idx,
         'test_datasets': test,
         'test_dataset_indices': test_idx,
-        'seeds': [0, 1, 2, 3, 4],
+        'seeds': list(range(10)),
         'hparams': hparams,
         'hparam_list': [simple_hparam_fn(m, **hparams) for m in model_list],
         'load_dir': simple_data_path,
@@ -207,7 +207,7 @@ def double_hparam_fn(*args, **kwargs):
             gm.AlternatingDoubleRDS,
             gm.RecurrentGraphEmbeddingRDS,
             gm.ParallelRDS]:
-        return ([h] * 2, N, f_dict)
+        return ([h] * 3, N, f_dict)
     elif m in [
             gm.AlternatingDouble,
             gm.RecurrentGraphEmbedding,
@@ -367,7 +367,7 @@ def get_simple_baseline_config(n_obj=5, cuda=False):
         'train_dataset_indices': list(range(len(train))),
         'test_datasets': test,
         'test_dataset_indices': list(range(len(test))),
-        'seeds': [0, 1, 2, 3, 4],
+        'seeds': list(range(10)),
         'hparams': hparams,
         'hparam_list': \
             [simple_baseline_hparam_fn(m, **hparams) for m in model_list],
@@ -776,16 +776,18 @@ def export_config(
         config = empty_config
     if isinstance(config, dict):
         
-        if cuda:
-            config['cuda'] = True
-        save_config(config, config_id)
-        
+        # parallel experiment
         if args.parallel:
             configlist = parallelize_config(config)
             for c in configlist:
                 if cuda:
-                    ['cuda'] = True
-            save_config(c, -1)
+                    config['cuda'] = True
+                save_config(c, -1)
+        # serial experiment
+        else:
+            if cuda:
+                config['cuda'] = True
+            save_config(config, config_id)
 
     elif isinstance(config, list):
         for c in config:
@@ -797,7 +799,6 @@ def load_config(path):
     with open(path, 'r') as f:
         config = json.loads(f.readlines()[0])
         for key in config.keys():
-            print(key)
             try:
                 config[key] = int(config[key])
             except:
@@ -815,21 +816,11 @@ if __name__ == '__main__':
     config_id = int(args.config_id)
     
     hparam = args.hparam
-    if not hparam:
 
-        export_config(
-            args.mode,
-            n_test=n_test,
-            cuda=cuda,
-            config_id=config_id)
-    else:
-        for H in [16, 32, 64, 128, 256, 512]:
-            export_config(
-                args.mode,
-                n_test=n_test,
-                cuda=cuda,
-                config_id=config_id,
-                H=H,
-                restricted_models=True)
+    export_config(
+        args.mode,
+        n_test=n_test,
+        cuda=cuda,
+        config_id=config_id)
     
     from make_runfile import *

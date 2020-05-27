@@ -16,6 +16,7 @@ import baseline_models as bm
 
 from tqdm import tqdm
 from pydoc import locate
+from pprint import pprint
 
 from torch.utils.data import DataLoader
 try:
@@ -121,7 +122,6 @@ def load_model(m, path):
     return m
 
 # data saving and viz
-
 
 def save_results(data, path):
     if isinstance(data, torch.Tensor):
@@ -283,7 +283,7 @@ def one_run(dset,
     if preload:
         model = load_model(
             model,
-            op.join(prefix, 'models', 'ds{0}_seed{1}.pt'.format(dset, seed)))
+            op.join(prefix, 'models', f'ds{dset}_seed{seed}.pt'))
     # train model
     if isinstance(dl, DataLoader):
         for _ in range(n):
@@ -471,6 +471,28 @@ def batch_to_images(data, path, mod='one'):
         cv2.imwrite(op.join(path, img_name), img)
 
 # aggregate metrics
+
+def config_summary(prefix=''):
+    """
+    Prints to terminal a summary of all the experiments configurations
+    available at the specified prefix.
+    """
+    listd = os.listdir(op.join('configs', prefix))
+
+    rese = lambda p: re.search(r'^config[0-9]+$', p)
+    configs = sorted([rese(p)[0] for p in listd if rese(p)])
+
+    for cp in configs:
+        c = load_config(op.join('configs', cp))
+        print(f'\n\n################### {cp} #################\n\n')
+        pprint(c)
+
+        # number of parameters of models
+        for i, model_name in enumerate(c['models']):
+            model_class = locate('graph_models.' + model_name)
+            model = model_class(*c['hparam_list'][i])
+
+            print(f'n_params for {model_name}: {nparams(model)}')
 
 def model_metrics_old(run_idx, double=True):
     """

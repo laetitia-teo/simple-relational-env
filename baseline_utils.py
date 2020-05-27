@@ -61,11 +61,11 @@ def var_tensor(x, batch):
         data = torch.cat([data, x[bidx:eidx]], 0)
     return data
 
-def data_to_baseline_var(n, seq):
+def data_to_baseline_var(n, seq=False):
     def data_to_mlp_var(data):
         """
         Same as above, but with variable number of objects allowed.
-        Inputs are zero-padded when theu contain number of objects under the max.
+        Inputs are zero-padded when they contain number of objects under the max.
         n is max number of objects.
         Maybe a bit slow.
         """
