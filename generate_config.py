@@ -37,6 +37,10 @@ parser.add_argument('--hparam',
                     dest='hparam',
                     help='whether to perform hparam search',
                     default='')
+parser.add_argument('-p', '--parallel',
+                    dest='parallel',
+                    help='parallelize experiment',
+                    default='')
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -78,6 +82,23 @@ def default_hparam_fn(*args, **kwargs):
         'f_out': F_OUT
         }
     return ([h] * n_layers, N, f_dict)
+
+######## utility functions ########
+
+def parallelize_config(config):
+    """
+    Takes in a config as returned by one of the functions below, and returns a
+    config for each separate model.
+    """
+    configlist = []
+
+    for h, m in zip(config['hparam_list'], config['models']):
+        d = dict(config)
+        d['models'] = [m]
+        d['hparam_list'] = [h]
+        configlist.append(d)
+    
+    return configlist
 
 ######### simple setting ##########
 
@@ -754,9 +775,18 @@ def export_config(
     else:
         config = empty_config
     if isinstance(config, dict):
+        
         if cuda:
             config['cuda'] = True
         save_config(config, config_id)
+        
+        if args.parallel:
+            configlist = parallelize_config(config)
+            for c in configlist:
+                if cuda:
+                    ['cuda'] = True
+            save_config(c, -1)
+
     elif isinstance(config, list):
         for c in config:
             if cuda:
