@@ -363,8 +363,8 @@ class ParallelRDS(GraphModelDouble):
         x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
         out_list = []
         for _ in range(self.N):
-            x1, e1, u1 = self.gnn1(x1, ei1, e1, u1, batch1)
-            x2, e2, u2 = self.gnn2(x2, ei2, e2, u2, batch2)
+            x1, u1 = self.gnn1(x1, u1, batch1)
+            x2, u2 = self.gnn2(x2, u2, batch2)
             out_list.append(self.mlp(torch.cat([u1, u2], 1)))
         return out_list
 

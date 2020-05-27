@@ -70,32 +70,35 @@ if args.mode == 'double':
 
 if args.mode == 'simple':
     save_dir = 'data/simple'
-    Nc = 10 # number of different datasets
-    No = int(args.No) # number of objects in a dataset
+    No_range = range(3, 31) # dataset n_objs
+    # No = int(args.No) # number of objects in a dataset
     Ns = 10000 # number of train examples
     Nt = 5000 # number of validation/test examples
     Path(save_dir).mkdir(parents=True, exist_ok=True)
-    for i in range(Nc):
+    for No in No_range:
+
         g = gen.SameConfigGen(n=No)
         ref = g.ref_state_list
         g.generate_alternative(Ns)
         path = op.join(
             save_dir,
-            '%s_%s_%s' % (No, i, Ns))
+            f'{No}_0_{Ns}')
         g.save(path)
+
         # generate validation dataset
         g = gen.SameConfigGen(ref_state_list=ref)
         g.generate_alternative(Nt)
         path = op.join(
             save_dir,
-            '%s_%s_%s_val' % (No, i, Nt))
+            f'{No}_0_{Ns}_val')
         g.save(path)
+        
         # generate test dataset
         g = gen.SameConfigGen(ref_state_list=ref)
         g.generate_alternative(Nt)
         path = op.join(
             save_dir,
-            '%s_%s_%s_test' % (No, i, Nt))
+            f'{No}_0_{Ns}_test')
         g.save(path)
 
 if args.mode == 'simple_perturb':

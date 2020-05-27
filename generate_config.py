@@ -28,7 +28,7 @@ parser.add_argument('-l', '--load_model',
 parser.add_argument('-c', '--cuda',
                     dest='cuda',
                     help='if True, use gpu. Defaults to False',
-                    default=True)
+                    default=None)
 parser.add_argument('--c-id',
                     dest='config_id',
                     help='use this to override config id',
@@ -102,16 +102,31 @@ def simple_hparam_fn(*args, **kwargs):
         return ([h] * 1, N, f_dict)
 
 def get_default_simple_config(
-        n_max=5,
-        n_obj=5,
+        n_min=3,
+        n_max=8,
         cuda=False,
         simple_data_path='data/simple',
         restricted_models=False):
+
     d_path = os.listdir(simple_data_path)
-    train = sorted(
-        [p for p in d_path if re.search(r'^{}_.+_.+0$'.format(n_obj), p)])
-    test = sorted(
-        [p for p in d_path if re.search(r'^{}_.+_test$'.format(n_obj), p)])
+
+    train_dict = {}
+    test_dict = {}
+    flatten = lambda l: [e for sublist in l for e in sublist]
+
+    for n_obj in range(n_min, n_max + 1):
+        train_dict[n_obj - n_min] = sorted(
+            [p for p in d_path if re.search(rf'^{n_obj}_.+_.+0$', p)])
+        
+        test_dict[n_obj - n_min] = sorted(
+            [p for p in d_path if re.search(rf'^{n_obj}_.+_test$', p)])
+
+    train = flatten(list(train_dict.values()))
+    train_idx = flatten([[k] * len(v) for k, v in train_dict.items()])
+
+    test = flatten(list(test_dict.values()))
+    test_idx = flatten([[k] * len(v) for k, v in test_dict.items()])
+
     # to limit the size of the datasets used
     if not n_max == -1 and n_max <= len(train):
         train = train[:n_max]
@@ -122,7 +137,7 @@ def get_default_simple_config(
     else:
         model_list = [gm.DeepSet, gm.DeepSetPlus, gm.GNN_NAgg]
     hparams = {
-        'n_objects': n_obj,
+        'n_objects': n_max,
         'h': 16,
         'N': 1,
         'lr': 1e-3,
@@ -134,9 +149,9 @@ def get_default_simple_config(
         'setting': 'simple',
         'expe_idx': 0,
         'train_datasets': train,
-        'train_dataset_indices': list(range(len(train))),
+        'train_dataset_indices': train_idx,
         'test_datasets': test,
-        'test_dataset_indices': list(range(len(test))),
+        'test_dataset_indices': test_idx,
         'seeds': [0, 1, 2, 3, 4],
         'hparams': hparams,
         'hparam_list': [simple_hparam_fn(m, **hparams) for m in model_list],
@@ -176,7 +191,7 @@ def double_hparam_fn(*args, **kwargs):
             gm.AlternatingDouble,
             gm.RecurrentGraphEmbedding,
             gm.Parallel]:
-        return ([h] * 1, N, f_dict)
+        return ([h] * n_layers, N, f_dict)
 
 def get_default_double_config(
         n_obj=3,
@@ -214,7 +229,7 @@ def get_default_double_config(
         'N': 2,
         'lr': 1e-3,
         'H': H,
-        'n_layers': 2,
+        'n_layers': 1,
         'n_epochs': 5
         }
     default_double_config = {
@@ -784,6 +799,7 @@ if __name__ == '__main__':
                 n_test=n_test,
                 cuda=cuda,
                 config_id=config_id,
-                H=H)
+                H=H,
+                restricted_models=True)
     
     from make_runfile import *
