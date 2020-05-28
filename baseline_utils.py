@@ -41,7 +41,7 @@ def make_data_to_seq(n):
         return x1, x2, labels, indices
     return data_to_seq
 
-def var_tensor(x, batch):
+def var_tensor(x, batch, n):
     N = len(batch)
     bsize = x.shape[0]
     f_x = x.shape[1:]
@@ -61,7 +61,33 @@ def var_tensor(x, batch):
         data = torch.cat([data, x[bidx:eidx]], 0)
     return data
 
-def data_to_baseline_var(n, seq=False):
+def densify(x, batch, n):
+    """
+    Takes in a tensor of data x, all listed in the 0th dimension, and the
+    batch index corresponding to it, and returns a tensor of size [bsize, n, f_x]
+    with scenes 0-padded to achieve 0 number of objects.
+    """
+    N = len(batch)
+    bsize = batch[-1] + 1
+    f_x = x.shape[-1]
+    
+    coo = coo_matrix((
+        np.empty(N),
+        (batch.numpy(),
+        np.arange(N))))
+
+    idxptr = torch.tensor(coo.tocsr().indptr)
+    xd = torch.zeros(bsize, n * f_x)
+
+    for i in range(bsize):
+        idx1, idx2 = idxptr[i], idxptr[i+1]
+        l = idx2 - idx1
+        k = int(l * f_x) # length of current scene
+        xd[i, :k] = x[idx1:idx2].reshape((k,))
+
+    return xd
+
+def data_to_baseline_var(n):
     def data_to_mlp_var(data):
         """
         Same as above, but with variable number of objects allowed.
@@ -70,12 +96,11 @@ def data_to_baseline_var(n, seq=False):
         Maybe a bit slow.
         """
         x1, x2, labels, indices, batch1, batch2 = data
-        data1 = var_tensor(x1, batch1)
-        data2 = var_tensor(x2, batch2)
-        if seq:
-            # TODO more general dimensions
-            data1 = data1.permute(0, 2, 1)
-            data2 = data2.permute(0, 2, 1)
+        data1 = densify(x1, batch1, n)
+        if data2 is None:
+            data2 = None
+        else:
+            data2 = densify(x2, batch2, n)
         return data1, data2, labels, indices
     return data_to_mlp_var
 

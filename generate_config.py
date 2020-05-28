@@ -340,42 +340,19 @@ def simple_baseline_hparam_fn(*args, **kwargs):
     elif m == bm.NaiveLSTM:
         return (f_dict['f_x'], h, [h] * n_layers)
 
-def get_simple_baseline_config(n_obj=5, cuda=False):
-    simple_data_path = 'data/recognition'
-    d_path = os.listdir(simple_data_path)
-    train = sorted(
-        [p for p in d_path if re.search(r'^{}_.+_.+0$'.format(n_obj), p)])
-    test = sorted(
-        [p for p in d_path if re.search(r'^{}_.+_test$'.format(n_obj), p)])
+def get_simple_baseline_config(n_min=3, n_max=8, cuda=False):
+
+    config = get_default_simple_config(n_min=n_min, n_max=n_max, cuda=cuda)
+
     model_list = [
         bm.NaiveMLP,
-        bm.NaiveLSTM
-        ]
-    hparams = {
-        'n_objects': n_obj,
-        'f_obj': 10,
-        'h': 16,
-        'N': 1,
-        'lr': 1e-3,
-        'H': 16,
-        'n_layers': 2,
-        'n_epochs': 20}
-    config = {
-        'setting': 'simple',
-        'expe_idx': 0,
-        'train_datasets': train,
-        'train_dataset_indices': list(range(len(train))),
-        'test_datasets': test,
-        'test_dataset_indices': list(range(len(test))),
-        'seeds': list(range(10)),
-        'hparams': hparams,
-        'hparam_list': \
-            [simple_baseline_hparam_fn(m, **hparams) for m in model_list],
-        'load_dir': 'data/recognition',
-        'save_dir': 'experimental_results',
-        'models': [type_to_string(m) for m in model_list],
-        'cuda': cuda,
-    }
+    ]
+
+    config['models'] = [type_to_string(m) for m in model_list]
+
+    config['hparam_list'] = [
+        simple_baseline_hparam_fn(m, **config['hparams']) for m in model_list]
+    
     return config
 
 def double_baseline_hparam_fn(*args, **kwargs):
@@ -399,44 +376,39 @@ def double_baseline_hparam_fn(*args, **kwargs):
     elif m in [bm.DoubleNaiveLSTM, bm.SceneLSTM]:
         return (f_dict['f_x'], 2 * h, [2 * h] * n_layers)
 
-def get_double_baseline_config(n_obj=5, cuda=False):
-    double_data_path = 'data/comparison'
-    d_path = os.listdir(double_data_path)
-    train_cur = sorted([p for p in d_path if \
-        re.search(r'^rotcur._{}.+0$'.format(n_obj), p)])
-    test = [p for p in d_path if \
-        re.search(r'^rotcur._{}.+0_test$'.format(n_obj), p)][0]
+def get_double_baseline_config(
+        n_obj=3,
+        n_obj_max=8,
+        cuda=False,
+        seeds=5):
+
+    config = get_default_double_config(
+        n_obj=n_obj,
+        n_obj_max=n_obj_max,
+        cuda=False,
+        seeds=seeds)
+
     model_list = [
         bm.DoubleNaiveMLP,
-        bm.SceneMLP,
-        bm.DoubleNaiveLSTM,
-        bm.SceneLSTM
-        ]
+    ]
+    
+    mid = int((n_obj + n_obj_max)/2)
+
     hparams = {
-        'n_objects': n_obj,
-        'f_obj': 10,
-        'h': 16,
+        'n_objects': n_obj_max,
+        'h': mid * F_OBJ,
         'N': 1,
         'lr': 1e-3,
-        'H': 16,
+        'H': mid * F_OBJ,
         'n_layers': 2,
-        'n_epochs': 20}
-    config = {
-        'setting': 'double',
-        'expe_idx': 0,
-        'train_datasets': train_cur,
-        'train_dataset_indices': [0] * len(train_cur),
-        'test_datasets': test,
-        'test_dataset_indices': [0],
-        'seeds': [0, 1, 2, 3, 4],
-        'hparams': hparams,
-        'hparam_list': [double_baseline_hparam_fn(
-            m, **hparams) for m in model_list],
-        'load_dir': 'data/comparison',
-        'save_dir': 'experimental_results',
-        'models': [type_to_string(m) for m in model_list],
-        'cuda': cuda,
+        'n_epochs': 5
     }
+
+    config['models'] = [type_to_string(m) for m in model_list]
+    config['hparams'] = hparams
+    config['hparam_list'] = [
+        double_baseline_hparam_fn(m, **hparams) for m in model_list]
+
     return config
 
 def get_parallel_double_config(n_obj=5, cuda=False):

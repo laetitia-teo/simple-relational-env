@@ -112,6 +112,15 @@ def load_dl(dpath, double=False):
             collate_fn=collate_fn)
     return dl
 
+# for testing
+
+# dl = load_dl('data/double/rotcur4_3_8_100000', double=True)
+# dls = load_dl('data/double/rotcur4_3_8_100000', double=True)
+# data = next(iter(dl))
+# datas = next(iter(dls))
+# x1, x2, labels, indices, b1, b2 = data
+# x1, _, labels, indices, b1, _ = datas
+
 # model saving and loading
 
 def save_model(m, path):
@@ -483,6 +492,8 @@ def config_summary(prefix=''):
         # number of parameters of models
         for i, model_name in enumerate(c['models']):
             model_class = locate('graph_models.' + model_name)
+            if model_class is None:
+                model_class = locate('baseline_models.' + model_name)
             model = model_class(*c['hparam_list'][i])
 
             print(f'n_params for {model_name}: {nparams(model)}')

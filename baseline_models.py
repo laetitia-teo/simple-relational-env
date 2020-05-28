@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from torch.nn import Linear, Sequential, ReLU
 
-from graph_models import GraphModelSimple, GraphModelDouble
+from baseline_utils import data_to_baseline_var, make_data_to_mlp_inputs
 
 class MLPBaseline(torch.nn.Module):
     def __init__(self):
@@ -17,28 +17,46 @@ class RNNBaseline(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-class MLPSimple(GraphModelSimple):
-    def __init__(self, f_dict, n_obj):
+class MLPSimple(torch.nn.Module):
+    def __init__(self, n_obj):
 
-        super().__init__(f_dict)
+        super().__init__()
         self.n_obj = n_obj
 
+        self.data_fn = data_to_baseline_var(self.n_obj)
+
     def forward(self, data):
-        pass
+        
+        x1, _, _, _ = self.data_fn(data)
+
+        return x1
+
+class MLPDouble(torch.nn.Module):
+    def __init__(self, n_obj):
+
+        super().__init__()
+        self.n_obj = n_obj
+
+        self.data_fn = data_to_baseline_var(self.n_obj)
+
+    def forward(self, data):
+        
+        x1, x2, _, _ = self.data_fn(data)
+
+        return x1, x2
 
 # simple models
 
-class NaiveMLP(MLPBaseline):
-    """
-    The simplest, most unstructured model.
-    """
+class NaiveMLP(MLPSimple):
+
     def __init__(self, 
                  n_objects,
                  f_obj,
                  layers,
                  **kwargs):
     
-        super().__init__()
+        super().__init__(n_objects)
+
         self.layer_list = []
         f_in = n_objects * f_obj
         for f_out in layers:
@@ -48,14 +66,13 @@ class NaiveMLP(MLPBaseline):
         self.layer_list.append(Linear(f_in, 2))
         self.mlp = Sequential(*self.layer_list)
 
-    def forward(self, *inputs):
-        x, _, _, _ = inputs
+    def forward(self, data):
+
+        x = super().forward(data)
         return self.mlp(x)
 
 class NaiveLSTM(RNNBaseline):
-    """
-    LSTM Baseline.
-    """
+
     def __init__(self,
                  f_obj,
                  h,
@@ -74,7 +91,7 @@ class NaiveLSTM(RNNBaseline):
         self.layer_list.append(Linear(f_in, 2))
         self.mlp = Sequential(*self.layer_list)
 
-    def forward(self, *inputs):
+    def forward(self, data):
         """
         Forward pass. Expects the data to be have as size :
         [seq_len, b_size, f_obj]
@@ -82,23 +99,23 @@ class NaiveLSTM(RNNBaseline):
         We use the last hidden state as the latent vector we then decode using
         am mlp.
         """
+        raise NotImplementedError
         x1, _, _, _ = inputs
         out = self.lstm(x1)[0][-1]
         return self.mlp(out)
 
 # double models
 
-class DoubleNaiveMLP(MLPBaseline):
-    """
-    The simplest, most unstructured model.
-    """
+class DoubleNaiveMLP(MLPDouble):
+
     def __init__(self, 
                  n_objects,
                  f_obj,
                  layers,
                  **kwargs):
 
-        super().__init__()
+        super().__init__(n_objects)
+
         self.layer_list = []
         f_in = 2 * n_objects * f_obj
         for f_out in layers:
@@ -108,14 +125,13 @@ class DoubleNaiveMLP(MLPBaseline):
         self.layer_list.append(Linear(f_in, 2))
         self.mlp = Sequential(*self.layer_list)
 
-    def forward(self, *inputs):
-        x1, x2, _, _ = inputs
+    def forward(self, data):
+        x1, x2, = super().forward(data)
+
         return self.mlp(torch.cat([x1, x2], 1))
 
-class SceneMLP(MLPBaseline):
-    """
-    A model that is a bit more structured than NaiveMLP.
-    """
+class SceneMLP(MLPDouble):
+
     def __init__(self,
                  n_objects,
                  f_obj,
@@ -124,7 +140,8 @@ class SceneMLP(MLPBaseline):
                  layers_merge,
                  **kwargs):
 
-        super().__init__()
+        super().__init__(n_objects)
+
         # scene mlp
         self.layer_list = []
         f_in = f_obj * n_objects
@@ -144,8 +161,10 @@ class SceneMLP(MLPBaseline):
         self.layer_list.append(Linear(f_in, 2))
         self.merge_mlp = Sequential(*self.layer_list)
 
-    def forward(self, *inputs):
-        x1, x2, _, _ = inputs        
+    def forward(self, data):
+        
+        x1, x2 = super().forward(data)
+
         scene1 = self.scene_mlp(x1)
         scene2 = self.scene_mlp(x2)
         return self.merge_mlp(torch.cat([scene1, scene2], 1))
@@ -172,7 +191,8 @@ class DoubleNaiveLSTM(RNNBaseline):
         self.layer_list.append(Linear(f_in, 2))
         self.mlp = Sequential(*self.layer_list)
 
-    def forward(self, *inputs):
+    def forward(self, data):
+        raise NotImplementedError
         x1, x2, _, _ = inputs
         out = self.lstm(torch.cat([x1, x2], 0))[0][-1]
         return self.mlp(out)
@@ -200,18 +220,14 @@ class SceneLSTM(RNNBaseline):
         self.layer_list.append(Linear(f_in, 2))
         self.mlp = Sequential(*self.layer_list)
 
-    def forward(self, *inputs):
+    def forward(self, data):
+        raise NotImplementedError
         x1, x2, _, _ = inputs
         h1 = self.lstm(x1)[0][-1]
         h2 = self.lstm(x2)[0][-1]
         return self.mlp(torch.cat([h1, h2], 1))
 
-###############################################################################
-#                                                                             #
-#                              Image-based Baselines                          #
-#                                                                             #
-###############################################################################
-
+### Image baselines
 
 class CNNBaseline(object):
     """docstring for CNNBaseline"""
