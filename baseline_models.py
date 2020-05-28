@@ -7,6 +7,8 @@ import torch.nn.functional as F
 
 from torch.nn import Linear, Sequential, ReLU
 
+from graph_models import GraphModelSimple, GraphModelDouble
+
 class MLPBaseline(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -14,6 +16,15 @@ class MLPBaseline(torch.nn.Module):
 class RNNBaseline(torch.nn.Module):
     def __init__(self):
         super().__init__()
+
+class MLPSimple(GraphModelSimple):
+    def __init__(self, f_dict, n_obj):
+
+        super().__init__(f_dict)
+        self.n_obj = n_obj
+
+    def forward(self, data):
+        pass
 
 # simple models
 

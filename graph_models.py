@@ -9,10 +9,12 @@ import graph_nets as gn
 
 from graph_utils import data_from_graph_maker
 from graph_utils import cross_graph_ei_maker
+from graph_utils import data_to_graph_simple, data_to_graph_double
+
 
 class GraphModel(torch.nn.Module):
     def __init__(self, f_dict):
-        super(GraphModel, self).__init__()
+        super().__init__()
         # maybe define different attributes for a simple-input GM and a double-
         # input GM.
         f_e, f_x, f_u, h, f_out = self.get_features(f_dict)
@@ -37,24 +39,34 @@ class GraphModel(torch.nn.Module):
         return f_e, f_x, f_u, h, f_out
 
     def cuda(self):
-        super(GraphModel, self).cuda()
+        super().cuda()
         self.GPU = True
         self.data_from_graph = data_from_graph_maker(cuda=True)
 
     def cpu(self):
-        super(GraphModel, self).cpu()
+        super().cpu()
         self.GPU = False
         self.data_from_graph = data_from_graph_maker(cuda=False)
 
 class GraphModelSimple(GraphModel):
     """Single-input graph model"""
     def __init__(self, f_dict):
-        super(GraphModelSimple, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
+
+    def forward(self, data):
+
+        return data_to_graph_simple(data)
 
 class GraphModelDouble(GraphModel):
     """Double-input graph model"""
     def __init__(self, f_dict):
-        super(GraphModelDouble, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
+
+    def forward(self, data):
+
+        return data_to_graph_double(data)
 
 # deep sets
 
@@ -63,11 +75,14 @@ class DeepSet(GraphModelSimple):
                  mlp_layers,
                  N,
                  f_dict):
+        
         super(DeepSet, self).__init__(f_dict)
         mlp_fn = gn.mlp_fn(mlp_layers)
         self.deepset = gn.DeepSet(mlp_fn, self.fx, self.h, self.fout)
 
-    def forward(self, graph):
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
         x, _, _, _, batch = self.data_from_graph(graph)
         return self.deepset(x, batch)
 
@@ -76,7 +91,8 @@ class DeepSetPlus(GraphModelSimple):
                  mlp_layers,
                  N,
                  f_dict):
-        super(DeepSetPlus, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N = N # we allow multiple rounds
         mlp_fn = gn.mlp_fn(mlp_layers)
 
@@ -85,7 +101,9 @@ class DeepSetPlus(GraphModelSimple):
             gn.DS_GlobalModel(self.fx, self.fu, mlp_fn, self.fu))
         self.mlp = mlp_fn(self.fu, self.fout)
 
-    def forward(self, graph):
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
         x, _, _, u, batch = self.data_from_graph(graph)
         out_list = []
         for i in range(self.N):
@@ -98,7 +116,8 @@ class DeepSetPlus_A(GraphModelSimple):
                  mlp_layers,
                  N,
                  f_dict):
-        super(DeepSetPlus_A, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N = N # we allow multiple rounds
         mlp_fn = gn.mlp_fn(mlp_layers)
 
@@ -107,7 +126,9 @@ class DeepSetPlus_A(GraphModelSimple):
             gn.DS_GlobalModel_A(self.fx, self.fu, self.h, mlp_fn, self.fu))
         self.mlp = mlp_fn(self.fu, self.fout)
 
-    def forward(self, graph):
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
         x, _, _, u, batch = self.data_from_graph(graph)
         out_list = []
         for i in range(self.N):
@@ -127,7 +148,8 @@ class N_GNN(GraphModelSimple):
                  mlp_layers,
                  N,
                  f_dict):
-        super(N_GNN, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N  = N
         mlp_fn = gn.mlp_fn(mlp_layers)
 
@@ -137,7 +159,9 @@ class N_GNN(GraphModelSimple):
             gn.GlobalModel_NodeOnly(self.fx, self.fu, mlp_fn, self.fx))
         self.mlp = mlp_fn(self.fu, self.fout)
 
-    def forward(self, graph):
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
         x, edge_index, _, u, batch = self.data_from_graph(graph)
         out_list = []
         for i in range(self.N):
@@ -153,7 +177,8 @@ class N_GNN_A(GraphModelSimple):
                  mlp_layers,
                  N,
                  f_dict):
-        super(N_GNN_A, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N  = N
         mlp_fn = gn.mlp_fn(mlp_layers)
 
@@ -163,7 +188,9 @@ class N_GNN_A(GraphModelSimple):
             gn.GlobalModel_NodeOnly_A(self.fx, self.fu, self.h, mlp_fn, self.fx))
         self.mlp = mlp_fn(self.fu, self.fout)
 
-    def forward(self, graph):
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
         x, edge_index, _, u, batch = self.data_from_graph(graph)
         out_list = []
         for i in range(self.N):
@@ -181,7 +208,8 @@ class GNN_NAgg(GraphModelSimple):
                  mlp_layers,
                  N,
                  f_dict):
-        super(GNN_NAgg, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N  = N
         mlp_fn = gn.mlp_fn(mlp_layers)
 
@@ -191,7 +219,9 @@ class GNN_NAgg(GraphModelSimple):
             gn.GlobalModel_NodeOnly(self.fx, self.fu, mlp_fn, self.fx))
         self.mlp = mlp_fn(self.fu, self.fout)
 
-    def forward(self, graph):
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
         x, edge_index, e, u, batch = self.data_from_graph(graph)
         out_list = []
         for i in range(self.N):
@@ -207,7 +237,8 @@ class GNN_NAgg_A(GraphModelSimple):
                  mlp_layers,
                  N,
                  f_dict):
-        super(GNN_NAgg_A, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N  = N
         mlp_fn = gn.mlp_fn(mlp_layers)
 
@@ -217,7 +248,9 @@ class GNN_NAgg_A(GraphModelSimple):
             gn.GlobalModel_NodeOnly_A(self.fx, self.fu, self.h, mlp_fn, self.fx))
         self.mlp = mlp_fn(self.fu, self.fout)
 
-    def forward(self, graph):
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
         x, edge_index, e, u, batch = self.data_from_graph(graph)
         out_list = []
         for i in range(self.N):
@@ -233,7 +266,8 @@ class GNN_NEAgg(GraphModelSimple):
                  mlp_layers,
                  N,
                  f_dict):
-        super(GNN_NEAgg, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N  = N
         mlp_fn = gn.mlp_fn(mlp_layers)
 
@@ -243,7 +277,9 @@ class GNN_NEAgg(GraphModelSimple):
             gn.GlobalModel(self.fe, self.fx, self.fu, mlp_fn, self.fx))
         self.mlp = mlp_fn(self.fu, self.fout)
 
-    def forward(self, graph):
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
         x, edge_index, e, u, batch = self.data_from_graph(graph)
         out_list = []
         for i in range(self.N):
@@ -259,7 +295,8 @@ class GNN_NEAgg_A(GraphModelSimple):
                  mlp_layers,
                  N,
                  f_dict):
-        super(GNN_NEAgg_A, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N  = N
         mlp_fn = gn.mlp_fn(mlp_layers)
 
@@ -269,7 +306,9 @@ class GNN_NEAgg_A(GraphModelSimple):
             gn.GlobalModel_A(self.fe, self.fx, self.fu, self.h, mlp_fn, self.fx))
         self.mlp = mlp_fn(self.fu, self.fout)
 
-    def forward(self, graph):
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
         x, edge_index, e, u, batch = self.data_from_graph(graph)
         out_list = []
         for i in range(self.N):
@@ -288,13 +327,16 @@ class TGNN(GraphModelSimple):
                  mlp_layers,
                  N,
                  f_dict):
-        super(TGNN, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N  = N
         mlp_fn = gn.mlp_fn(mlp_layers)
         self.tgnn = gn.MultiHeadAttention(self.fx, 8, self.h)        
         self.agg = gn.SumAggreg()
 
-    def forward(self, graph):
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
         x, edge_index, e, u, batch = self.data_from_graph(graph)
         # out list ?
         for _ in range(self.N):
@@ -327,7 +369,10 @@ class Parallel(GraphModelDouble):
             gn.GlobalModel_NodeOnly(self.fx, self.fu,model_fn, self.fx))
         self.mlp = model_fn(2 * self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
         out_list = []
@@ -345,6 +390,7 @@ class ParallelRDS(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
+        
         super().__init__(f_dict)
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
@@ -358,7 +404,10 @@ class ParallelRDS(GraphModelDouble):
             gn.DS_GlobalModel(self.fx, self.fu, model_fn, self.fu))
         self.mlp = model_fn(2 * self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
         out_list = []
@@ -376,6 +425,7 @@ class ParallelDS(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
+        
         super().__init__(f_dict)
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
@@ -386,7 +436,10 @@ class ParallelDS(GraphModelDouble):
 
         self.mlp = model_fn(2 * self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -406,7 +459,8 @@ class RecurrentGraphEmbedding(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(RecurrentGraphEmbedding, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
         self.component = 'MPGNN'
@@ -421,7 +475,10 @@ class RecurrentGraphEmbedding(GraphModelDouble):
             gn.GlobalModel_NodeOnly(self.fx, 2 * self.fu,model_fn, self.fx))
         self.mlp =model_fn(self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
         out_list = []
@@ -454,7 +511,8 @@ class AlternatingSimple(GraphModelDouble):
         In this model, since we may want to chain the passes, we let the number
         of input features unchanged.
         """
-        super(AlternatingSimple, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
         self.component = 'MPGNN'
@@ -467,7 +525,10 @@ class AlternatingSimple(GraphModelDouble):
 
         self.mlp = model_fn(2 * self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         """
         Forward pass. We alternate computing on 1 graph and then on the other.
         We initialize the conditioning vector at 0.
@@ -497,7 +558,8 @@ class AlternatingDouble(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(AlternatingDouble, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
         self.component = 'MPGNN'
@@ -514,7 +576,10 @@ class AlternatingDouble(GraphModelDouble):
 
         self.mlp = model_fn(2 * self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -538,7 +603,8 @@ class AlternatingSimpleRDS(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(AlternatingSimple, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
         self.component = 'RDS'
@@ -550,7 +616,10 @@ class AlternatingSimpleRDS(GraphModelDouble):
 
         self.mlp = model_fn(2 * self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -574,7 +643,8 @@ class AlternatingSimplev2(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(AlternatingSimplev2, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
         self.component = 'MPGNN'
@@ -586,7 +656,10 @@ class AlternatingSimplev2(GraphModelDouble):
             gn.GlobalModel_NodeOnly(self.h, 2 * self.h, model_fn, self.h))
         self.mlp = model_fn(2 * self.h, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -618,7 +691,8 @@ class AlternatingDoublev2(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(AlternatingDoublev2, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
         self.component = 'MPGNN'
@@ -634,7 +708,10 @@ class AlternatingDoublev2(GraphModelDouble):
             gn.GlobalModel_NodeOnly(self.h, 2 * self.h, model_fn, self.h))
         self.mlp = model_fn(2 * self.h, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -666,7 +743,8 @@ class AlternatingDoubleRDS(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(AlternatingDoubleRDS, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
         self.component = 'RDS'
@@ -681,7 +759,10 @@ class AlternatingDoubleRDS(GraphModelDouble):
 
         self.mlp = model_fn(2 * self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -706,7 +787,8 @@ class AlternatingDoubleRDSv2(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(AlternatingDoubleRDSv2, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
         self.component = 'RDS'
@@ -722,7 +804,10 @@ class AlternatingDoubleRDSv2(GraphModelDouble):
 
         self.mlp = model_fn(2 * self.h, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -754,7 +839,8 @@ class RecurrentGraphEmbeddingv2(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(RecurrentGraphEmbeddingv2, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N = N
         self.component = 'MPGNN'
         model_fn = gn.mlp_fn(mlp_layers)
@@ -771,7 +857,10 @@ class RecurrentGraphEmbeddingv2(GraphModelDouble):
             gn.GlobalModel_NodeOnly(self.h, 2 * self.h, model_fn, self.h))
         self.mlp = model_fn(self.h, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -800,7 +889,8 @@ class RecurrentGraphEmbeddingRDS(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(RecurrentGraphEmbeddingRDS, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
         self.component = 'RDS'
@@ -813,7 +903,10 @@ class RecurrentGraphEmbeddingRDS(GraphModelDouble):
             gn.DS_GlobalModel(self.fx, 2 * self.fu, model_fn, self.fu))
         self.mlp = model_fn(self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
         out_list = []
@@ -832,7 +925,8 @@ class RecurrentGraphEmbeddingRDSv2(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(RecurrentGraphEmbeddingRDSv2, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
         self.component = 'RDS'
@@ -846,7 +940,10 @@ class RecurrentGraphEmbeddingRDSv2(GraphModelDouble):
             gn.DS_GlobalModel(self.h, 2 * self.h, model_fn, self.h))
         self.mlp = model_fn(self.h, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -874,7 +971,8 @@ class ResAlternatingDouble(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(ResAlternatingDouble, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
         self.component = 'MPGNN'
@@ -891,7 +989,10 @@ class ResAlternatingDouble(GraphModelDouble):
 
         self.mlp = model_fn(2 * self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -919,7 +1020,8 @@ class ResRecurrentGraphEmbedding(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(ResRecurrentGraphEmbedding, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N = N
         self.component = 'MPGNN'
         model_fn = gn.mlp_fn(mlp_layers)
@@ -934,7 +1036,10 @@ class ResRecurrentGraphEmbedding(GraphModelDouble):
             gn.ResGlobalModel_NodeOnly(self.fx, 2 * self.fu, model_fn, self.fx))
         self.mlp = model_fn(self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
         out_list = []
@@ -953,7 +1058,8 @@ class AlternatingDoubleDS(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(AlternatingDoubleDS, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
         self.component = 'DS'
@@ -964,7 +1070,10 @@ class AlternatingDoubleDS(GraphModelDouble):
 
         self.mlp = model_fn(2 * self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -988,7 +1097,8 @@ class AlternatingDoubleRSv2(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(AlternatingDoubleDSv2, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         model_fn = gn.mlp_fn(mlp_layers)
         self.N = N
         self.component = 'DS'
@@ -1000,7 +1110,10 @@ class AlternatingDoubleRSv2(GraphModelDouble):
 
         self.mlp = model_fn(2 * self.h, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, edge_index1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, edge_index2, e2, u2, batch2 = self.data_from_graph(graph2)
 
@@ -1031,7 +1144,8 @@ class RecurrentGraphEmbeddingDS(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(RecurrentGraphEmbeddingDS, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
         self.component = 'DS'
@@ -1040,7 +1154,10 @@ class RecurrentGraphEmbeddingDS(GraphModelDouble):
         self.ds2 = gn.DeepSet(model_fn, self.fu + self.fx, self.h, self.fu)
         self.mlp = model_fn(self.fu, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
         out_list = []
@@ -1058,7 +1175,8 @@ class RecurrentGraphEmbeddingDSv2(GraphModelDouble):
                  mlp_layers,
                  N,
                  f_dict):
-        super(RecurrentGraphEmbeddingDS, self).__init__(f_dict)
+        
+        super().__init__(f_dict)
         self.N = N
         model_fn = gn.mlp_fn(mlp_layers)
         self.component = 'DS'
@@ -1069,7 +1187,10 @@ class RecurrentGraphEmbeddingDSv2(GraphModelDouble):
         self.ds2 = gn.DeepSet(model_fn, 2 * self.h, self.h, self.h)
         self.mlp = model_fn(self.h, self.fout)
 
-    def forward(self, graph1, graph2):
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
         x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
         x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
 

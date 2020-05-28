@@ -195,18 +195,11 @@ def one_step(model,
     n_passes = 0
     cum_loss = 0
     cum_acc = 0
-    # data_fn = data_to_graph_double
-    if isinstance(model, gm.GraphModelSimple):
-        data_fn = data_to_graph_simple
-    elif isinstance(model, gm.GraphModelDouble):
-        data_fn = data_to_graph_double
-    elif isinstance(model, bm.MLPBaseline):
-        data_fn = make_data_to_mlp_inputs(n_obj)
-    elif isinstance(model, bm.RNNBaseline):
-        data_fn = make_data_to_seq(n_obj)
     clss_fn = data_to_clss_parts
+
     if cuda:
         model.cuda()
+
     for data in dl:
         indices.append(list(data[3].numpy()))
         optimizer.zero_grad()
@@ -215,10 +208,10 @@ def one_step(model,
         if cuda:
             clss = clss.cuda()
         if train:
-            pred_clss = model(*data_fn(data))
+            pred_clss = model(data)
         else:
             with torch.no_grad(): # saving memory
-                pred_clss = model(*data_fn(data))
+                pred_clss = model(data)
         if type(pred_clss) is list:
             if list_mode == 'all':
                 # we sum the loss of all the outputs of the model
