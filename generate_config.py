@@ -160,7 +160,12 @@ def get_default_simple_config(
     if restricted_models:
         model_list = [gm.GNN_NAgg]
     else:
-        model_list = [gm.DeepSet, gm.DeepSetPlus, gm.GNN_NAgg]
+        model_list = [
+            gm.DeepSet,
+            gm.DeepSetPlus,
+            gm.GNN_NAgg_NGI,
+            gm.GNN_NAgg]
+
     hparams = {
         'n_objects': n_max,
         'h': 16,
@@ -245,11 +250,12 @@ def get_default_double_config(
     else:
         model_list = [
             gm.Parallel,
+            gm.Parallel_NGI,
             gm.ParallelRDS,
             gm.ParallelDS
         ]
     hparams = {
-        'n_objects': n_obj_max,
+        'n_objects': n_max,
         'h': H,
         'N': 2,
         'lr': 1e-3,
@@ -735,32 +741,34 @@ def export_config(
     elif mode == 'simple_perturb':
         config = get_default_simple_config(
             simple_data_path='data/simple_perturb',
-            restricted_models=True,
             **kwargs)
     elif mode == 'simple_abstract':
         config = get_default_simple_config(
             simple_data_path='data/simple_abstract',
-            restricted_models=True,
+            **kwargs)
+    elif mode == 'simple_distractors':
+        config = get_default_simple_config(
+            simple_data_path='data/simple_distractors',
             **kwargs)
     elif mode == 'simple_abstract_distractors':
         config = get_default_simple_config(
             simple_data_path='data/simple_abstract_distractors',
-            restricted_models=True,
             **kwargs)
     elif mode == 'double_perturb':
         config = get_default_double_config(
             double_data_path='data/double_perturb',
-            restricted_models=True,
             **kwargs)
     elif mode == 'double_abstract':
         config = get_default_double_config(
             double_data_path='data/double_abstract',
-            restricted_models=True,
+            **kwargs)
+    elif mode == 'double_distractors':
+        config = get_default_double_config(
+            double_data_path='data/double_distractors',
             **kwargs)
     elif mode == 'double_abstract_distractors':
         config = get_default_double_config(
             double_data_path='data/double_abstract_distractors',
-            restricted_models=True,
             **kwargs)
     else:
         config = empty_config

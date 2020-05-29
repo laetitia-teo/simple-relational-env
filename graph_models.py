@@ -216,10 +216,20 @@ class GNN_NAgg_NGI(GraphModelSimple):
         mlp_fn = gn.mlp_fn(mlp_layers)
 
         self.gnn = gn.GNN_NGI(
-            gn.EdgeModel(self.fe, self.fx, self.fu, mlp_fn, self.fe),
-            gn.NodeModel(self.fe, self.fx, self.fu, mlp_fn, self.fx)
+            gn.EdgeModel_NGI(self.fe, self.fx, mlp_fn, self.fe),
+            gn.NodeModel_NGI(self.fe, self.fx, mlp_fn, self.fx),
+            mlp_fn(self.fx, self.fx)
             )
-        
+        self.mlp = mlp_fn(self.fu, self.fout)
+    
+    def forward(self, data):
+        (graph,) = super().forward(data)
+        x, edge_index, e, u, batch = self.data_from_graph(graph)
+        out_list = []
+        for i in range(self.N):
+            x, e, u = self.gnn(x, edge_index, e, batch)
+            out_list.append(self.mlp(u))
+        return out_list
 
 class GNN_NAgg(GraphModelSimple):
     """
@@ -400,6 +410,43 @@ class Parallel(GraphModelDouble):
         for _ in range(self.N):
             x1, e1, u1 = self.gnn1(x1, ei1, e1, u1, batch1)
             x2, e2, u2 = self.gnn2(x2, ei2, e2, u2, batch2)
+            out_list.append(self.mlp(torch.cat([u1, u2], 1)))
+        return out_list
+
+class Parallel_NGI(GraphModelDouble):
+    """
+    Parallel processing of inputs, No Global Information version.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+
+        super().__init__(f_dict)
+        self.N = N
+        model_fn = gn.mlp_fn(mlp_layers)
+        self.component = 'MPGNN'
+
+        self.gnn1 = gn.GNN_NGI(
+            gn.EdgeModel_NGI(self.fe, self.fx, model_fn, self.fe),
+            gn.NodeModel_NGI(self.fe, self.fx, model_fn, self.fx),
+            model_fn(self.fx, self.fx))
+        self.gnn2 = gn.GNN_NGI(
+            gn.EdgeModel_NGI(self.fe, self.fx, model_fn, self.fe),
+            gn.NodeModel_NGI(self.fe, self.fx, model_fn, self.fx),
+            model_fn(self.fx, self.fx))
+        self.mlp = model_fn(2 * self.fx, self.fout)
+
+    def forward(self, data):
+
+        graph1, graph2 = super().forward(data)
+
+        x1, ei1, e1, u1, batch1 = self.data_from_graph(graph1)
+        x2, ei2, e2, u2, batch2 = self.data_from_graph(graph2)
+        out_list = []
+        for _ in range(self.N):
+            x1, e1, u1 = self.gnn1(x1, ei1, e1, batch1)
+            x2, e2, u2 = self.gnn2(x2, ei2, e2, batch2)
             out_list.append(self.mlp(torch.cat([u1, u2], 1)))
         return out_list
 

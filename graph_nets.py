@@ -108,7 +108,7 @@ class DS_GlobalModel_A(torch.nn.Module):
         x_agg = scatter_add(a * x, batch, dim=0)
         return self.phi_u(torch.cat([x_agg, u], 1))
 
-# Edge, Node and Global models for GNNs
+#### Edge models
 
 class EdgeModel(torch.nn.Module):
     """
@@ -165,6 +165,27 @@ class EdgeModel_NoMem(torch.nn.Module):
     def forward(self, src, dest, u, batch):
         out = torch.cat([src, dest, u[batch]], 1)
         return self.phi_e(out)
+
+class EdgeModel_NGI(torch.nn.Module):
+    """
+    Concat. Try also Diff ?
+    """
+    def __init__(self,
+                 f_e,
+                 f_x,
+                 model_fn,
+                 f_e_out=None):
+        
+        super().__init__()
+        if f_e_out is None:
+            f_e_out = f_e
+        self.phi_e = model_fn(f_e + 2*f_x, f_e_out)
+
+    def forward(self, src, dest, e):
+        out = torch.cat([src, dest, e], 1)
+        return self.phi_e(out)
+
+#### Node models
 
 class NodeModel(torch.nn.Module):
     def __init__(self,
@@ -242,6 +263,29 @@ class ResNodeModel(torch.nn.Module):
         e_agg_node = scatter_add(e, dest, dim=0)
         out = torch.cat([x, e_agg_node, u[batch]], 1)
         return self.phi_x(out) + x
+
+class NodeModel_NGI(torch.nn.Module):
+    def __init__(self,
+                 f_e,
+                 f_x,
+                 model_fn,
+                 f_x_out=None):
+
+        if f_x_out is None:
+            f_x_out = f_x
+    
+        super().__init__()
+
+        self.phi_x = model_fn(f_e + f_x, f_x_out)
+
+    def forward(self, x, edge_index, e):
+        if not len(e):
+            return 
+        src, dest = edge_index
+        # add nodes with the same dest
+        e_agg_node = scatter_add(e, dest, dim=0)
+        out = torch.cat([x, e_agg_node], 1)
+        return self.phi_x(out)
 
 class GlobalModel(torch.nn.Module):
     def __init__(self,
@@ -504,15 +548,17 @@ class GNN_NGI(torch.nn.Module):
     def __init__(self, edge_model, node_model, u_mlp):
 
         super().__init__()
+
+        # inputs must be EdgeModel_NGI and NodeModel_NGIs
         self.edge_model = edge_model
         self.node_model = node_model
 
         self.u_mlp = u_mlp
 
     def forward(self, x, edge_index, e, batch):
-        src, dest = edge_model
-        e = self.edge_model(x[src], x[dest], e, batch)
-        x = self.node_model(x, edge_index, e, batch)
+        src, dest = edge_index
+        e = self.edge_model(x[src], x[dest], e)
+        x = self.node_model(x, edge_index, e)
         
         u = scatter_add(x, batch, dim=0)
         u = self.u_mlp(u)
