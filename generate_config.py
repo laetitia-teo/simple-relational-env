@@ -20,7 +20,11 @@ parser.add_argument('-m', '--mode',
 parser.add_argument('-No', '--n-objects',
                     dest='n_obj',
                     help='number of objects',
-                    default='5')
+                    default='3')
+parser.add_argument('-Nm', '--n-objects-max',
+                    dest='n_max',
+                    help='number of objects',
+                    default='8')
 parser.add_argument('-l', '--load_model',
                     dest='l',
                     help='index of the config to load, if appropriate',
@@ -215,8 +219,8 @@ def double_hparam_fn(*args, **kwargs):
         return ([h] * n_layers, N, f_dict)
 
 def get_default_double_config(
-        n_obj=3,
-        n_obj_max=8,
+        n_min=3,
+        n_max=8,
         cuda=True,
         double_data_path='data/double',
         restricted_models=False,
@@ -226,13 +230,13 @@ def get_default_double_config(
 
     d_path = os.listdir(double_data_path)
 
-    if n_obj_max is None:
-        n_obj_max = n_obj
+    if n_max is None:
+        n_max = n_min
 
     train_cur = sorted([p for p in d_path if \
-        re.search(rf'^rotcur._{n_obj}_{n_obj_max}.+0$', p)])
+        re.search(rf'^rotcur._{n_min}_{n_max}.+0$', p)])
     test = [p for p in d_path if \
-        re.search(rf'^rotcur._{n_obj}_{n_obj_max}.+0_test$', p)]
+        re.search(rf'^rotcur._{n_min}_{n_max}.+0_test$', p)]
     
     if restricted_models:
         model_list = [
@@ -348,6 +352,20 @@ def get_simple_baseline_config(n_min=3, n_max=8, cuda=False):
         bm.NaiveMLP,
     ]
 
+    mid = int((n_min + n_max)/2)
+
+    hparams = {
+        'n_objects': n_max,
+        'h': mid * F_OBJ,
+        'N': 1,
+        'lr': 1e-3,
+        'H': mid * F_OBJ,
+        'n_layers': 2,
+        'n_epochs': 20
+        }
+
+    config['hparams'] = hparams
+
     config['models'] = [type_to_string(m) for m in model_list]
 
     config['hparam_list'] = [
@@ -377,14 +395,14 @@ def double_baseline_hparam_fn(*args, **kwargs):
         return (f_dict['f_x'], 2 * h, [2 * h] * n_layers)
 
 def get_double_baseline_config(
-        n_obj=3,
-        n_obj_max=8,
+        n_min=3,
+        n_max=8,
         cuda=False,
         seeds=5):
 
     config = get_default_double_config(
-        n_obj=n_obj,
-        n_obj_max=n_obj_max,
+        n_min=n_min,
+        n_max=n_max,
         cuda=False,
         seeds=seeds)
 
@@ -392,10 +410,10 @@ def get_double_baseline_config(
         bm.DoubleNaiveMLP,
     ]
     
-    mid = int((n_obj + n_obj_max)/2)
+    mid = int((n_min + n_max)/2)
 
     hparams = {
-        'n_objects': n_obj_max,
+        'n_objects': n_max,
         'h': mid * F_OBJ,
         'N': 1,
         'lr': 1e-3,
@@ -793,6 +811,8 @@ if __name__ == '__main__':
         args.mode,
         n_test=n_test,
         cuda=cuda,
-        config_id=config_id)
+        config_id=config_id,
+        n_min=int(args.n_obj),
+        n_max=int(args.n_max))
     
     from make_runfile import *

@@ -97,7 +97,7 @@ def data_to_baseline_var(n):
         """
         x1, x2, labels, indices, batch1, batch2 = data
         data1 = densify(x1, batch1, n)
-        if data2 is None:
+        if x2 is None:
             data2 = None
         else:
             data2 = densify(x2, batch2, n)

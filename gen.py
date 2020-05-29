@@ -528,6 +528,45 @@ class SameConfigGen(Gen):
         state = self.env.to_state_list(norm=True)
         return state, label, vec, scale, phi, spert, pert
 
+    def alternative_gen_one_distractors(self, ndmin=1, ndmax=3):
+        """
+        Negative examples are complete re_shufflings of the reference config.
+        """
+        self.env.reset()
+        self.env.from_state_list(self.ref_state_list, norm=True)
+        label = np.random.randint(2) # positive or negative example
+        if label:
+            spert = self.env.small_perturb_objects(self.eps)
+            self.env.shuffle_objects()
+            vec, scale, phi = self.env.random_transformation(
+                rotations=True,
+                s_ex_range=self.s_ex_range,
+                t_ex_range=self.t_ex_range,
+                r_ex_range=self.r_ex_range)
+
+            nd = np.random.randint(ndmin, ndmax+1)
+            self.env.random_config(nd)
+
+            pert = [np.zeros(2)] * len(self.ref_state_list)
+        else:
+            n_p = np.random.randint(len(self.env.objects))
+            spert = self.env.small_perturb_objects(self.eps)
+            pert = [np.zeros(2)] * len(self.ref_state_list)
+            self.env.random_mix()
+            self.env.shuffle_objects()
+            # pert = self.env.perturb_objects(n_p)
+            vec, scale, phi = self.env.random_transformation(
+                rotations=True,
+                s_ex_range=self.s_ex_range,
+                t_ex_range=self.t_ex_range,
+                r_ex_range=self.r_ex_range)
+
+            nd = np.random.randint(ndmin, ndmax+1)
+            self.env.random_config(nd)
+
+        state = self.env.to_state_list(norm=True)
+        return state, label, vec, scale, phi, spert, pert
+
     def abstract_gen_one(self):
         """
         Generates one example where only the spatial positions of the objects
@@ -738,6 +777,12 @@ class SameConfigGen(Gen):
             self.generate_one(self.alternative_gen_one, i + I)
         self.N += N
 
+    def generate_alternative_distractors(self, N):
+        I = len(self.labels)
+        for i in tqdm(range(N)):
+            self.generate_one(self.alternative_gen_one_distractors, i + I)
+        self.N += N
+
     def generate_abstract(self, N):
         I = len(self.labels)
         for i in tqdm(range(N)):
@@ -945,6 +990,44 @@ class CompareConfigGen(Gen):
         state = self.env.to_state_list(norm=True)
         return state, ref, label, vec, scale, phi, spert, pert
 
+    def alternative_gen_one_distractors(self, ndmin=1, ndmax=3):
+        # generate first example
+        self.env.reset()
+        nobj = np.random.randint(self.n_objects_min, self.n_objects_max)
+        self.env.random_config(nobj)
+        ref = self.env.to_state_list(norm=True)
+        label = np.random.randint(2) # positive or negative example
+        if label:
+            spert = self.env.small_perturb_objects(self.eps)
+            self.env.shuffle_objects()
+            vec, scale, phi = self.env.random_transformation(
+                rotations=True,
+                s_ex_range=self.s_ex_range,
+                t_ex_range=self.t_ex_range,
+                r_ex_range=self.r_ex_range)
+
+            nd = np.random.randint(ndmin, ndmax+1)
+            self.env.random_config(nd)
+
+            pert = [np.zeros(2)] * len(ref)
+        else:
+            spert = self.env.small_perturb_objects(self.eps)
+            pert = [np.zeros(2)] * len(ref)
+            self.env.random_mix()
+            self.env.shuffle_objects()
+            # pert = self.env.perturb_objects(n_p)
+            vec, scale, phi = self.env.random_transformation(
+                rotations=True,
+                s_ex_range=self.s_ex_range,
+                t_ex_range=self.t_ex_range,
+                r_ex_range=self.r_ex_range)
+
+            nd = np.random.randint(ndmin, ndmax+1)
+            self.env.random_config(nd)
+
+        state = self.env.to_state_list(norm=True)
+        return state, ref, label, vec, scale, phi, spert, pert
+
     def abstract_gen_one(self):
         """
         Generates one example where only the spatial positions of the objects
@@ -1062,11 +1145,22 @@ class CompareConfigGen(Gen):
             self.generate_one(self.alternative_gen_one, i + I, *args, **kwargs)
         self.N += N
 
+    def generate_alternative_distractors(self, N, *args, **kwargs):
+        I = len(self.labels)
+        for i in tqdm(range(N)):
+            self.generate_one(
+                self.alternative_gen_one_distractors,
+                i + I,
+                *args,
+                **kwargs)
+        self.N += N    
+    
     def generate_abstract(self, N, *args, **kwargs):
         I = len(self.labels)
         for i in tqdm(range(N)):
             self.generate_one(self.abstract_gen_one, i + I, *args, **kwargs)
         self.N += N
+
 
     def generate_abstract_distractors(self, N, *args, **kwargs):
         I = len(self.labels)

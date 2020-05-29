@@ -345,7 +345,6 @@ class GlobalModel_NodeOnly(torch.nn.Module):
         self.phi_u = model_fn(f_x + f_u, f_u_out)
 
     def forward(self, x, edge_index, e, u, batch):
-        src, dest = edge_index
         # aggregate all nodes in the graph
         x_agg = scatter_add(x, batch, dim=0)
         out = torch.cat([x_agg, u], 1)
@@ -495,6 +494,30 @@ class GNN(torch.nn.Module):
                 '    global_model={}\n'
                 ')').format(self.__class__.__name__, self.edge_model,
                             self.node_model, self.global_model)
+
+class GNN_NGI(torch.nn.Module):
+    """
+    No Global Information.
+    GNN with no global information as input, only the nodes get updated.
+    No global model.
+    """
+    def __init__(self, edge_model, node_model, u_mlp):
+
+        super().__init__()
+        self.edge_model = edge_model
+        self.node_model = node_model
+
+        self.u_mlp = u_mlp
+
+    def forward(self, x, edge_index, e, batch):
+        src, dest = edge_model
+        e = self.edge_model(x[src], x[dest], e, batch)
+        x = self.node_model(x, edge_index, e, batch)
+        
+        u = scatter_add(x, batch, dim=0)
+        u = self.u_mlp(u)
+
+        return x, e, u
 
 class SelfAttention(torch.nn.Module):
     """

@@ -200,6 +200,27 @@ class N_GNN_A(GraphModelSimple):
 
 # With edge features
 
+# NGI
+
+class GNN_NAgg_NGI(GraphModelSimple):
+    """
+    MPGNN with No Global Information.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 f_dict):
+
+        super().__init__(f_dict)
+        self.N = N
+        mlp_fn = gn.mlp_fn(mlp_layers)
+
+        self.gnn = gn.GNN_NGI(
+            gn.EdgeModel(self.fe, self.fx, self.fu, mlp_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx, self.fu, mlp_fn, self.fx)
+            )
+        
+
 class GNN_NAgg(GraphModelSimple):
     """
     Edge-feature GNN, with node aggregation in the global model.
@@ -210,7 +231,7 @@ class GNN_NAgg(GraphModelSimple):
                  f_dict):
         
         super().__init__(f_dict)
-        self.N  = N
+        self.N = N
         mlp_fn = gn.mlp_fn(mlp_layers)
 
         self.gnn = gn.GNN(

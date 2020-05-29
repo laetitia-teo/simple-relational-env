@@ -240,62 +240,101 @@ if args.mode == 'test_double':
 
 if args.mode == 'simple_abstract':
     save_dir = 'data/simple_abstract'
-    Nc = 10 # number of different datasets
-    No = int(args.No) # number of objects in a dataset
+    No_range = range(3, 9) # dataset n_objs
+    # No = int(args.No) # number of objects in a dataset
     Ns = 10000 # number of train examples
     Nt = 5000 # number of validation/test examples
     Path(save_dir).mkdir(parents=True, exist_ok=True)
-    for i in range(Nc):
+    for No in No_range:
+
         g = gen.SameConfigGen(n=No)
         ref = g.ref_state_list
         g.generate_abstract(Ns)
         path = op.join(
             save_dir,
-            '%s_%s_%s' % (No, i, Ns))
+            f'{No}_0_{Ns}')
         g.save(path)
+
         # generate validation dataset
         g = gen.SameConfigGen(ref_state_list=ref)
         g.generate_abstract(Nt)
         path = op.join(
             save_dir,
-            '%s_%s_%s_val' % (No, i, Nt))
+            f'{No}_0_{Ns}_val')
         g.save(path)
+        
         # generate test dataset
         g = gen.SameConfigGen(ref_state_list=ref)
         g.generate_abstract(Nt)
         path = op.join(
             save_dir,
-            '%s_%s_%s_test' % (No, i, Nt))
+            f'{No}_0_{Ns}_test')
+        g.save(path)
+
+if args.mode == 'simple_distractors':
+    save_dir = 'data/simple_distractors'
+    No_range = range(3, 9) # dataset n_objs
+    # No = int(args.No) # number of objects in a dataset
+    Ns = 10000 # number of train examples
+    Nt = 5000 # number of validation/test examples
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
+    for No in No_range:
+
+        g = gen.SameConfigGen(n=No)
+        ref = g.ref_state_list
+        g.generate_alternative_distractors(Ns)
+        path = op.join(
+            save_dir,
+            f'{No}_0_{Ns}')
+        g.save(path)
+
+        # generate validation dataset
+        g = gen.SameConfigGen(ref_state_list=ref)
+        g.generate_alternative_distractors(Nt)
+        path = op.join(
+            save_dir,
+            f'{No}_0_{Ns}_val')
+        g.save(path)
+        
+        # generate test dataset
+        g = gen.SameConfigGen(ref_state_list=ref)
+        g.generate_alternative_distractors(Nt)
+        path = op.join(
+            save_dir,
+            f'{No}_0_{Ns}_test')
         g.save(path)
 
 if args.mode == 'simple_abstract_distractors':
     save_dir = 'data/simple_abstract_distractors'
-    Nc = 10 # number of different datasets
-    No = int(args.No) # number of objects in a dataset
+    No_range = range(3, 9) # dataset n_objs
+    # No = int(args.No) # number of objects in a dataset
     Ns = 10000 # number of train examples
     Nt = 5000 # number of validation/test examples
     Path(save_dir).mkdir(parents=True, exist_ok=True)
-    for i in range(Nc):
+    for No in No_range:
+
         g = gen.SameConfigGen(n=No)
         ref = g.ref_state_list
-        g.generate_abstract(Ns)
+        g.generate_abstract_distractors(Ns)
         path = op.join(
             save_dir,
-            '%s_%s_%s' % (No, i, Ns))
+            f'{No}_0_{Ns}')
         g.save(path)
+
         # generate validation dataset
         g = gen.SameConfigGen(ref_state_list=ref)
-        g.generate_abstract(Nt)
+        g.generate_abstract_distractors(Nt)
         path = op.join(
             save_dir,
-            '%s_%s_%s_val' % (No, i, Nt))
+            f'{No}_0_{Ns}_val')
         g.save(path)
+        
         # generate test dataset
         g = gen.SameConfigGen(ref_state_list=ref)
-        g.generate_abstract(Nt)
+        g.generate_abstract_distractors(Nt)
         path = op.join(
             save_dir,
-            '%s_%s_%s_test' % (No, i, Nt))
+            f'{No}_0_{Ns}_test')
         g.save(path)
 
 if args.mode == 'rotcur_abstract':
@@ -338,6 +377,51 @@ if args.mode == 'rotcur_abstract':
     g = gen.CompareConfigGen(n_min=No_min, n_max=No_max)
     g.r_ex_range = cur
     g.generate_abstract(Nt)
+    path = op.join(
+        save_dir,
+        f'rotcur{i}_{No_min}_{No_max}_{Nt}_test')
+    g.save(path)
+
+if args.mode == 'rotcur_distractors':
+    # double setting, rotation curriculum, perturbed version
+    save_dir = 'data/double_distractors'
+    Nc = 10 # number of different datasets
+    No_min = int(args.No) # minimum number of objects in a dataset
+    if args.No_max is None:
+        No_max = int(args.No)
+    else:
+        No_max = int(args.No_max) # maximum number of objects in a dataset
+    Ns = 100000 # number of train examples
+    Nt = 10000 # number of validation/test examples
+    cur_list = [
+        (pi/10, 2*pi),
+        (pi/2 + pi/10, 2*pi),
+        (pi + pi/10, 2*pi),
+        (3*pi/2 + pi/10, 2*pi),
+        None]
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
+    for i, cur in enumerate(cur_list):
+        g = gen.CompareConfigGen(n_min=No_min, n_max=No_max)
+        g.r_ex_range = cur
+        g.generate_alternative_distractors(Ns)
+        path = op.join(
+            save_dir,
+            f'rotcur{i}_{No_min}_{No_max}_{Ns}')
+        g.save(path)
+    # validation
+    cur = None
+    g = gen.CompareConfigGen(n_min=No_min, n_max=No_max)
+    g.r_ex_range = cur
+    g.generate_alternative_distractors(Nt)
+    path = op.join(
+        save_dir,
+        f'rotcur{i}_{No_min}_{No_max}_{Nt}_val')
+    g.save(path)
+    # generate test dataset
+    cur = None
+    g = gen.CompareConfigGen(n_min=No_min, n_max=No_max)
+    g.r_ex_range = cur
+    g.generate_alternative_distractors(Nt)
     path = op.join(
         save_dir,
         f'rotcur{i}_{No_min}_{No_max}_{Nt}_test')
