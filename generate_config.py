@@ -121,9 +121,9 @@ def simple_hparam_fn(*args, **kwargs):
         }
     if m == gm.DeepSet:
         return ([h] * 4, N, f_dict)
-    elif m == gm.DeepSetPlus:
+    elif m in [gm.DeepSetPlus]:
         return ([h] * 2, N, f_dict)
-    elif m == gm.GNN_NAgg:
+    elif m in [gm.GNN_NAgg, gm.GNN_NAgg_NGI]:
         return ([h] * 1, N, f_dict)
 
 def get_default_simple_config(
@@ -211,16 +211,17 @@ def double_hparam_fn(*args, **kwargs):
             gm.AlternatingDoubleDS,
             gm.RecurrentGraphEmbeddingDS,
             gm.ParallelDS]:
-        return ([h] * 4, N, f_dict)
+        return ([h] * 3, N, f_dict)
     elif m in [
             gm.AlternatingDoubleRDS,
             gm.RecurrentGraphEmbeddingRDS,
             gm.ParallelRDS]:
-        return ([h] * 3, N, f_dict)
+        return ([h] * 2, N, f_dict)
     elif m in [
             gm.AlternatingDouble,
             gm.RecurrentGraphEmbedding,
-            gm.Parallel]:
+            gm.Parallel,
+            gm.Parallel_NGI]:
         return ([h] * n_layers, N, f_dict)
 
 def get_default_double_config(
