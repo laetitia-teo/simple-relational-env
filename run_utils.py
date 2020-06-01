@@ -32,6 +32,7 @@ from graph_utils import tensor_to_graphs
 from graph_utils import data_to_graph_simple, data_to_graph_double
 from graph_utils import state_list_to_graph
 from graph_utils import merge_graphs
+from graph_utils import graph_to_data, graphs_to_data
 from baseline_utils import make_data_to_mlp_inputs, make_data_to_seq
 from generate_config import load_config, type_to_string
 
@@ -714,21 +715,22 @@ def hardness_dsets(expe_idx, n_test=0):
         # plt.title(title)
         plt.show()
 
-def models_from_config(config_idx):
-    config = load_config(op.join('configs', 'config%s' % config_idx))
+def models_from_config(config_idx, prefix=''):
+    config = load_config(op.join('configs', prefix, f'config{config_idx}'))
     model_list = []
     for m_str, params in zip(config['models'], config['hparam_list']):
         m = locate('graph_models.' + m_str)(*params)
         model_list.append(m)
     return model_list
 
-def load_models_from_config(dset, seed, config_idx):
+def load_models_from_config(dset, seed, config_idx, prefix=''):
     # index of experiment is same as index of config
-    config = load_config(op.join('configs', 'config%s' % config_idx))
+    config = load_config(op.join('configs', prefix, 'config%s' % config_idx))
     path = op.join(
         config['save_dir'],
+        prefix,
         'expe%s' % config_idx)
-    model_list = models_from_config(config_idx)
+    model_list = models_from_config(config_idx, prefix)
     loaded_models = []
     for m_str, m in zip(config['models'], model_list):
         mpath = op.join(
@@ -769,7 +771,7 @@ def get_heat_map_simple(model, g):
                 glist.append(state_list_to_graph(s))
             graph = merge_graphs(glist)
             with torch.no_grad():
-                pred = model(graph)
+                pred = model(graph_to_data(graph))
             if isinstance(pred, list):
                 pred = pred[-1]
             pred = pred.numpy()
@@ -869,7 +871,7 @@ def get_heat_map_double(model, n_obj, s=None):
                 glist.append(state_list_to_graph(s))
             graph2 = merge_graphs(glist)
             with torch.no_grad():
-                pred = model(graph1, graph2)
+                pred = model(graphs_to_data(graph1, graph2))
             if isinstance(pred, list):
                 pred = pred[-1]
             pred = pred.numpy()

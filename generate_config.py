@@ -230,6 +230,7 @@ def get_default_double_config(
         cuda=True,
         double_data_path='data/double',
         restricted_models=False,
+        alternative_models=True,
         seeds=10,
         H=16,
         **kwargs):
@@ -247,6 +248,12 @@ def get_default_double_config(
     if restricted_models:
         model_list = [
             gm.Parallel,
+        ]
+    elif alternative_models:
+        model_list = [
+            gm.RecurrentGraphEmbedding,
+            gm.RecurrentGraphEmbeddingRDS,
+            gm.RecurrentGraphEmbeddingDS
         ]
     else:
         model_list = [

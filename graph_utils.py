@@ -207,6 +207,15 @@ def data_to_graph_simple(data):
     graph1 = Data(x=x1, edge_index=ei1, edge_attr=e1, y=u1, batch=batch1)
     return (graph1,)
 
+def graph_to_data(graph):
+    """
+    Inverse operation from above.
+    """
+    x = graph.x
+    batch = graph.batch
+
+    return (x1, None, None, None, batch1, None)
+
 def data_to_graph_double(data):
     """
     Converts the data yielded by the PartsDataset DataLoader into graph form
@@ -254,6 +263,17 @@ def data_to_graph_double(data):
     graph1 = Data(x=x1, edge_index=ei1, edge_attr=e1, y=u1, batch=batch1)
     graph2 = Data(x=x2, edge_index=ei2, edge_attr=e2, y=u2, batch=batch2)
     return graph1, graph2
+
+def graphs_to_data(graph1, graph2):
+    """
+    Inverse operation of above function.
+    """
+    x1 = graph1.x
+    x2 = graph2.x
+    batch1 = graph1.batch
+    batch2 = graph2.batch
+
+    return (x1, x2, None, None, batch1, batch2)
 
 data_to_graph_parts = data_to_graph_double
 
