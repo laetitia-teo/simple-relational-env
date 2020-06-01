@@ -351,9 +351,13 @@ def simple_baseline_hparam_fn(*args, **kwargs):
     elif m == bm.NaiveLSTM:
         return (f_dict['f_x'], h, [h] * n_layers)
 
-def get_simple_baseline_config(n_min=3, n_max=8, cuda=False):
+def get_simple_baseline_config(n_min=3, n_max=8, cuda=False, **kwargs):
 
-    config = get_default_simple_config(n_min=n_min, n_max=n_max, cuda=cuda)
+    config = get_default_simple_config(
+        n_min=n_min,
+        n_max=n_max,
+        cuda=cuda,
+        **kwargs)
 
     model_list = [
         bm.NaiveMLP,
@@ -405,13 +409,15 @@ def get_double_baseline_config(
         n_min=3,
         n_max=8,
         cuda=False,
-        seeds=5):
+        seeds=10,
+        **kwargs):
 
     config = get_default_double_config(
         n_min=n_min,
         n_max=n_max,
         cuda=False,
-        seeds=seeds)
+        seeds=seeds,
+        **kwargs)
 
     model_list = [
         bm.DoubleNaiveMLP,
@@ -769,6 +775,30 @@ def export_config(
             **kwargs)
     elif mode == 'double_abstract_distractors':
         config = get_default_double_config(
+            double_data_path='data/double_abstract_distractors',
+            **kwargs)
+    elif mode == 'baseline_simple_abstract':
+        config = get_simple_baseline_config(
+            simple_data_path='data/simple_abstract',
+            **kwargs)
+    elif mode == 'baseline_simple_distractors':
+        config = get_simple_baseline_config(
+            simple_data_path='data/simple_distractors',
+            **kwargs)
+    elif mode == 'baseline_simple_abstract_distractors':
+        config = get_simple_baseline_config(
+            simple_data_path='data/simple_abstract_distractors',
+            **kwargs)
+    elif mode == 'baseline_double_abstract':
+        config = get_double_baseline_config(
+            double_data_path='data/double_abstract',
+            **kwargs)
+    elif mode == 'baseline_double_distractors':
+        config = get_double_baseline_config(
+            double_data_path='data/double_distractors',
+            **kwargs)
+    elif mode == 'baseline_double_abstract_distractors':
+        config = get_double_baseline_config(
             double_data_path='data/double_abstract_distractors',
             **kwargs)
     else:
