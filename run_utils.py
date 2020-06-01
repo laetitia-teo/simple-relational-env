@@ -556,29 +556,39 @@ def model_metrics(expe_idx, dir_prefix='', n_test=0, var='std'):
                 # file name, dataset number, seed number
                 mdata.append((s[0], int(s[1]), int(s[2])))
         aa = [np.mean(np.load(op.join(mpath, m[0]))) for m in mdata]
-        # if var == 'std':
-        #     std = str(np.around(np.std(aa), 3))[:5]
+        print(len(aa))
+        print()
+        print(aa)
+        # aaa = np.array()
+        if var == 'std':
+            v = np.std(aa)
         #     mean_acc = str(np.around(np.mean(aa), 2))[:4]
-        # elif var == 'conf':
-        #     mean_acc = np.mean(accs)
-        #     v = st.t.interval(
-        #         0.95,
-        #         len(accs) - 1,
-        #         loc=np.mean(accs),
-        #         scale=st.sem(accs))
-        # else:
-        #     raise ValueError(f'Invalid value for "var": {var}, must be one' \
-        #         + 'of "std" or "conf"')
+        elif var == 'conf':
+            # mean_acc = np.mean(accs)
+            print('conf')
+            mean = np.mean(aa)
+            se = st.sem(aa)
+            n = len(aa)
+            v = se * st.t.ppf((1 + 0.95) / 2., n-1)
+            # inter = st.t.interval(
+            #     0.95,
+            #     len(aa) - 1,
+            #     loc=np.mean(aa),
+            #     scale=st.sem(aa))
+            # v = np.mean(aa) - inter[0]
+        else:
+            raise ValueError(f'Invalid value for "var": {var}, must be one' \
+                + 'of "std" or "conf"')
         # res_dict[m_str] = (mean_acc, v)
         # v_round = str(np.around(v, 3))[:5]
         # mean_acc_round = str(np.around(mean_acc, 2))[:4]
-        v_round = str(np.around(np.std(aa), 3))[:5]
+        v_round = str(np.around(v, 3))[:5]
         mean_acc_round = str(np.around(np.mean(aa), 2))[:4]
         plt.hist(aa, bins=20)
         title = m_str + '; {0} +- {1}'.format(mean_acc_round, v_round)
         plt.title(title)
         plt.show()
-    return res_dict
+    return aa
 
 def test_on(expe_idx, tpath, midx=0, dir_prefix='', var='std'):
     """

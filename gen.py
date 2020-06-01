@@ -528,7 +528,7 @@ class SameConfigGen(Gen):
         state = self.env.to_state_list(norm=True)
         return state, label, vec, scale, phi, spert, pert
 
-    def alternative_gen_one_distractors(self, ndmin=1, ndmax=3):
+    def alternative_gen_one_distractors(self, ndmin=0, ndmax=3):
         """
         Negative examples are complete re_shufflings of the reference config.
         """
@@ -603,7 +603,7 @@ class SameConfigGen(Gen):
         state = self.env.to_state_list(norm=True)
         return state, label, vec, scale, phi, spert, pert
 
-    def abstract_gen_one_distractors(self, ndmin=1, ndmax=3):
+    def abstract_gen_one_distractors(self, ndmin=0, ndmax=3):
         """
         Generates one example where only the spatial positions of the objects
         matter, the other features are re-drawn randomly in the positive and
@@ -617,7 +617,7 @@ class SameConfigGen(Gen):
             spert = self.env.small_perturb_objects(self.eps)
             self.env.non_spatial_perturb()
 
-            nd = np.random.randint(ndmin, ndmax)
+            nd = np.random.randint(ndmin, ndmax+1)
             self.env.random_config(nd)
 
             self.env.shuffle_objects()
@@ -1065,7 +1065,7 @@ class CompareConfigGen(Gen):
         state = self.env.to_state_list(norm=True)
         return state, ref, label, vec, scale, phi, spert, pert
 
-    def abstract_gen_one_distractors(self, ndmin=1, ndmax=3):
+    def abstract_gen_one_distractors(self, ndmin=0, ndmax=3):
         """
         Same as abstract_gen_one, but with additional distractors in the
         second state.
@@ -1121,10 +1121,11 @@ class CompareConfigGen(Gen):
         state, ref, label, vec, scale, phi, spert, pert = gen_fn(
             *args, **kwargs)
         n_s = len(state)
+        n_r = len(ref)
         self.targets += state
         self.t_batch += n_s * [i]
         self.refs += ref
-        self.r_batch += n_s * [i]
+        self.r_batch += n_r * [i]
         self.labels += [[label]]
         # metadata
         self.translation_vectors += [vec]
