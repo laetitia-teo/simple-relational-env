@@ -808,10 +808,13 @@ def export_config(
         # parallel experiment
         if args.parallel:
             configlist = parallelize_config(config)
-            for c in configlist:
+            for i, c in enumerate(configlist):
                 if cuda:
                     config['cuda'] = True
-                save_config(c, -1)
+                if config_id == -1:
+                    save_config(c, -1)
+                else:
+                    save_config(c, config_id + i)
         # serial experiment
         else:
             if cuda:

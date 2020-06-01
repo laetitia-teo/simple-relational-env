@@ -186,7 +186,7 @@ if args.mode == 'rotcur_perturb':
     save_dir = 'data/double_perturb'
     Nc = 10 # number of different datasets
     No_min = int(args.No) # minimum number of objects in a dataset
-    No_max = int(args.No) # maximum number of objects in a dataset
+    No_max = int(args.Nm) # maximum number of objects in a dataset
     Ns = 100000 # number of train examples
     Nt = 10000 # number of validation/test examples
     cur_list = [
@@ -240,7 +240,7 @@ if args.mode == 'test_double':
 
 if args.mode == 'simple_abstract':
     save_dir = 'data/simple_abstract'
-    No_range = range(3, 9) # dataset n_objs
+    No_range = range(3, 31) # dataset n_objs
     # No = int(args.No) # number of objects in a dataset
     Ns = 10000 # number of train examples
     Nt = 5000 # number of validation/test examples
@@ -273,7 +273,7 @@ if args.mode == 'simple_abstract':
 
 if args.mode == 'simple_distractors':
     save_dir = 'data/simple_distractors'
-    No_range = range(3, 9) # dataset n_objs
+    No_range = range(3, 31) # dataset n_objs
     # No = int(args.No) # number of objects in a dataset
     Ns = 10000 # number of train examples
     Nt = 5000 # number of validation/test examples
@@ -306,7 +306,7 @@ if args.mode == 'simple_distractors':
 
 if args.mode == 'simple_abstract_distractors':
     save_dir = 'data/simple_abstract_distractors'
-    No_range = range(3, 9) # dataset n_objs
+    No_range = range(3, 31) # dataset n_objs
     # No = int(args.No) # number of objects in a dataset
     Ns = 10000 # number of train examples
     Nt = 5000 # number of validation/test examples
