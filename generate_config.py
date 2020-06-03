@@ -230,7 +230,7 @@ def get_default_double_config(
         cuda=True,
         double_data_path='data/double',
         restricted_models=False,
-        alternative_models=True,
+        alternative_models=False,
         seeds=10,
         H=16,
         **kwargs):

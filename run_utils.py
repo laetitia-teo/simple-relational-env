@@ -483,7 +483,7 @@ def config_summary(prefix=''):
     configs = sorted([rese(p)[0] for p in listd if rese(p)])
 
     for cp in configs:
-        c = load_config(op.join('configs', cp))
+        c = load_config(op.join('configs', prefix, cp))
         print(f'\n\n################### {cp} #################\n\n')
         pprint(c)
 
