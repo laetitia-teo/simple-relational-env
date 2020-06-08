@@ -5,6 +5,7 @@ This file defines the dataset generators.
 import os.path as op
 import random
 import pickle
+
 import numpy as np
 import cv2
 
@@ -12,6 +13,8 @@ import torch
 
 from glob import glob
 from tqdm import tqdm
+
+from scipy.sparse import coo_matrix
 
 from env import Env
 from dataset import Dataset, PartsDataset
@@ -75,27 +78,36 @@ class Gen():
     def generate_overfit(self, N, n):
         raise NotImplementedError()
 
-    # def add_one(self, targets, refs, labels):
-    #     self.targets += targets
-    #     self.refs += refs
-    #     self.labels += labels
     def cut(self, n):
         """
-        Cuts the data to the n first examples.
+        Cuts the elements to the nth one.
         """
-        if not self.t_idx:
-            self.compute_access_indices()
-        t_stop_index = self.t_idx[n-1][-1] + 1
-        if self.refs:
-            r_stop_index = self.r_idx[n-1][-1] + 1
-        self.targets = self.targets[:t_stop_index]
-        self.t_batch = self.t_batch[:t_stop_index]
-        if self.refs:
-            self.refs = self.refs[:r_stop_index]
-            self.r_batch = self.r_batch[:r_stop_index]
+
+        Nt = len(self.t_batch)
+        Nr = len(self.r_batch)
+
+        t_coo = coo_matrix((
+            np.empty((Nt,)),
+            (self.t_batch,
+            np.arange(Nt))))
+        t_ch_idx = t_coo.tocsr().indptr
+        
+        teidx = t_ch_idx[n]
+        self.targets = self.targets[:teidx]
+        self.t_batch = self.t_batch[:teidx]
+
+        if Nr:
+            r_coo = coo_matrix((
+                np.empty((Nr,)),
+                (self.r_batch,
+                np.arange(Nr))))
+            r_ch_idx = r_coo.tocsr().indptr
+
+            reidx = r_ch_idx[n]
+            self.refs = self.refs[:reidx]
+            self.r_batch = self.r_batch[:reidx]
+
         self.labels = self.labels[:n]
-        self.t_idx = self.t_idx[:n]
-        self.r_idx = self.r_idx[:n]
 
     def multiply(self, n):
         """

@@ -45,6 +45,11 @@ parser.add_argument('-p', '--parallel',
                     dest='parallel',
                     help='parallelize experiment',
                     default='')
+parser.add_argument('--cut',
+                    dest='cut',
+                    help='whether to use only a subset of length cut of the '\
+                        +'train set, must be an integer',
+                    default=None)
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -131,7 +136,8 @@ def get_default_simple_config(
         n_max=8,
         cuda=False,
         simple_data_path='data/simple',
-        restricted_models=False):
+        restricted_models=False,
+        cut=None):
 
     d_path = os.listdir(simple_data_path)
 
@@ -190,6 +196,11 @@ def get_default_simple_config(
         'models': [type_to_string(m) for m in model_list],
         'cuda': cuda,
     }
+
+    # for using only a subset of the train set
+    if cut is not None:
+        default_simple_config['cut'] = cut
+
     return default_simple_config
 
 ########### double setting ##########
@@ -286,6 +297,11 @@ def get_default_double_config(
         'models': [type_to_string(m) for m in model_list],
         'cuda': cuda,
     }
+
+    # for using only a subset of the train set
+    if cut is not None:
+        default_double_config['cut'] = cut
+
     return default_double_config
 
 def get_double_parallel_config(n_obj=5, cuda=False):
@@ -298,46 +314,7 @@ def get_double_parallel_config(n_obj=5, cuda=False):
         configlist.append(d)
     return configlist
 
-########### supplementary expes ##########
-
-def get_easy_hard_config():
-    config = get_default_simple_config()
-    config['load_dir'] = 'data/same_config_alt'
-    config['seeds'] = list(range(10))
-    config['train_datasets'] = [
-        'easy0_train',
-        'easy1_train',
-        '5_0_10000',
-        'hard0_train',
-        'hard1_train'
-        ]
-    config['train_dataset_indices'] = list(range(5))
-    config['test_datasets'] = [
-        'easy0_test',
-        'easy1_test',
-        '5_0_5000_test',
-        'hard0_test',
-        'hard1_test'
-        ]
-    config['test_dataset_indices'] = list(range(5))
-    return config
-
-def get_var_n_test_double_config(n_test, n_obj=5, cuda=False):
-    config = get_default_double_config(n_obj=n_obj)
-    double_data_path = 'data/comparison'
-    d_path = os.listdir(double_data_path)
-    test = sorted(
-        [p for p in d_path if re.search(r'^testdouble_([0-9]+).*0$', p)],
-        key=lambda p: int(re.search(r'^testdouble_([0-9]+).*0$', p)[1]))
-    config['preload_model'] = True
-    config['load_idx'] = 2
-    config['train_datasets'] = []
-    config['train_dataset_indices'] = []
-    config['test_datasets'] = test
-    config['test_dataset_indices'] = [0] * len(test)
-    return config
-
-########### rebuttal expes ##########
+########### MLP baselines ################
 
 def simple_baseline_hparam_fn(*args, **kwargs):
     m = args[0]
@@ -448,6 +425,47 @@ def get_double_baseline_config(
         double_baseline_hparam_fn(m, **hparams) for m in model_list]
 
     return config
+
+########### supplementary expes ##########
+
+def get_easy_hard_config():
+    config = get_default_simple_config()
+    config['load_dir'] = 'data/same_config_alt'
+    config['seeds'] = list(range(10))
+    config['train_datasets'] = [
+        'easy0_train',
+        'easy1_train',
+        '5_0_10000',
+        'hard0_train',
+        'hard1_train'
+        ]
+    config['train_dataset_indices'] = list(range(5))
+    config['test_datasets'] = [
+        'easy0_test',
+        'easy1_test',
+        '5_0_5000_test',
+        'hard0_test',
+        'hard1_test'
+        ]
+    config['test_dataset_indices'] = list(range(5))
+    return config
+
+def get_var_n_test_double_config(n_test, n_obj=5, cuda=False):
+    config = get_default_double_config(n_obj=n_obj)
+    double_data_path = 'data/comparison'
+    d_path = os.listdir(double_data_path)
+    test = sorted(
+        [p for p in d_path if re.search(r'^testdouble_([0-9]+).*0$', p)],
+        key=lambda p: int(re.search(r'^testdouble_([0-9]+).*0$', p)[1]))
+    config['preload_model'] = True
+    config['load_idx'] = 2
+    config['train_datasets'] = []
+    config['train_dataset_indices'] = []
+    config['test_datasets'] = test
+    config['test_dataset_indices'] = [0] * len(test)
+    return config
+
+########### rebuttal expes ##########
 
 def get_parallel_double_config(n_obj=5, cuda=False):
     double_data_path = 'data/comparison'
@@ -854,6 +872,11 @@ if __name__ == '__main__':
     cuda = args.cuda is not None
     config_id = int(args.config_id)
     
+    if args.cut is None:
+        cut = None
+    else:
+        cut = int(args.cut)
+
     hparam = args.hparam
 
     export_config(
@@ -862,6 +885,7 @@ if __name__ == '__main__':
         cuda=cuda,
         config_id=config_id,
         n_min=int(args.n_obj),
-        n_max=int(args.n_max))
+        n_max=int(args.n_max),
+        cut=cut)
     
     from make_runfile import *

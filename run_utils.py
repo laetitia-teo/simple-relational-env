@@ -100,12 +100,18 @@ def compute_f1(precision, recall):
 def data_to_clss_parts(data):
     return data[2]
 
-def load_dl(dpath, double=False):
+def load_dl(dpath, double=False, cut=None, multiply=None):
     if not double:
         g = SameConfigGen()
     if double:
         g = CompareConfigGen()
     g.load(dpath)
+
+    if cut is not None:
+        g.cut(cut)
+    if multiply is not None:
+        g.multiply(multiply)
+    
     dl = DataLoader(
             g.to_dataset(),
             shuffle=True,
@@ -539,7 +545,7 @@ def model_metrics(expe_idx, dir_prefix='', n_test=0, var='std'):
     """
     Print the mean accuracy of the model on the test data specified by the 
     expe_idx. dir_prefix allows us to use data/models in subdirectories of the
-    standard datsavea and config directories.
+    standard data save and config directories.
     The variability reported can be 'std' for standard deviation or 'conf' for 
     95 percent confidence intervals.
     """
