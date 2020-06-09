@@ -58,7 +58,7 @@ class DS_NodeModel(torch.nn.Module):
                  f_u,
                  model_fn,
                  f_x_out=None):
-        super(DS_NodeModel, self).__init__()
+        super().__init__()
         if f_x_out is None:
             f_x_out = f_x
         self.phi_x = model_fn(f_x + f_u, f_x_out)
@@ -72,12 +72,29 @@ class DS_GlobalModel(torch.nn.Module):
                   f_u,
                   model_fn,
                   f_u_out=None):
-        super(DS_GlobalModel, self).__init__()
+        super().__init__()
         if f_u_out is None:
             f_u_out = f_u
         self.phi_u = model_fn(f_x + f_u, f_u_out)
 
     def forward(self, x, u, batch):
+        x_agg = scatter_add(x, batch, dim=0)
+        return self.phi_u(torch.cat([x_agg, u], 1))
+
+class DS_GlobalModel_modU(torch.nn.Module):
+    def  __init__(self,
+                  f_x,
+                  f_u,
+                  model_fn,
+                  f_u_out=None):
+        super().__init__()
+        if f_u_out is None:
+            f_u_out = f_u
+        self.proj_x = Linear(f_x, f_u)
+        self.phi_u = model_fn(2 * f_u, f_u_out)
+
+    def forward(self, x, u, batch):
+        x = self.proj_x(x)
         x_agg = scatter_add(x, batch, dim=0)
         return self.phi_u(torch.cat([x_agg, u], 1))
 
@@ -91,7 +108,7 @@ class DS_GlobalModel_A(torch.nn.Module):
                   h,
                   model_fn,
                   f_u_out=None):
-        super(DS_GlobalModel_A, self).__init__()
+        super().__init__()
         if f_u_out is None:
             f_u_out = f_u
         self.h = h
@@ -394,6 +411,32 @@ class GlobalModel_NodeOnly(torch.nn.Module):
         out = torch.cat([x_agg, u], 1)
         return self.phi_u(out)
 
+class GlobalModel_NodeOnly_modU(torch.nn.Module):
+
+    def __init__(self,
+                 f_x,
+                 f_u,
+                 model_fn,
+                 f_u_out=None):
+        
+        super().__init__()
+
+        if f_u_out is None:
+            f_u_out = f_u
+
+        self.proj_x = Linear(f_x, f_u)
+        self.phi_u = model_fn(2 * f_u, f_u_out)
+
+    def forward(self, x, edge_index, e, u, batch):
+        
+        # project x to dim f_u
+        x = self.proj_x(x)
+        
+        # aggregate all nodes in the graph
+        x_agg = scatter_add(x, batch, dim=0)
+        out = torch.cat([x_agg, u], 1)
+        return self.phi_u(out)
+
 class GlobalModel_NodeOnly_A(torch.nn.Module):
     def __init__(self,
                  f_x,
@@ -457,6 +500,29 @@ class DeepSet(torch.nn.Module):
 
     def forward(self, x, batch):
         x = self.phi_x(x)
+        u = self.phi_u(scatter_add(x, batch, dim=0))
+        return u
+
+class DeepSet_modU(torch.nn.Module):
+    """
+    Deep Set.
+    """
+    def __init__(self,
+                 mlp_fn,
+                 f_in,
+                 h,
+                 udim,
+                 f_out):
+
+        super().__init__()
+        self.proj_x = Linear(h, udim)
+
+        self.phi_x = mlp_fn(f_in, h)
+        self.phi_u = mlp_fn(udim, f_out)
+
+    def forward(self, x, batch):
+        x = self.phi_x(x)
+        x = self.proj_x(x)
         u = self.phi_u(scatter_add(x, batch, dim=0))
         return u
 
@@ -538,6 +604,11 @@ class GNN(torch.nn.Module):
                 '    global_model={}\n'
                 ')').format(self.__class__.__name__, self.edge_model,
                             self.node_model, self.global_model)
+
+class GNN_modU(torch.nn.Module):
+    """
+    GNN block with a change in global vector dimension 
+    """
 
 class GNN_NGI(torch.nn.Module):
     """

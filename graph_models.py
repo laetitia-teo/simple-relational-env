@@ -86,6 +86,28 @@ class DeepSet(GraphModelSimple):
         x, _, _, _, batch = self.data_from_graph(graph)
         return self.deepset(x, batch)
 
+class DeepSet_modU(GraphModelSimple):
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 udim,
+                 f_dict):
+        
+        super().__init__(f_dict)
+        self.udim = udim
+        mlp_fn = gn.mlp_fn(mlp_layers)
+        self.deepset = gn.DeepSet_modU(mlp_fn,
+                                  self.fx,
+                                  self.h,
+                                  self.udim,
+                                  self.fout)
+
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
+        x, _, _, _, batch = self.data_from_graph(graph)
+        return self.deepset(x, batch)
+
 class DeepSetPlus(GraphModelSimple):
     def __init__(self,
                  mlp_layers,
@@ -105,6 +127,38 @@ class DeepSetPlus(GraphModelSimple):
 
         (graph,) = super().forward(data)
         x, _, _, u, batch = self.data_from_graph(graph)
+        out_list = []
+        for i in range(self.N):
+            x, u = self.deepset(x, u, batch)
+            out_list.append(self.mlp(u))
+        return out_list
+
+class DeepSetPlus_modU(GraphModelSimple):
+
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 udim,
+                 f_dict):
+
+        super().__init__(f_dict)
+        self.N = N # we allow multiple rounds
+        self.udim = udim
+        mlp_fn = gn.mlp_fn(mlp_layers)
+
+        self.proj_u = torch.nn.Linear(self.fu, self.udim)
+
+        self.deepset = gn.DeepSetPlus(
+            gn.DS_NodeModel(self.fx, self.udim, mlp_fn, self.fx),
+            gn.DS_GlobalModel_modU(self.fx, self.udim, mlp_fn, self.udim))
+
+        self.mlp = mlp_fn(self.udim, self.fout)
+
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
+        x, _, _, u, batch = self.data_from_graph(graph)
+        u = self.proj_u(u)
         out_list = []
         for i in range(self.N):
             x, u = self.deepset(x, u, batch)
@@ -259,6 +313,50 @@ class GNN_NAgg(GraphModelSimple):
             x, e, u = self.gnn(x, edge_index, e, u, batch)
             out_list.append(self.mlp(u))
         return out_list
+
+# version with expanded u vector
+
+class GNN_NAgg_modU(GraphModelSimple):
+    """
+    Same as previous one, but u is embedded in a higher-dimensional vector.
+    x is also embedded in a higher-dimensional vector.
+    """
+    def __init__(self,
+                 mlp_layers,
+                 N,
+                 udim,
+                 f_dict):
+        
+        super().__init__(f_dict)
+        self.N = N
+        self.udim = udim
+        mlp_fn = gn.mlp_fn(mlp_layers)
+
+        self.proj_u = torch.nn.Linear(self.fu, self.udim)
+
+        self.gnn = gn.GNN(
+            gn.EdgeModel(self.fe, self.fx, self.udim, mlp_fn, self.fe),
+            gn.NodeModel(self.fe, self.fx, self.udim, mlp_fn, self.fx),
+            gn.GlobalModel_NodeOnly_modU(self.fx,
+                                         self.udim,
+                                         mlp_fn,
+                                         self.udim))
+
+        self.mlp = mlp_fn(self.udim, self.fout)
+
+    def forward(self, data):
+
+        (graph,) = super().forward(data)
+
+        x, edge_index, e, u, batch = self.data_from_graph(graph)
+        u = self.proj_u(u) # project u
+        out_list = []
+        
+        for i in range(self.N):
+            x, e, u = self.gnn(x, edge_index, e, u, batch)
+            out_list.append(self.mlp(u))
+        return out_list
+
 
 class GNN_NAgg_A(GraphModelSimple):
     """

@@ -169,7 +169,7 @@ def get_default_simple_config(
         model_list = [
             gm.DeepSet,
             gm.DeepSetPlus,
-            gm.GNN_NAgg_NGI,
+            # gm.GNN_NAgg_NGI,
             gm.GNN_NAgg]
 
     hparams = {
@@ -269,7 +269,7 @@ def get_default_double_config(
     else:
         model_list = [
             gm.Parallel,
-            gm.Parallel_NGI,
+            # gm.Parallel_NGI,
             gm.ParallelRDS,
             gm.ParallelDS
         ]

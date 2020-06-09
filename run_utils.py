@@ -121,9 +121,9 @@ def load_dl(dpath, double=False, cut=None, multiply=None):
 
 # for testing
 
-# dl = load_dl('data/double/rotcur4_3_8_100000', double=True)
-# data = next(iter(dl))
-# x1, x2, labels, indices, b1, b2 = data
+dl = load_dl('data/simple/3_0_10000', double=False)
+data = next(iter(dl))
+x1, x2, labels, indices, b1, b2 = data
 
 # model saving and loading
 
