@@ -137,7 +137,8 @@ def get_default_simple_config(
         cuda=False,
         simple_data_path='data/simple',
         restricted_models=False,
-        cut=None):
+        cut=None,
+        **kwargs):
 
     d_path = os.listdir(simple_data_path)
 
@@ -159,10 +160,10 @@ def get_default_simple_config(
     test_idx = flatten([[k] * len(v) for k, v in test_dict.items()])
 
     # to limit the size of the datasets used
-    if not n_max == -1 and n_max <= len(train):
-        train = train[:n_max]
-    if not n_max == -1 and n_max <= len(test):
-        test = test[:n_max]
+    # if not n_max == -1 and n_max <= len(train):
+    #     train = train[:n_max]
+    # if not n_max == -1 and n_max <= len(test):
+    #     test = test[:n_max]
     if restricted_models:
         model_list = [gm.GNN_NAgg]
     else:
@@ -197,11 +198,40 @@ def get_default_simple_config(
         'cuda': cuda,
     }
 
-    # for using only a subset of the train set
+    # for using only a subset of length cut of the train set
     if cut is not None:
         default_simple_config['cut'] = cut
 
     return default_simple_config
+
+def get_simple_config_modU(
+        udim,
+        n_obj,
+        cuda=False,
+        simple_data_path='data/simple',
+        restricted_models=False,
+        cut=None,
+        **kwargs):
+    
+    config = get_default_simple_config(
+        n_obj,
+        n_obj,
+        cuda,
+        simple_data_path)
+
+    model_list = [
+            gm.DeepSet_modU,
+            gm.DeepSetPlus_modU,
+            gm.GNN_NAgg_modU]
+
+    config['models'] = [type_to_string(m) for m in model_list]
+
+    config['hparams']['udim'] = udim
+    config['hparam_list'] = [
+        c[:2] + (udim,) + c[2:] for c in config['hparam_list']]
+    # print(config['hparam_list'])
+
+    return config
 
 ########### double setting ##########
 
@@ -829,6 +859,14 @@ def export_config(
     else:
         config = empty_config
     if isinstance(config, dict):
+
+        # modU experiment
+        if mode == 'modU':
+            for n_obj in range(3, 9):
+                for udim in range(3, 9):
+                    config = get_simple_config_modU(udim, n_obj, **kwargs)
+                    save_config(config, -1)
+            return
         
         # parallel experiment
         if args.parallel:
