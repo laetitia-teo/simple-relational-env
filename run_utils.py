@@ -603,10 +603,13 @@ def test_on(expe_idx, tpath, midx=0, dir_prefix='', var='std'):
     test data at path specified by tpath. The model tested corresponds to the
     one at index midx of the model list specified by the configuration file
     corresponding to expe_idx.
-    The variability metric reported can be the standard deviation (var='std')
-    or the 95 percent confidence interval (var='conf').
+    The variability metric reported is the standard deviation.
     """
     test_paths = os.listdir(tpath)
+
+    test_paths = [p for p in test_paths if re.search(r'.*_test', p)]
+    print(f'testing on the following dsets: {test_paths}')
+
     config = load_config(op.join('configs', dir_prefix, 'config%s' % expe_idx))
     path = op.join(config['save_dir'], dir_prefix, 'expe%s' % expe_idx)
     hparams = config['hparam_list'][midx]
@@ -625,10 +628,13 @@ def test_on(expe_idx, tpath, midx=0, dir_prefix='', var='std'):
         accs = []
         mpathlist = [p for p in mpathlist \
                      if re.search(r'^ds0_seed[0-9]+.pt', p)]
+
         for mpath in mpathlist:
+
             mpath = op.join(mpaths, mpath)
             model = load_model(model, mpath)
             opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+            
             l, a, i = one_step(
                 model,
                 opt,
@@ -638,18 +644,10 @@ def test_on(expe_idx, tpath, midx=0, dir_prefix='', var='std'):
                 report_indices=True, 
             )
             accs += list(a)
-        if var == 'std':
-            v = np.std(accs)
-        elif var == 'conf':
-            v = st.t.interval(
-                0.95,
-                len(accs) - 1,
-                loc=np.mean(accs),
-                scale=st.sem(accs))
-        else:
-            raise ValueError(f'Invalid value for "var": {var}, must be one' \
-                + 'of "std" or "conf"')
+
+        v = np.std(accs)
         a = np.mean(accs)
+        
         print(f'dset : {test_path}, mean acc {a} +- {v}')
         res_dict[test_path] = (a, v)
     return res_dict
@@ -764,6 +762,9 @@ def get_heat_map_simple(model, g):
     n = g.env.envsize * a
     matlist = []
     s = g.ref_state_list[2:] # fix the reading
+
+    pprint(g.ref_state_list)
+
     pos_idx = [g.env.N_SH+4, g.env.N_SH+5]
     for state in s:
         mem = state[pos_idx]
@@ -789,22 +790,28 @@ def get_heat_map_simple(model, g):
     poslist = [state[pos_idx] * a for state in s]
     return matlist, poslist
 
-def plot_heat_map_simple(model, g, save=False, show=True, **kwargs):
+def plot_heat_map_simple(model, g, save=False, show=True, nmax=5, **kwargs):
     matlist, poslist = get_heat_map_simple(model, g)
-    maxval = max([np.max(mat) for mat in matlist])
-    minval = min([np.min(mat) for mat in matlist])
-    maxval = min(5, maxval)
-    minval = max(-5, minval)
+    # maxval = max([np.max(mat) for mat in matlist])
+    # minval = min([np.min(mat) for mat in matlist])
+    # maxval = min(5, maxval)
+    # minval = max(-5, minval)
+    minval = -5
+    maxval = 2
     # careful, this works only for the first five objects
-    fig, axs = plt.subplots(1, 5, constrained_layout=True, figsize=(14, 3))
+    fig, axs = plt.subplots(1, nmax, constrained_layout=True, figsize=(14, 3))
     for i, mat in enumerate(matlist):
+        if i == nmax:
+            break
+
         axs[i].set_axis_off()
         im = axs[i].matshow(mat, vmin=minval, vmax=maxval, cmap='inferno')
+        axs[i].autoscale(False)
         for j, pos in enumerate(poslist):
             if j == i:
-                axs[i].scatter(pos[1], pos[0], color='cyan')
+                axs[i].scatter(pos[1], pos[0], color='b', s=24, marker='*')
             else:
-                axs[i].scatter(pos[1], pos[0], color='b')
+                axs[i].scatter(pos[1], pos[0], color='b', s=24, marker='o')
             # fig.colorbar(im)
         # axs[i].set_title('object %s' % i)
     cbar = fig.colorbar(im, ax=axs.ravel().tolist())
@@ -830,8 +837,10 @@ def plot_heat_map_simple_several_models(model_list,
         plot_heat_map_simple(m, g, save=save, show=show, **kwargs)
 
 def plot_heatmap_simple_all(config_idx):
+
     g = gen.SameConfigGen()
     config = load_config(op.join('configs', 'config%s' % config_idx))
+
     for dset in range(5):
         g.load(op.join(config['load_dir'], config['test_datasets'][dset]))
         directory = op.join('images', 'heatmaps', 'simple')
@@ -840,7 +849,7 @@ def plot_heatmap_simple_all(config_idx):
         img = np.flip(img, 0)
         cv2.imwrite(path, img)
         for seed in range(5):
-            seed = seed
+
             model_list = load_models_from_config(dset, seed, config_idx)
             plot_heat_map_simple_several_models(
                 model_list,
@@ -850,11 +859,42 @@ def plot_heatmap_simple_all(config_idx):
                 seed=seed,
                 expe=config_idx,
                 dset=dset)
+
         g.reset()
+
+def plot_heatmap_simple_config_seed(
+        config_idx,
+        dset,
+        seed,
+        prefix='',
+        nmax=3,
+        midx=0):
+    """
+    Given a configuration index, a dataset index and a seed index, plots a
+    row of nmax heatmaps.
+    """
+    g = gen.SameConfigGen()
+    config = load_config(op.join('configs', prefix, f'config{config_idx}'))
+
+    g.load(op.join(config['load_dir'], config['test_datasets'][dset]))
+    print(config['test_datasets'][dset])
+    print('##')
+
+    model_list = load_models_from_config(dset, seed, config_idx, prefix=prefix)
+    model = model_list[midx]
+
+    print(f'model is {type_to_string(type(model))}')
+
+    plot_heat_map_simple(
+        model,
+        g,
+        show=True,
+        save=False,
+        nmax=nmax)
 
 #################### heatmaps for double setting ##############################
 
-def get_heat_map_double(model, n_obj, s=None):
+def get_heat_map_double(model, n_obj, s=None, nmax=5):
     a = 2
     env = Env()
     n = env.envsize * a
@@ -865,7 +905,10 @@ def get_heat_map_double(model, n_obj, s=None):
         s = env.to_state_list(norm=True)
     graph1 = merge_graphs([state_list_to_graph(s)] * n)
     pos_idx = [env.N_SH+4, env.N_SH+5]
-    for state in s:
+    for i, state in enumerate(s):
+        if i == nmax:
+            break
+
         mem = state[pos_idx]
         mat = np.zeros((0, n))
         for x in tqdm(range(n)):
@@ -889,25 +932,40 @@ def get_heat_map_double(model, n_obj, s=None):
     poslist = [state[pos_idx] * a for state in s]
     return matlist, poslist
 
-def plot_heat_map_double(model, n_obj, s, save=False, show=True, **kwargs):
-    matlist, poslist = get_heat_map_double(model, n_obj, s)
-    maxval = max([np.max(mat) for mat in matlist])
-    minval = min([np.min(mat) for mat in matlist])
-    maxval = min(5, maxval)
-    minval = max(-5, minval)
+def plot_heat_map_double(
+        model,
+        n_obj,
+        s,
+        save=False,
+        show=True,
+        nmax=3,
+        **kwargs):
+
+    matlist, poslist = get_heat_map_double(model, n_obj, s, nmax=nmax)
+    # maxval = max([np.max(mat) for mat in matlist])
+    # minval = min([np.min(mat) for mat in matlist])
+    # maxval = min(5, maxval)
+    # minval = max(-5, minval)
+    minval = -5
+    maxval = 3
     # careful, this works only for the first five objects
-    fig, axs = plt.subplots(1, 5, constrained_layout=True, figsize=(14, 3))
+    fig, axs = plt.subplots(1, nmax, constrained_layout=True, figsize=(14, 3))
     for i, mat in enumerate(matlist):
+        
+        if i == nmax:
+            break
+
         axs[i].set_axis_off()
         im = axs[i].matshow(mat, vmin=minval, vmax=maxval, cmap='inferno')
+        axs[i].autoscale(False)
         for j, pos in enumerate(poslist):
             if j == i:
-                axs[i].scatter(pos[1], pos[0], color='cyan')
+                axs[i].scatter(pos[1], pos[0], color='b', s=30, marker='*')
             else:
-                axs[i].scatter(pos[1], pos[0], color='b')
-            # fig.colorbar(im)
-        # axs[i].set_title('object %s' % i)
-    cbar = fig.colorbar(im, ax=axs.ravel().tolist())
+                axs[i].scatter(pos[1], pos[0], color='b', s=30, marker='o')
+
+    # cbar = fig.colorbar(im, ax=axs.ravel().tolist())
+
     if show:
         plt.show()
     if save:
@@ -954,3 +1012,84 @@ def plot_heatmap_double_all(config_idx, n_obj=5, n_draws=5):
                 expe=config_idx,
                 draw=draw)
         env.reset()
+
+def plot_heatmap_double_config_seed(
+        config_idx,
+        seed,
+        n_obj,
+        s=None,
+        prefix='',
+        nmax=3,
+        midx=0):
+    """
+    Given a configuration index, a dataset index and a seed index, plots a
+    row of nmax heatmaps.
+    """
+    # g = gen.CompareConfigGen()
+    config = load_config(op.join('configs', prefix, f'config{config_idx}'))
+
+    # g.load(op.join(config['load_dir'], config['test_datasets'][dset]))
+    # print(config['test_datasets'][dset])
+    # print('##')
+
+    model_list = load_models_from_config(0, seed, config_idx, prefix=prefix)
+    model = model_list[midx]
+
+    print(f'model is {type_to_string(type(model))}')
+
+    plot_heat_map_double(
+        model,
+        n_obj,
+        s=s,
+        show=True,
+        save=False,
+        nmax=nmax)
+
+######## Transfer all datasets to JSON ########
+
+def convert_data():
+    """
+    Converts all datasets to json with an appropriate name:
+    IDS_{n_obj} for simple datasets
+    CDS_{nobjmin}_{nobjmax}_{curidx} for double datasets
+    """
+    savepath = op.join('data', 'export')
+    Path(savepath).mkdir(parents=True, exist_ok=True)
+
+    # convert simple datasets
+    path = op.join('data', 'simple')
+    ps = os.listdir(path)
+
+    def readwrite(suffix):
+        infolist = [
+            re.search(rf'^([0-9]+)_0_10000{suffix}$', p) for p in ps
+        ]
+        for m in infolist:
+            lpath = op.join(path, m[0])
+            j = gen.tojson(lpath)
+
+            spath = op.join(savepath, f'IDS_{m[1]}{suffix}')
+            with open(spath) as f:
+                f.write(j)
+
+    for suffix in ['', '_val', '_test']:
+        readwrite(suffix)
+
+    # convert double datasets
+    path = op.join('data', 'double')
+
+    def readwrite(suffix):
+        infolist = [
+            re.search(rf'^rotcur([0-9]+)_([0-9]+)_([0-9]+)_10+{suffix}$', p)
+                for p in ps
+        ]
+        for m in infolist:
+            lpath = op.join(path, m[0])
+            j = gen.tojson(lpath, double=True)
+
+            spath = op.join(savepath, f'CDS_{m[2]}_{m[3]}_{m[1]}{suffix}')
+            with open(spath) as f:
+                f.write(j)
+
+    for suffix in ['', '_val', '_test']:
+        readwrite(suffix)

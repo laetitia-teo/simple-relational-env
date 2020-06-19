@@ -1,6 +1,3 @@
-"""
-Cleaner version of the graph_nets module.
-"""
 import numpy as np
 import torch
 import torch.nn.functional as F

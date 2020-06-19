@@ -5,6 +5,7 @@ This file defines the dataset generators.
 import os.path as op
 import random
 import pickle
+import json
 
 import numpy as np
 import cv2
@@ -1208,3 +1209,29 @@ class CompareConfigGen(Gen):
             sep = np.ones((2, t_img.shape[1], 3)) * 255
             img = np.concatenate((t_img, sep, r_img))
             cv2.imwrite(op.join(path, 'img_%s.jpg' % i), img)
+
+######## JSON dump of datasets #########
+
+def tojson(path, double=False):
+    # loads the data at path and returns it as a json
+    
+    ttolist = lambda t: t.numpy().tolist()
+    if not double:
+        gen = SameConfigGen()
+    else:
+        gen = CompareConfigGen()
+    gen.load(path)
+    ds = gen.to_dataset()
+    d = {'data': [], 'labels': []}
+    if not double:
+        for data in tqdm(ds):
+            targets, _, labels, _ = data
+            d['data'].append(ttolist(targets))
+            d['labels'].append(labels.item())
+    else:
+        for data in tqdm(ds):
+            targets, refs, labels, _ = data
+            d['data'].append((ttolist(targets), ttolist(refs)))
+            d['labels'].append(labels.item())
+
+    return json.dumps(d)

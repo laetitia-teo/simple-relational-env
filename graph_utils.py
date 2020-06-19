@@ -214,7 +214,7 @@ def graph_to_data(graph):
     x = graph.x
     batch = graph.batch
 
-    return (x1, None, None, None, batch1, None)
+    return (x, None, None, None, batch, None)
 
 def data_to_graph_double(data):
     """
