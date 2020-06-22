@@ -43,8 +43,6 @@ def complete_edge_index(n, self_edges=True):
     """
     This function creates an edge_index tensor corresponding to the
     connectivity of a complete graph of n nodes, including self-edges.
-
-    Cuda version ? This is computation we may want to do on GPU.
     """
     a = torch.arange(n).unsqueeze(1)
     b = torch.ones(n, dtype=torch.long).unsqueeze(0)

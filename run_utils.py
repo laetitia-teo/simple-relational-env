@@ -17,6 +17,7 @@ import baseline_models as bm
 from tqdm import tqdm
 from pydoc import locate
 from pprint import pprint
+from pathlib import Path
 
 from torch.utils.data import DataLoader
 try:
@@ -1065,18 +1066,20 @@ def convert_data():
             re.search(rf'^([0-9]+)_0_10000{suffix}$', p) for p in ps
         ]
         for m in infolist:
-            lpath = op.join(path, m[0])
-            j = gen.tojson(lpath)
+            if m is not None:
+                lpath = op.join(path, m[0])
+                j = gen.tojson(lpath)
 
-            spath = op.join(savepath, f'IDS_{m[1]}{suffix}')
-            with open(spath) as f:
-                f.write(j)
+                spath = op.join(savepath, f'IDS_{m[1]}{suffix}')
+                with open(spath, 'w') as f:
+                    f.write(j)
 
     for suffix in ['', '_val', '_test']:
         readwrite(suffix)
 
     # convert double datasets
     path = op.join('data', 'double')
+    ps = os.listdir(path)
 
     def readwrite(suffix):
         infolist = [
@@ -1084,12 +1087,13 @@ def convert_data():
                 for p in ps
         ]
         for m in infolist:
-            lpath = op.join(path, m[0])
-            j = gen.tojson(lpath, double=True)
+            if m is not None:
+                lpath = op.join(path, m[0])
+                j = gen.tojson(lpath, double=True)
 
-            spath = op.join(savepath, f'CDS_{m[2]}_{m[3]}_{m[1]}{suffix}')
-            with open(spath) as f:
-                f.write(j)
+                spath = op.join(savepath, f'CDS_{m[2]}_{m[3]}_{m[1]}{suffix}')
+                with open(spath, 'w') as f:
+                    f.write(j)
 
     for suffix in ['', '_val', '_test']:
         readwrite(suffix)
