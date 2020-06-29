@@ -51,7 +51,7 @@ def collate_fn(batch):
 
 class SpatialSimDataset(Dataset):
     """
-    Dataset instance for the Identification task.
+    Dataset instance for the Identification and Comparison tasks.
     """
     def __init__(self, load_path):
         super().__init__()
